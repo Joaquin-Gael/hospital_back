@@ -12,7 +12,7 @@ class User(SQLModel, table=True):
     id: int = Field(
         sa_column=Column(
             name="user_id",
-            type=Integer,
+            type_=Integer,
             primary_key=True,
             autoincrement=True
         )
@@ -20,7 +20,7 @@ class User(SQLModel, table=True):
     name: str = Field(
         sa_column=Column(
             name="username",
-            type=VARCHAR
+            type_=VARCHAR
         ),
         max_length=50
     )

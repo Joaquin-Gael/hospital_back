@@ -8,13 +8,21 @@ from pathlib import Path
 
 from alembic import context
 
-from app.models import *
+import os
+import sys
+
+# Obtiene la ruta absoluta al directorio raíz del proyecto (donde vive la carpeta "app")
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+from app.models.users import User
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-DB_URL = f"sqlite:///{Path(__file__).resolve().parent.parent.joinpath("db")}/db.sqlite"
+DB_URL = f"sqlite:///{Path(__file__).resolve().parent.parent}/db.sqlite"
 
 config.set_main_option("sqlalchemy.url", DB_URL)
 
