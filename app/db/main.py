@@ -2,6 +2,7 @@ from sqlmodel import create_engine, Session, SQLModel
 from typing import Annotated
 from fastapi import Depends
 
+
 DB_URL = f"sqlite:///db.sqlite"
 
 engine = create_engine(DB_URL, echo=True)

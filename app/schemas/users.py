@@ -10,13 +10,9 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: constr(min_length=8)
-    username: str
-    email: EmailStr
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
 
 class UserRead(UserBase):
-    id: int
+    id: str
     is_active: bool
     is_admin: bool
     is_superuser: bool
@@ -37,3 +33,6 @@ class UserUpdate(BaseModel):
 
     class Config:
         orm_mode = True
+
+class UserDelete(UserBase):
+    id: str

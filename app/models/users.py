@@ -6,16 +6,21 @@ from typing import Optional
 
 from passlib.context import CryptContext
 
+from uuid import UUID
+import uuid
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 class User(SQLModel, table=True):
-    id: int = Field(
+    id: Optional[str] = Field( # TODO: pasar a posgresql cambiar a UUID
         sa_column=Column(
             name="user_id",
-            type_=Integer,
+            type_=String(36),
             primary_key=True,
-            autoincrement=True
-        )
+            autoincrement="auto",
+            unique=True,
+        ),
+        default_factory=lambda: str(uuid.uuid4()),
     )
     name: str = Field(
         sa_column=Column(
@@ -28,10 +33,10 @@ class User(SQLModel, table=True):
     first_name: Optional[str] = Field(nullable=True)
     last_name: Optional[str] = Field(nullable=True)
     password: str = Field()
-    is_activate: bool = Field()
-    is_admin: bool = Field()
-    is_superuser: bool = Field()
-    last_login: Optional[datetime] = Field()
+    is_active: bool = Field(default=True)
+    is_admin: bool = Field(default=False)
+    is_superuser: bool = Field(default=False)
+    last_login: Optional[datetime] = Field(nullable=True)
     date_joined: datetime = Field(default_factory=datetime.now)
 
 
@@ -63,9 +68,9 @@ class User(SQLModel, table=True):
         return True
 
     def ban(self) -> bool:
-        self.is_activate = False
+        self.is_active = False
         return True
 
     def des_ban(self) -> bool:
-        self.is_activate = True
+        self.is_active = True
         return True
