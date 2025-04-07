@@ -9,12 +9,16 @@ class UserBase(BaseModel):
     last_name: Optional[str] = None
 
 class UserCreate(UserBase):
-    password: constr(min_length=8)  # Requiere mínimo 8 caracteres
+    password: constr(min_length=8)
+    username: str
+    email: EmailStr
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
 
 class UserRead(UserBase):
     id: int
     is_active: bool
-    is_staff: bool
+    is_admin: bool
     is_superuser: bool
     last_login: Optional[datetime] = None
     date_joined: datetime
@@ -28,7 +32,7 @@ class UserUpdate(BaseModel):
     last_name: Optional[str] = None
     password: Optional[constr(min_length=8)] = None
     is_active: Optional[bool] = None
-    is_staff: Optional[bool] = None
+    is_admin: Optional[bool] = None
     is_superuser: Optional[bool] = None
 
     class Config:
