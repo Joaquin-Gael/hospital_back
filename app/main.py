@@ -19,7 +19,7 @@ install(show_locals=True)
 async def lifespan(app: FastAPI):
     init_db()
     print("Database created")
-    out = run(["alembic", "stamp", "head"], capture_output=True, text=True)
+    out = run(["alembic", "upgrade", "head"], capture_output=True, text=True)
     print("Database migrated:\n")
     if out.stderr:
         print(out.stderr)
