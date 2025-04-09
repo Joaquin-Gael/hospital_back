@@ -91,8 +91,8 @@ class Doctors(SQLModel, table=True):
     dni: int = Field(max_length=8)
     telephone: str = Field(max_length=50)
     email: str = Field(max_length=50)
-    specialty: Optional["Specialties"] = Relationship(back_populates="services")
-    specialty_id: str = Field(foreign_key="specialties.specialty_id", ondelete="CASCADE")
+    speciality: Optional["Specialties"] = Relationship(back_populates="doctors")
+    speciality_id: str = Field(foreign_key="specialties.specialty_id", ondelete="CASCADE")
     medical_schedule: Optional["MedicalSchedules"] = Relationship(back_populates="doctors")
     medical_schedule_id : str = Field(foreign_key="medicalschedules.medical_schedule_id", ondelete="CASCADE")
 

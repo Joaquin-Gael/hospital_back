@@ -1,8 +1,8 @@
 """initial migration
 
-Revision ID: d3df0b0beb9e
+Revision ID: 021820c0820b
 Revises: 
-Create Date: 2025-04-07 23:27:10.176797
+Create Date: 2025-04-09 01:47:18.327424
 
 """
 from typing import Sequence, Union
@@ -13,7 +13,7 @@ import sqlmodel
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'd3df0b0beb9e'
+revision: str = '021820c0820b'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -35,6 +35,21 @@ def upgrade() -> None:
     sa.Column('time_medic', sa.Time(), nullable=False),
     sa.PrimaryKeyConstraint('medical_schedule_id'),
     sa.UniqueConstraint('medical_schedule_id')
+    )
+    op.create_table('user',
+    sa.Column('user_id', sa.String(length=36), nullable=False),
+    sa.Column('username', sa.VARCHAR(), nullable=True),
+    sa.Column('email', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('first_name', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('last_name', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('password', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.Column('is_admin', sa.Boolean(), nullable=False),
+    sa.Column('is_superuser', sa.Boolean(), nullable=False),
+    sa.Column('last_login', sa.DateTime(), nullable=True),
+    sa.Column('date_joined', sa.DateTime(), nullable=False),
+    sa.PrimaryKeyConstraint('user_id'),
+    sa.UniqueConstraint('user_id')
     )
     op.create_table('departments',
     sa.Column('department_id', sa.String(length=36), nullable=False),
@@ -61,10 +76,10 @@ def upgrade() -> None:
     sa.Column('dni', sa.Integer(), nullable=False),
     sa.Column('telephone', sqlmodel.sql.sqltypes.AutoString(length=50), nullable=False),
     sa.Column('email', sqlmodel.sql.sqltypes.AutoString(length=50), nullable=False),
-    sa.Column('specialty_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('speciality_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('medical_schedule_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.ForeignKeyConstraint(['medical_schedule_id'], ['medicalschedules.medical_schedule_id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['specialty_id'], ['specialties.specialty_id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['speciality_id'], ['specialties.specialty_id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('doctor_id'),
     sa.UniqueConstraint('doctor_id')
     )
@@ -88,6 +103,7 @@ def downgrade() -> None:
     op.drop_table('doctors')
     op.drop_table('specialties')
     op.drop_table('departments')
+    op.drop_table('user')
     op.drop_table('medicalschedules')
     op.drop_table('locations')
     # ### end Alembic commands ###

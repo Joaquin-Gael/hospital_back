@@ -10,7 +10,7 @@ from rich.traceback import install
 from subprocess import run
 
 from app.db.main import init_db, Session, engine
-from app.api import users
+from app.api import users, medic_area
 from app.config import admin_user
 
 install(show_locals=True)
@@ -55,6 +55,7 @@ async def health_check():
     return ORJSONResponse({"status": "ok"})
 
 app.include_router(users.router)
+app.include_router(medic_area.router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
