@@ -29,7 +29,7 @@ class User(SQLModel, table=True):
         ),
         max_length=50
     )
-    email: str = Field()
+    email: str = Field(unique=True, index=True)
     first_name: Optional[str] = Field(nullable=True)
     last_name: Optional[str] = Field(nullable=True)
     password: str = Field()
@@ -38,6 +38,7 @@ class User(SQLModel, table=True):
     is_superuser: bool = Field(default=False)
     last_login: Optional[datetime] = Field(nullable=True)
     date_joined: datetime = Field(default_factory=datetime.now)
+    dni: str = Field(max_length=8)
 
 
     def set_password(self, raw_password: str):

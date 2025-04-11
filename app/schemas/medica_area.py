@@ -127,23 +127,22 @@ class ServiceDelete(BaseModel):
 class DoctorBase(BaseModel):
     name: str
     lastname: str
-    dni: int
+    dni: str
     telephone: str
     email: str
     speciality_id: str
-    medical_schedule_id: str
 
 class DoctorCreate(DoctorBase):
+    password: str
     pass
 
 class DoctorUpdate(BaseModel):
     name: Optional[str] = None
     lastname: Optional[str] = None
-    dni: Optional[int] = None
+    dni: Optional[str] = None
     telephone: Optional[str] = None
     email: Optional[str] = None
     speciality_id: Optional[str] = None
-    medical_schedule_id: Optional[str] = None
 
 class DoctorResponse(DoctorBase):
     id: str

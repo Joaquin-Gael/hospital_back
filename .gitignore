@@ -11,3 +11,6 @@ wheels/
 
 # DataBase
 .sqlite
+
+# Enviroment
+.env

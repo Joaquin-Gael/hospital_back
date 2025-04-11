@@ -4,12 +4,16 @@ from sqlalchemy import Enum as SQLEnum
 
 from typing import Optional, List
 
+from passlib.context import CryptContext
+
 import uuid
 from uuid import UUID
 
 from datetime import time
 
 from enum import Enum
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 class Locations(SQLModel, table=True):
     id: str = Field(
@@ -76,6 +80,17 @@ class Services(SQLModel, table=True):
     speciality: Optional["Specialties"] = Relationship(back_populates="services")
     specialty_id: str = Field(foreign_key="specialties.specialty_id", ondelete="CASCADE")
 
+
+class DoctorMedicalScheduleLink(SQLModel, table=True):
+    doctor_id: str = Field(
+        foreign_key="doctors.doctor_id",
+        primary_key=True
+    )
+    medical_schedule_id: str = Field(
+        foreign_key="medicalschedules.medical_schedule_id",
+        primary_key=True
+    )
+
 class Doctors(SQLModel, table=True):
     id: str = Field(
         sa_column=Column(
@@ -88,13 +103,28 @@ class Doctors(SQLModel, table=True):
     )
     name: str = Field(max_length=50)
     lastname: str = Field(max_length=50)
-    dni: int = Field(max_length=8)
+    dni: str = Field(max_length=8)
     telephone: str = Field(max_length=50)
+    password: str = Field(max_length=50, nullable=False)
     email: str = Field(max_length=50)
+
+    # Asumiendo que la relación con Specialties sigue siendo uno a muchos o muchos a uno:
     speciality: Optional["Specialties"] = Relationship(back_populates="doctors")
     speciality_id: str = Field(foreign_key="specialties.specialty_id", ondelete="CASCADE")
-    medical_schedule: Optional["MedicalSchedules"] = Relationship(back_populates="doctors")
-    medical_schedule_id : str = Field(foreign_key="medicalschedules.medical_schedule_id", ondelete="CASCADE")
+
+    # Relación muchos a muchos con MedicalSchedules
+    medical_schedules: List["MedicalSchedules"] = Relationship(
+        back_populates="doctors",
+        link_model=DoctorMedicalScheduleLink
+    )
+
+    def set_password(self, raw_password: str):
+        """Genera y almacena el hash de la contraseña."""
+        self.password = pwd_context.hash(raw_password)
+
+    def check_password(self, raw_password: str) -> bool:
+        """Verifica la contraseña en texto plano contra el hash almacenado."""
+        return pwd_context.verify(raw_password, self.password)
 
 
 class DayOfWeek(str, Enum):
@@ -124,4 +154,9 @@ class MedicalSchedules(SQLModel, table=True):
         )
     )
     time_medic: time = Field(nullable=False)
-    doctors: List["Doctors"] = Relationship(back_populates="medical_schedule")
+
+    # Relación muchos a muchos con Doctors
+    doctors: List["Doctors"] = Relationship(
+        back_populates="medical_schedules",
+        link_model=DoctorMedicalScheduleLink
+    )

@@ -7,37 +7,26 @@ from contextlib import asynccontextmanager
 from rich import print
 from rich.traceback import install
 
-from subprocess import run
-
-from app.db.main import init_db, Session, engine
-from app.api import users, medic_area
-from app.config import admin_user
+from app.db.main import init_db, set_admin, migrate
+from app.api import users, medic_area, auth
+from app.config import api_name, version
 
 install(show_locals=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    print("Database created")
-    out = run(["alembic", "upgrade", "head"], capture_output=True, text=True)
-    print("Database migrated:\n")
-    if out.stderr:
-        print(out.stderr)
-    else:
-        print(out.stdout)
-    with Session(engine) as session:
-        session.add(admin_user)
-        session.commit()
-        session.refresh(admin_user)
+    migrate()
+    set_admin()
     print("Server opened")
     yield None
     print("Server closed")
 
 app = FastAPI(
     lifespan=lifespan,
-    title="Hospital API",
+    title=api_name,
     description="Esta API permite gestionar usuarios, pacientes y médicos.",
-    version="1.0.0",
+    version=version,
     contact={
         "name": "Tu Nombre o Equipo",
         "email": "tuemail@example.com",
@@ -56,6 +45,7 @@ async def health_check():
 
 app.include_router(users.router)
 app.include_router(medic_area.router)
+app.include_router(auth.router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

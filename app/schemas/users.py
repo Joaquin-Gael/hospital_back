@@ -7,6 +7,7 @@ class UserBase(BaseModel):
     email: EmailStr
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    dni: str
 
 class UserCreate(UserBase):
     password: constr(min_length=8)
@@ -36,3 +37,8 @@ class UserUpdate(BaseModel):
 
 class UserDelete(UserBase):
     id: str
+
+
+class UserAuth(BaseModel):
+    email: EmailStr
+    password: constr(min_length=8)

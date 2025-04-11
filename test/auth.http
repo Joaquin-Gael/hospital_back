@@ -1,0 +1,5 @@
+### GET request to example server
+GET http://127.0.0.1:8000/auth/refresh
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlZjI4YTllMS0xYzZhLTRjZDctYmQwNC0wN2EyMjc3MjZkZDIiLCJzY29wZXMiOlsiYWRtaW4iLCJzdXBlcnVzZXIiLCJhY3RpdmUiXSwiaWF0IjoxNzQ0MzI5NjEwLCJpc3MiOiJIb3NwaXRhbCBBUEkvMS4wLjAiLCJleHAiOjE3NDQzMzMyMTAsInR5cGUiOiJyZWZyZXNoX3Rva2VuIn0.5ul03PzqOIzvAPmm9yTyu8qMUO-TcymK0wwsing9FAQ
+
+###

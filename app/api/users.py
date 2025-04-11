@@ -40,6 +40,7 @@ async def get_users(request: Request, session: SessionDep):
                 email=user.email,
                 first_name=user.first_name,
                 last_name=user.last_name,
+                dni=user.dni,
             ).model_dump()
         )
 
@@ -70,6 +71,7 @@ async def add_user(request: Request, session: SessionDep, user: UserCreate):
                 email=user_db.email,
                 first_name=user_db.first_name,
                 last_name=user_db.last_name,
+                dni=user_db.dni,
             ).model_dump()
         )
     except Exception as e:
@@ -90,6 +92,7 @@ async def delete_user(request: Request, user_id: str, session: SessionDep):
             email=user.email,
             first_name=user.first_name,
             last_name=user.last_name,
+            dni=user.dni,
         )
         return ORJSONResponse(user_deleted.model_dump())
     except Exception:

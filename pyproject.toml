@@ -12,6 +12,8 @@ dependencies = [
     "orjson>=3.10.16",
     "passlib>=1.7.4",
     "psycopg>=3.2.6",
+    "pyjwt>=2.10.1",
     "python-dotenv>=1.1.0",
+    "python-multipart>=0.0.20",
     "sqlmodel>=0.0.24",
 ]
