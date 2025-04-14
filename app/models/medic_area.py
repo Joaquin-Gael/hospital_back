@@ -84,11 +84,13 @@ class Services(SQLModel, table=True):
 class DoctorMedicalScheduleLink(SQLModel, table=True):
     doctor_id: str = Field(
         foreign_key="doctors.doctor_id",
-        primary_key=True
+        primary_key=True,
+        ondelete="CASCADE"
     )
     medical_schedule_id: str = Field(
         foreign_key="medicalschedules.medical_schedule_id",
-        primary_key=True
+        primary_key=True,
+        ondelete="CASCADE"
     )
 
 class Doctors(SQLModel, table=True):

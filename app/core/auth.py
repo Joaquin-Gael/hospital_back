@@ -3,7 +3,7 @@ from jwt import PyJWTError
 
 from datetime import datetime, timedelta
 
-from fastapi import Header, HTTPException, status
+from fastapi import Header, HTTPException, status, Request
 
 from sqlmodel import select
 
@@ -17,10 +17,10 @@ def gen_token(payload: dict, refresh: bool = False):
     payload.setdefault("iat", datetime.now())
     payload.setdefault("iss", f"{api_name}/{version}")
     if refresh:
-        payload.setdefault("exp", datetime.now() + timedelta(minutes=30))
+        payload.setdefault("exp", int((datetime.now() + timedelta(minutes=30)).timestamp()))
         payload.setdefault("type", "refresh_token")
     else:
-        payload.setdefault("exp", datetime.now() + timedelta(minutes=15))
+        payload.setdefault("exp", int((datetime.now() + timedelta(minutes=15)).timestamp()))
     return jwt.encode(payload, token_key, algorithm="HS256")
 
 def decode_token(token: str):
@@ -35,7 +35,7 @@ class JWTBearer:
     def __init__(self, auto_error: bool = True):
         self.auto_error = auto_error
 
-    async def __call__(self, authorization: Optional[str] = Header(None)) -> User | None:
+    async def __call__(self, request: Request, authorization: Optional[str] = Header(None)) -> User | None:
         if authorization is None or not authorization.startswith("Bearer "):
             if self.auto_error:
                 raise HTTPException(
@@ -53,12 +53,11 @@ class JWTBearer:
             user_id = payload.get("sub")
             if user_id is None:
                 raise HTTPException(status_code=401, detail="Invalid token payload")
-            if payload.get("type") == "refresh_token":
-                raise HTTPException(status_code=401, detail="Invalid token payload")
             statement = select(User).where(User.id == user_id)
             with Session(engine) as session:
-                result = session.exec(statement)
+                result = session.execute(statement)
                 user = result.scalars().first()
+            request.state.user = user
             return user
         except Exception as e:
             print(e)

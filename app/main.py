@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from rich import print
 from rich.traceback import install
 
-from app.db.main import init_db, set_admin, migrate
+from app.db.main import init_db, set_admin, migrate, test_db
 from app.api import users, medic_area, auth
 from app.config import api_name, version
 
@@ -15,7 +15,7 @@ install(show_locals=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
+    #init_db()
     migrate()
     set_admin()
     print("Server opened")
@@ -41,7 +41,8 @@ app = FastAPI(
 @app.get("/_health_check/")
 async def health_check():
     # TODO: hacer la comprobacion de la base de datos un una peticion simple y otra compleja
-    return ORJSONResponse({"status": "ok"})
+    result = test_db()
+    return ORJSONResponse({"time": result[0],"status": result[1]})
 
 app.include_router(users.router)
 app.include_router(medic_area.router)

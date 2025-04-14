@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi import APIRouter, Request, Depends, HTTPException, Header, status
 from fastapi.responses import ORJSONResponse
 
 from rich import print
 from rich.console import Console
 
-from typing import List
+from typing import List, Optional
 
 from sqlmodel import select
 
@@ -116,3 +116,33 @@ async def refresh(request: Request, user: User = Depends(auth)):
             refresh_token=refresh_token,
         ).model_dump()
     )
+
+@router.put("/session")
+async def gen_session(request: Request, authorization: Optional[str] = Header(None)):
+    if authorization is None or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No credentials provided or invalid format"
+        )
+
+    token = authorization.split(" ")[1]
+
+    request.set_cookie(key="session", value=token)
+
+    return ORJSONResponse({
+        "session": True,
+        "state":"gen_session"
+    })
+
+@router.delete("/logout")
+async def logout(request: Request, user: User = Depends(auth)):
+    session = request.cookies.get("session", None)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Invalid session cookie")
+
+    request.delete_cookie("session")
+
+    return ORJSONResponse({
+        "session": session,
+        "state": "logout"
+    })
