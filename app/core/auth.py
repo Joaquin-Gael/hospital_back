@@ -3,7 +3,7 @@ from jwt import PyJWTError
 
 from datetime import datetime, timedelta
 
-from fastapi import Header, HTTPException, status, Request
+from fastapi import Header, HTTPException, status, Request, Cookie
 
 from sqlmodel import select
 
@@ -35,7 +35,7 @@ class JWTBearer:
     def __init__(self, auto_error: bool = True):
         self.auto_error = auto_error
 
-    async def __call__(self, request: Request, authorization: Optional[str] = Header(None)) -> User | None:
+    async def __call__(self, request: Request, authorization: Optional[str] = Header(None)) -> User | None: # Add Next Time: , session = Cookie(...)
         if authorization is None or not authorization.startswith("Bearer "):
             if self.auto_error:
                 raise HTTPException(

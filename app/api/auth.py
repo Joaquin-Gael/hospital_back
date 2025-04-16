@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends, HTTPException, Header, status
+from fastapi import APIRouter, Request, Depends, HTTPException, Header, status, Response
 from fastapi.responses import ORJSONResponse
 
 from rich import print
@@ -127,20 +127,22 @@ async def gen_session(request: Request, authorization: Optional[str] = Header(No
 
     token = authorization.split(" ")[1]
 
-    request.set_cookie(key="session", value=token)
-
-    return ORJSONResponse({
+    response = ORJSONResponse({
         "session": True,
         "state":"gen_session"
     })
 
+    response.set_cookie(key="session", value=token)
+
+    return response
+
 @router.delete("/logout")
-async def logout(request: Request, user: User = Depends(auth)):
+async def logout(request: Request , response: Response, user: User = Depends(auth)):
     session = request.cookies.get("session", None)
     if session is None:
         raise HTTPException(status_code=404, detail="Invalid session cookie")
 
-    request.delete_cookie("session")
+    response.delete_cookie("session")
 
     return ORJSONResponse({
         "session": session,

@@ -24,7 +24,7 @@ class UserRead(UserBase):
         orm_mode = True
 
 class UserUpdate(BaseModel):
-    email: Optional[EmailStr] = None
+    username: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     password: Optional[constr(min_length=8)] = None

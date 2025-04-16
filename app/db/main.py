@@ -31,9 +31,9 @@ def migrate():
     out = run(["alembic", "upgrade", "head"], capture_output=True, text=True)
     print("Database migrated:\n")
     if out.stderr:
-        print(out.stderr)
+        print(out.stderr) if debug else None
     else:
-        print(out.stdout)
+        print(out.stdout) if debug else None
 
 def set_admin():
     try:
@@ -44,7 +44,7 @@ def set_admin():
             session.refresh(admin_user)
         print("Admin created")
     except Exception:
-        console.print_exception(show_locals=True)
+        console.print_exception(show_locals=True) if debug else None
         print("Admin already created")
 
 
@@ -56,16 +56,16 @@ def test_db() -> Tuple[int, bool]:
         result: List["User"] = session.execute(statement).scalars().all()
         if result is None:
             end = time.time()
-            return int(end - start), False
+            return int(start - end), False
 
         end = time.time()
 
-        return int(end - start), True
+        return int(start - end), True
 
     except Exception:
         end = time.time()
-        console.print_exception(show_locals=True)
-        return int(end - start), False
+        console.print_exception(show_locals=True) if debug else None
+        return int(start - end), False
 
 
 def get_session():

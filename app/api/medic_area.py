@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Query, status, Depends
+from fastapi import APIRouter, Request, Query, status, Depends, HTTPException
 from fastapi.responses import ORJSONResponse
 
 from sqlmodel import select
@@ -31,7 +31,10 @@ from app.schemas.medica_area import (
     DepartmentResponse
 )
 from app.schemas.medica_area import (
-    SpecialtyResponse
+    SpecialtyResponse,
+    ServiceCreate,
+    ServiceDelete,
+    SpecialtyUpdate
 )
 from app.schemas.medica_area import (
     ServiceResponse,
@@ -137,7 +140,6 @@ async def add_doctor_by_id(request: Request, session: SessionDep, doc_id: str = 
         )
     except Exception as e:
         console.print_exception(show_locals=True)
-        print(e)
         return ORJSONResponse({
             "error": str(e),
         }, status_code=400)
@@ -227,8 +229,28 @@ async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep
             "error": str(e)
         }, status_code=status.HTTP_400_BAD_REQUEST)
 
+@doctors.get("/{doctor_id}/", response_model=DoctorResponse)
+async def get_doctor_by_id(request: Request, dotor_id: str, session: SessionDep):
+    statement = select(Doctors).where(Doctors.id == dotor_id)
+    doc = session.execute(statement).scalars().first()
+
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Doctor {dotor_id} not found")
+
+    return ORJSONResponse(
+        DoctorResponse(
+            id=doc.id,
+            name=doc.name,
+            lastname=doc.lastname,
+            dni=doc.dni,
+            telephone=doc.telephone,
+            email=doc.email,
+            speciality_id=doc.speciality_id
+        )
+    )
+
 @doctors.delete("/delete/{doctor_id}/", response_model=DoctorDelete)
-async def delete_doctor(request: Request, doctor_id: int, session: SessionDep):
+async def delete_doctor(request: Request, doctor_id: str, session: SessionDep):
     statement = select(Doctors).where(Doctors.id == doctor_id)
     result = session.execute(statement).scalars().first()
     if result:
@@ -369,6 +391,68 @@ async def set_service(request: Request, session: SessionDep, service: ServiceCre
             "error": str(e),
         }, status_code=status.HTTP_400_BAD_REQUEST)
 
+
+specialities = APIRouter(
+    prefix="/specialities",
+    tags=["specialities"],
+)
+
+@specialities.get("/", response_model=List[SpecialtyResponse])
+async def get_specialities(request: Request, session: SessionDep):
+    statement = select(Specialties)
+    result: List["Specialties"] = session.execute(statement).scalars().all()
+
+    specialities: List[SpecialtyResponse] = []
+    for specialiti in result:
+        statement = select(Services).where(Services.specialty_id == specialiti.id)
+        result: List["Services"] = session.execute(statement).scalars().all()
+
+        services: List[ServiceResponse] = []
+        for service in result:
+            services.append(
+                ServiceResponse(
+                    id=service.id,
+                    name=service.name,
+                    description=service.description,
+                    price=service.price,
+                    specialty_id=service.specialty_id
+                )
+            )
+
+        statement = select(Doctors).where(Doctors.speciality_id == specialiti.id)
+        result: List["Doctors"] = session.execute(statement).scalars().all()
+
+        doctors: List[DoctorResponse] = []
+        for doc in result:
+            doctors.append(
+                DoctorResponse(
+                    id=doc.id,
+                    name=doc.name,
+                    lastname=doc.lastname,
+                    dni=doc.dni,
+                    telephone=doc.telephone,
+                    email=doc.email,
+                    speciality_id=doc.speciality_id
+                )
+            )
+
+        specialities.append(
+            SpecialtyResponse(
+                id=specialiti.id,
+                name=specialiti.name,
+                description=specialiti.description,
+                department_id=specialiti.department_id,
+                doctors=doctors,
+                services=services
+            )
+        )
+
+
+    return ORJSONResponse(
+        specialities,
+        status_code=status.HTTP_200_OK
+    )
+
 router = APIRouter(
     prefix="/medic",
     default_response_class=ORJSONResponse,
@@ -381,3 +465,4 @@ router.include_router(schedules)
 router.include_router(doctors)
 router.include_router(locations)
 router.include_router(services)
+router.include_router(specialities)
