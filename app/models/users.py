@@ -1,3 +1,4 @@
+from cryptography import fernet
 from sqlmodel import SQLModel, Field
 from sqlalchemy import Column, String, Integer, VARCHAR
 
