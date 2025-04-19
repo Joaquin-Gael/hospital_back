@@ -1,7 +1,8 @@
 from enum import Enum
 from typing import Optional, List
 from datetime import time
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
+
 
 # Definición del enumerado para los días de la semana
 class DayOfWeek(str, Enum):
@@ -153,6 +154,10 @@ class DoctorResponse(DoctorBase):
 class DoctorDelete(BaseModel):
     id: str
     message: str
+
+class DoctorAuth(BaseModel):
+    email: EmailStr
+    password: str
 
 # ------------------------ MEDICAL SCHEDULES ------------------------
 

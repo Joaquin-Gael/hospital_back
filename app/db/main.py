@@ -48,7 +48,7 @@ def set_admin():
         print("Admin already created")
 
 
-def test_db() -> Tuple[int, bool]:
+def test_db() -> Tuple[float, bool]:
     start = time.time()
     try:
         with Session(engine) as session:
@@ -56,16 +56,16 @@ def test_db() -> Tuple[int, bool]:
         result: List["User"] = session.execute(statement).scalars().all()
         if result is None:
             end = time.time()
-            return int(start - end), False
+            return (end - start), False
 
         end = time.time()
 
-        return int(start - end), True
+        return (end - start), True
 
     except Exception:
         end = time.time()
         console.print_exception(show_locals=True) if debug else None
-        return int(start - end), False
+        return (end - start), False
 
 
 def get_session():

@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 from pydantic import BaseModel
 
-from fastapi import Header, HTTPException, status, Request, Cookie
+from fastapi import Header, HTTPException, status, Request, Cookie, Query
 
 from functools import singledispatch
 
@@ -23,6 +23,7 @@ from rich.console import Console
 
 from app.config import token_key, api_name, version
 from app.models.users import User
+from app.models.medic_area import Doctors
 from app.db.main import Session, engine
 
 encoder_key = Fernet.generate_key()
@@ -150,7 +151,7 @@ class JWTBearer:
     def __init__(self, auto_error: bool = True):
         self.auto_error = auto_error
 
-    async def __call__(self, request: Request, authorization: Optional[str] = Header(None), session: str = Cookie(...)) -> User | None: # Add Next Time: , session = Cookie(...)
+    async def __call__(self, request: Request, authorization: Optional[str] = Header(None)) -> User | Doctors | None: # TODO: , session: str = Cookie(...)
         if authorization is None or not authorization.startswith("Bearer "):
             if self.auto_error:
                 raise HTTPException(
@@ -163,20 +164,56 @@ class JWTBearer:
             )
 
         token = authorization.split(" ")[1]
-        cookie_token = session.split(" ")[1]
+        #cookie_token = session.split(" ")[1]
         try:
             payload = decode_token(token)
-            cookie_payload = decode_token(cookie_token)
+            #cookie_payload = decode_token(cookie_token)
             user_id = payload.get("sub")
-            cookie_user_id = cookie_payload.get("sub")
-            if (user_id is None or cookie_user_id is None) or (user_id != cookie_user_id):
+            #cookie_user_id = cookie_payload.get("sub")
+            #if (user_id is None or cookie_user_id is None) or (user_id != cookie_user_id):
+            if user_id is None:
                 raise HTTPException(status_code=401, detail="Invalid token payload")
-            statement = select(User).where(User.id == user_id)
+
+            if "doc" in payload.get("scopes"):
+                statement = select(Doctors).where(Doctors.id == user_id)
+            else:
+                statement = select(User).where(User.id == user_id)
+
             with Session(engine) as session:
                 result = session.execute(statement)
                 user = result.scalars().first()
+
             request.state.user = user
+
             return user
+
         except Exception as e:
             print(e)
             raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+class JWTWebSocket:
+    async def __call__(self, token:str = Query(...)):
+        if not token or token.startswith("Bearer"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No credentials provided or invalid format"
+            )
+
+        token = token.split("_")[1]
+
+        payload = decode_token(token)
+        user_id = payload.get("sub", None)
+
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+
+        if "doc" in payload.get("scopes"):
+            statement = select(Doctors).where(Doctors.id == user_id)
+        else:
+            statement = select(User).where(User.id == user_id)
+
+        with Session(engine) as session:
+            result = session.execute(statement)
+            user = result.scalars().first()
+
+        return user

@@ -1,4 +1,14 @@
-from fastapi import APIRouter, Request, Query, status, Depends, HTTPException
+from fastapi import (
+    APIRouter,
+    Request,
+    Query,
+    status,
+    Depends,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+    WebSocketException
+)
 from fastapi.responses import ORJSONResponse
 
 from sqlmodel import select
@@ -8,7 +18,17 @@ from typing import List
 from rich import print
 from rich.console import Console
 
-from app.models.medic_area import Doctors, MedicalSchedules, Locations, Services, Specialties, Departments
+from app.models.users import User
+from app.models.medic_area import (
+    Doctors,
+    MedicalSchedules,
+    Locations,
+    Services,
+    Specialties,
+    Departments,
+    ChatMessages,
+    Chat
+)
 from app.schemas.medica_area import (
     MedicalScheduleCreate,
     MedicalScheduleDelete,
@@ -43,9 +63,10 @@ from app.schemas.medica_area import (
     ServiceUpdate,
 )
 from app.db.main import SessionDep
-from app.core.auth import JWTBearer
+from app.core.auth import JWTBearer, JWTWebSocket
 
 auth = JWTBearer(auto_error=False)
+ws_auth = JWTWebSocket()
 
 console = Console()
 
@@ -195,7 +216,7 @@ async def get_doctors(request: Request, session: SessionDep):
 @doctors.post("/add/", response_model=DoctorResponse)
 async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep):
     try:
-        new_doctor = Doctors(
+        new_doctor: Doctors = Doctors(
             id=doctor.id,
             email=doctor.email,
             name=doctor.name,
@@ -205,6 +226,8 @@ async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep
             speciality_id=doctor.speciality_id,
             password=doctor.password,
         )
+
+        new_doctor.set_password(doctor.password)
 
         session.add(new_doctor)
         session.commit()
@@ -453,6 +476,101 @@ async def get_specialities(request: Request, session: SessionDep):
         status_code=status.HTTP_200_OK
     )
 
+chat = APIRouter(
+    prefix="/chat",
+    tags=["chat"],
+)
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: dict[str, WebSocket] = {}  # user_id → WebSocket
+
+    async def connect(self, user_id: str, websocket: WebSocket):
+        await websocket.accept()  # Handshake HTTP→WS :contentReference[oaicite:4]{index=4}
+        self.active_connections[user_id] = websocket
+
+    def disconnect(self, user_id: str):
+        self.active_connections.pop(user_id, None)
+
+    async def send_personal_message(self, message: dict, user_id: str):
+        ws = self.active_connections.get(user_id)
+        if ws:
+            await ws.send_json(message)  # envía JSON → cliente :contentReference[oaicite:5]{index=5}
+
+    async def broadcast(self, message: dict):
+        for ws in self.active_connections.values():
+            await ws.send_json(message)
+
+    def is_connected(self, doc_id) -> bool:
+        return doc_id in self.active_connections
+
+
+manager = ConnectionManager()
+
+@chat.post("/add")
+async def create_chat(request: Request, session: SessionDep, doc: Doctors | User = Depends(auth), doc_2_id = Query(...)):
+
+    if isinstance(doc, User):
+        raise HTTPException(status_code=403, detail="You are not authorized")
+
+    new_chat = Chat(
+        doc_1_id=doc.id,
+        doc_2_id=doc_2_id,
+    )
+
+    session.add(new_chat)
+    session.commit()
+    session.refresh(new_chat)
+
+    return ORJSONResponse({
+        "message":f"Chat {new_chat.id} created"
+    }, status_code=status.HTTP_200_OK)
+
+@chat.websocket("/ws/chat/{chat_id}")
+async def websocket_chat(websocket: WebSocket, session: SessionDep, chat_id, doc: Doctors | User = Depends(ws_auth)):
+    try:
+        chat: Chat = session.execute(select(Chat).where(Chat.id == chat_id))
+        print(chat)
+        if chat.doc_1_id == doc.id or chat.doc_2_id == doc.id:
+            await websocket.close(1008)
+    except Exception:
+        console.print_exception(show_locals=True)
+        await websocket.close(1008)
+    if isinstance(doc, User):
+        await websocket.close(1008)
+        return
+    await manager.connect(doc.id, websocket)
+    try:
+        await manager.broadcast({"type":"presence","user":doc.id,"status":"offline"})
+        while True:
+            data = await websocket.receive_json()
+            content = data["content"]
+
+            chat: Chat = session.execute(select(Chat).where(Chat.id == chat_id))
+
+            message = ChatMessages(
+                sender_id=doc.id,
+                chat_id=chat_id,
+                content=content,
+                chat=chat,
+            )
+
+            session.add(message)
+            session.commit()
+            session.refresh(message)
+
+            if manager.is_connected(doc.id):
+                await websocket.send_json({
+                    "type":"message",
+                    "message":message.model_dump(mode="json")
+                })
+
+    except WebSocketDisconnect:
+        manager.disconnect(doc.id)
+        await manager.broadcast({"type":"presence","user":doc.id,"status":"offline"})
+
+
+
 router = APIRouter(
     prefix="/medic",
     default_response_class=ORJSONResponse,
@@ -466,3 +584,4 @@ router.include_router(doctors)
 router.include_router(locations)
 router.include_router(services)
 router.include_router(specialities)
+router.include_router(chat)

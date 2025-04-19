@@ -128,36 +128,35 @@ async def delete_user(request: Request, user_id: str, session: SessionDep):
 
 @router.put("/update/{user_id}/", response_model=UserRead)
 async def update_user(request: Request, user_id: str, session: SessionDep, user_form: UserUpdate):
-    if user_form:
-        statement = select(User).where(User.id == user_id)
-        user: User = session.execute(statement).scalars().first()
+    statement = select(User).where(User.id == user_id)
+    user: User = session.execute(statement).scalars().first()
 
-        form_fields: List[str] = list(UserUpdate.__fields__.keys())
+    form_fields: List[str] = list(UserUpdate.__fields__.keys())
 
-        for field in form_fields:
-            if field is not None and field != "username":
-                setattr(user, field, getattr(user_form, field))
-            else:
-                user.name = user_form.username
+    for field in form_fields:
+        if field is not None and field != "username":
+            setattr(user, field, getattr(user_form, field))
+        else:
+            user.name = user_form.username
 
-        session.commit()
-        session.refresh(user)
+    session.commit()
+    session.refresh(user)
 
-        return ORJSONResponse(
-            UserRead(
-                id=user.id,
-                is_active=user.is_active,
-                is_admin=user.is_admin,
-                is_superuser=user.is_superuser,
-                last_login=user.last_login,
-                date_joined=user.date_joined,
-                username=user.name,
-                email=user.email,
-                first_name=user.first_name,
-                last_name=user.last_name,
-                dni=user.dni,
-            )
+    return ORJSONResponse(
+        UserRead(
+            id=user.id,
+            is_active=user.is_active,
+            is_admin=user.is_admin,
+            is_superuser=user.is_superuser,
+            last_login=user.last_login,
+            date_joined=user.date_joined,
+            username=user.name,
+            email=user.email,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            dni=user.dni,
         )
+    )
 
 @router.put("/ban/{user_id}/", response_model=UserRead)
 async def ban_user(request: Request, user_id: str, session: SessionDep):

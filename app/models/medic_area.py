@@ -9,7 +9,7 @@ from passlib.context import CryptContext
 import uuid
 from uuid import UUID
 
-from datetime import time
+from datetime import time, datetime, timedelta
 
 from enum import Enum
 
@@ -162,3 +162,37 @@ class MedicalSchedules(SQLModel, table=True):
         back_populates="medical_schedules",
         link_model=DoctorMedicalScheduleLink
     )
+
+class Chat(SQLModel, table=True):
+    id: str = Field(
+        sa_column=Column(
+            name="chat_id",
+            type_=String(36),
+            primary_key=True,
+            unique=True
+        ),
+        default_factory=lambda: str(uuid.uuid4()),
+    )
+    messages: List["ChatMessages"] = Relationship(
+        back_populates="chat",
+    )
+    doc_1_id: str
+    doc_2_id: str
+
+
+class ChatMessages(SQLModel, table=True):
+    id: str = Field(
+        sa_column=Column(
+            name="message_id",
+            type_=String(36),
+            primary_key=True,
+            unique=True
+        ),
+        default_factory=lambda: str(uuid.uuid4()),
+    )
+    sender_id: str
+    chat_id: str = Field(foreign_key="chat.chat_id")
+    chat: Optional[Chat] = Relationship(back_populates="messages")
+    content: str = Field()
+    created_at: datetime = Field(nullable=False, default=datetime.now)
+    deleted_at: datetime = Field(nullable=False, default=(datetime.now() + timedelta(days=1)).timestamp())

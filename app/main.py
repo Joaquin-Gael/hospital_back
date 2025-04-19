@@ -8,14 +8,14 @@ from rich import print
 from rich.traceback import install
 
 from app.db.main import init_db, set_admin, migrate, test_db
-from app.api import users, medic_area, auth, ws
+from app.api import users, medic_area, auth
 from app.config import api_name, version
 
 install(show_locals=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    #init_db()
+    #init_db() # NOTE: Es solo para testeo las migraciones son las que importan
     migrate()
     set_admin()
     print("Server opened")
@@ -47,7 +47,6 @@ async def health_check():
 app.include_router(users.router)
 app.include_router(medic_area.router)
 app.include_router(auth.router)
-app.include_router(ws.medic_chat.router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
