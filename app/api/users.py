@@ -136,9 +136,12 @@ async def update_user(request: Request, user_id: str, session: SessionDep, user_
     for field in form_fields:
         if field is not None and field != "username":
             setattr(user, field, getattr(user_form, field))
-        else:
+        elif field == "username":
             user.name = user_form.username
+        elif field == "password":
+            user.set_password(user_form.password)
 
+    session.add(user)
     session.commit()
     session.refresh(user)
 

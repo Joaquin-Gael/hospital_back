@@ -134,6 +134,8 @@ async def add_doctor_by_id(request: Request, session: SessionDep, doc_id: str = 
         doctor: Doctors = session.execute(statement).scalars().first()
 
         schedule.doctors.append(doctor)
+
+        session.add(schedule)
         session.commit()
         session.refresh(schedule)
 
@@ -286,6 +288,75 @@ async def delete_doctor(request: Request, doctor_id: str, session: SessionDep):
             "error": "Doctor not found"
         },status_code=404)
 
+@doctors.put("/update/{doctor_id}/", response_model=DoctorUpdate)
+async def update_doctor(request: Request, doctor_id: str, session: SessionDep, doctor: DoctorUpdate):
+    try:
+        doc = session.excecute(
+            select(Doctors)
+                .where(Doctors.id == doctor_id)
+        ).scalars().first()
+
+        form_fields: List[str] = list(DoctorUpdate.__fields__.keys())
+
+
+        for field in form_fields:
+            if field is not None:
+                setattr(doc, field, getattr(doctor, field))
+            elif field == "password":
+                doc.set_password(doctor.password)
+
+        session.add(doc)
+        session.commit()
+        session.refresh(doc)
+
+        return ORJSONResponse(
+            DoctorUpdate(
+                id=doc.id,
+                name=doc.name,
+                lastname=doc.lastname,
+                dni=doc.dni,
+                telephone=doc.telephone,
+                email=doc.email,
+                speciality_id=doc.speciality_id
+            )
+        )
+
+    except Exception:
+        console.print_exception(show_locals=True)
+        raise HTTPException(status_code=404, detail=f"Doctor {doctor_id} not found")
+
+@doctors.put("/add/schedule/", response_model=DoctorResponse)
+async def add_schedule_by_id(request: Request, session: SessionDep, schedule_id: str = Query(...), doc_id: str = Query(...)):
+    try:
+        doc = session.execute(
+            select(Doctors)
+                .where(Doctors.id == doc_id)
+        ).schalars().first()
+        schedule = session.execute(
+            select(MedicalSchedules)
+                .where(MedicalSchedules.id == schedule_id)
+        ).schalars().first()
+
+        doc.medical_schedules.append(schedule)
+
+        session.add(doc)
+        session.commit()
+        session.refresh(doc)
+
+        return ORJSONResponse(
+            DoctorResponse(
+                id=doc.id,
+                name=doc.name,
+                lastname=doc.lastname,
+                dni=doc.dni,
+                telephone=doc.telephone,
+                email=doc.email,
+                speciality_id=doc.speciality_id
+            )
+        )
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        raise HTTPException(status_code=404, detail=f"Doctor {doc_id} not found")
 
 locations = APIRouter(
     prefix="/locations",
@@ -385,7 +456,7 @@ async def get_services(request: Request, session: SessionDep):
 
     return ORJSONResponse(services)
 
-@services.post("/", response_model=ServiceResponse)
+@services.post("/add/", response_model=ServiceResponse)
 async def set_service(request: Request, session: SessionDep, service: ServiceCreate):
     try:
         new_service = Services(
@@ -414,6 +485,27 @@ async def set_service(request: Request, session: SessionDep, service: ServiceCre
             "error": str(e),
         }, status_code=status.HTTP_400_BAD_REQUEST)
 
+@services.delete("/delete/{service_id}/", response_model=ServiceResponse)
+async def delete_service(request: Request, session: SessionDep, service_id :str):
+    try:
+        service = session.execute(select(Services).where(Services.id == services.id)).scalars().first()
+
+        session.delete(service)
+        session.commit()
+
+        return ORJSONResponse({
+            "service":ServiceResponse(
+                id=service.id,
+                name=service.name,
+                description=service.description,
+                price=service.price,
+                specialty_id=service.specialty_id
+            ),
+            "status":f"service {service.id} deleted"
+        })
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 specialities = APIRouter(
     prefix="/specialities",

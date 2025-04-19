@@ -10,7 +10,7 @@ wheels/
 .venv
 
 # DataBase
-.sqlite
+db.sqlite
 
 # Enviroment
-.env
+app/.env

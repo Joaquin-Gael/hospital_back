@@ -150,8 +150,8 @@ class MedicalSchedules(SQLModel, table=True):
     )
     day: DayOfWeek = Field(
         sa_column=Column(
-            "day",
-            SQLEnum(DayOfWeek),
+            name="day",
+            type_=SQLEnum(DayOfWeek),
             nullable=False,
         )
     )
