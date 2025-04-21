@@ -4,6 +4,8 @@ from datetime import time
 from pydantic import BaseModel, EmailStr, constr
 from datetime import datetime
 
+from app.models.medic_area import Chat
+
 
 # Definición del enumerado para los días de la semana
 class DayOfWeek(str, Enum):
@@ -195,6 +197,26 @@ class MedicalScheduleDelete(BaseModel):
     id: str
     message: str
 
+# -------------------------- MEDICAL CHATS -------------------------------------
+
+class MessageBase(BaseModel):
+    id: str
+    content: str
+    created_at: datetime
+    deleted_at: datetime
+
+class MessageResponse(MessageBase):
+    sender: Optional[DoctorResponse] = None
+    chat: Optional["ChatResponse"] = None
+
+class ChatBase(BaseModel):
+    id: str
+
+class ChatResponse(ChatBase):
+    doc_2: Optional["DoctorResponse"] = None
+    doc_1: Optional["DoctorResponse"] = None
+    messages: Optional[List["MessageResponse"]] = None
+
 # ------------------------ ACTUALIZACIÓN DE REFERENCIAS ------------------------
 # Debido a las relaciones circulares, es importante actualizar los forward refs.
 LocationResponse.model_rebuild()
@@ -203,3 +225,5 @@ SpecialtyResponse.model_rebuild()
 ServiceResponse.model_rebuild()
 DoctorResponse.model_rebuild()
 MedicalScheduleResponse.model_rebuild()
+ChatResponse.model_rebuild()
+MessageResponse.model_rebuild()

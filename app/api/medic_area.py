@@ -62,6 +62,12 @@ from app.schemas.medica_area import (
     ServiceDelete,
     ServiceUpdate,
 )
+from app.schemas.medica_area import (
+    ChatResponse
+)
+from app.schemas.medica_area import (
+    MessageResponse,
+)
 from app.db.main import SessionDep
 from app.core.auth import JWTBearer, JWTWebSocket
 
@@ -860,6 +866,31 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
+
+@chat.get("/", response_model=List[ChatResponse])
+async def get_chats(request: Request, session: SessionDep):
+    try:
+        chats: List[Chat] = session.excetute(
+            select(Chat)
+        ).scalars().all()
+
+        chats_list: List["ChatResponse"] = []
+        for chat_i in chats:
+            chats_list.append(
+                ChatResponse(
+                    id=chat_i.id,
+                    # TODO: completar con los doctores
+                )
+                    .model_dump()
+            )
+
+        return ORJSONResponse(
+            chats_list,
+        )
+
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @chat.post("/add")
 async def create_chat(request: Request, session: SessionDep, doc: Doctors | User = Depends(auth), doc_2_id = Query(...)):
