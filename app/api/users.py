@@ -17,15 +17,15 @@ console = Console()
 
 auth = JWTBearer(auto_error=False)
 
-router = APIRouter(
-    tags=["users"],
-    responses={404: {"description": "Not found"}},
-    prefix="/users",
-    default_response_class=ORJSONResponse,
-    dependencies=[Depends(auth)],
+private_router = APIRouter(
+    dependencies=[
+        Depends(auth)
+    ],
 )
 
-@router.get("/", response_model=List[UserRead])
+public_router = APIRouter()
+
+@private_router.get("/", response_model=List[UserRead])
 async def get_users(request: Request, session: SessionDep):
     statement = select(User)
     result: List[User] = session.execute(statement).scalars().all()
@@ -50,7 +50,7 @@ async def get_users(request: Request, session: SessionDep):
 
     return ORJSONResponse(users)
 
-@router.get("/{user_id}/")
+@public_router.get("/{user_id}/")
 async def get_user_by_id(request: Request, session: SessionDep, user_id: str):
     statement = select(User).where(User.id == user_id)
     user: User = session.execute(statement).scalars().first()
@@ -73,7 +73,7 @@ async def get_user_by_id(request: Request, session: SessionDep, user_id: str):
         )
     )
 
-@router.post("/add/", response_model=UserRead)
+@private_router.post("/add/", response_model=UserRead)
 async def add_user(request: Request, session: SessionDep, user: UserCreate):
     try:
         user_db = User(
@@ -105,7 +105,7 @@ async def add_user(request: Request, session: SessionDep, user: UserCreate):
         console.print_exception(show_locals=True)
         return ORJSONResponse({"error": str(e)})
 
-@router.delete("/delete/{user_id}/", response_model=UserDelete)
+@private_router.delete("/delete/{user_id}/", response_model=UserDelete)
 async def delete_user(request: Request, user_id: str, session: SessionDep):
     try:
         statement = select(User).where(User.id == user_id)
@@ -126,7 +126,7 @@ async def delete_user(request: Request, user_id: str, session: SessionDep):
         console.print_exception(show_locals=True)
         return ORJSONResponse({"error": "User not found"}, status_code=404)
 
-@router.put("/update/{user_id}/", response_model=UserRead)
+@private_router.put("/update/{user_id}/", response_model=UserRead)
 async def update_user(request: Request, user_id: str, session: SessionDep, user_form: UserUpdate):
     statement = select(User).where(User.id == user_id)
     user: User = session.execute(statement).scalars().first()
@@ -161,7 +161,7 @@ async def update_user(request: Request, user_id: str, session: SessionDep, user_
         )
     )
 
-@router.put("/ban/{user_id}/", response_model=UserRead)
+@private_router.put("/ban/{user_id}/", response_model=UserRead)
 async def ban_user(request: Request, user_id: str, session: SessionDep):
     statement = select(User).where(User.id == user_id)
     user: User = session.execute(statement).scalars().first()
@@ -187,7 +187,7 @@ async def ban_user(request: Request, user_id: str, session: SessionDep):
         "message":f"User {user.name} has been banned."
     })
 
-@router.put("/unban/{user_id}/", response_model=UserRead)
+@private_router.put("/unban/{user_id}/", response_model=UserRead)
 async def unban_user(request: Request, user_id: str, session: SessionDep):
     statement = select(User).where(User.id == user_id)
     user: User = session.execute(statement).scalars().first()
@@ -212,3 +212,13 @@ async def unban_user(request: Request, user_id: str, session: SessionDep):
         ),
         "message":f"User {user.name} has been unbanned."
     })
+
+router = APIRouter(
+    tags=["users"],
+    responses={404: {"description": "Not found"}},
+    prefix="/users",
+    default_response_class=ORJSONResponse,
+)
+
+router.include_router(private_router)
+router.include_router(public_router)

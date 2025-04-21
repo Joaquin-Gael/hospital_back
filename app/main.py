@@ -44,7 +44,7 @@ async def health_check():
     result = test_db()
     return ORJSONResponse({"time": result[0],"status": result[1]})
 
-app.include_router(users.router)
+app.include_router(users.private_router)
 app.include_router(medic_area.router)
 app.include_router(auth.router)
 app.add_middleware(
