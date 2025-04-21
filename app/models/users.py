@@ -1,5 +1,5 @@
 from sqlmodel import SQLModel, Field
-from sqlalchemy import Column, String, Integer, VARCHAR
+from sqlalchemy import Column, String, Integer, VARCHAR, UUID
 
 from datetime import datetime
 from typing import Optional
@@ -11,23 +11,11 @@ import uuid
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-class User(SQLModel, table=True):
-    id: Optional[str] = Field( # TODO: pasar a posgresql cambiar a UUID
-        sa_column=Column(
-            name="user_id",
-            type_=String(36),
-            primary_key=True,
-            autoincrement="auto",
-            unique=True,
-        ),
-        default_factory=lambda: str(uuid.uuid4()),
-    )
+class BaseUser(SQLModel, table=False):
     name: str = Field(
-        sa_column=Column(
-            name="username",
-            type_=VARCHAR
-        ),
-        max_length=50
+        sa_type=VARCHAR(length=32),
+        max_length=50,
+        sa_column_kwargs={"name":"username"}
     )
     email: str = Field(unique=True, index=True)
     first_name: Optional[str] = Field(nullable=True)
@@ -39,6 +27,8 @@ class User(SQLModel, table=True):
     last_login: Optional[datetime] = Field(nullable=True)
     date_joined: datetime = Field(default_factory=datetime.now)
     dni: str = Field(max_length=8)
+    telephone: Optional[str] = Field(max_length=50)
+    address: Optional[str] = Field(nullable=True)
 
 
     def set_password(self, raw_password: str):
@@ -63,7 +53,7 @@ class User(SQLModel, table=True):
         self.is_admin = True
         return True
     
-    def make_normaluser(self) -> bool:
+    def make_normal_user(self) -> bool:
         self.is_superuser = False
         self.is_admin = False
         return True
@@ -75,3 +65,16 @@ class User(SQLModel, table=True):
     def des_ban(self) -> bool:
         self.is_active = True
         return True
+
+class User(BaseUser, table=True):
+    __tablename__ = "users"
+    id: Optional[str] = Field( # TODO: pasar a postgres cambiar a UUID
+        sa_column=Column(
+            name="user_id",
+            type_=String(36),
+            primary_key=True,
+            autoincrement="auto",
+            unique=True,
+        ),
+        default_factory=lambda: str(uuid.uuid4()),
+    )

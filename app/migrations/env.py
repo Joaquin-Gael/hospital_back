@@ -16,7 +16,7 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from app.models.users import User
+from app.models.users import User, BaseUser
 from app.models.medic_area import Services, Specialties, MedicalSchedules, Doctors, Departments, Locations
 
 # this is the Alembic Config object, which provides

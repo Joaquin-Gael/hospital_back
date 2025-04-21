@@ -1,7 +1,8 @@
 from enum import Enum
 from typing import Optional, List
 from datetime import time
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, constr
+from datetime import datetime
 
 
 # Definición del enumerado para los días de la semana
@@ -126,11 +127,12 @@ class ServiceDelete(BaseModel):
 # ------------------------ DOCTORS ------------------------
 
 class DoctorBase(BaseModel):
-    name: str
-    lastname: str
+    username: str
+    email: EmailStr
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     dni: str
-    telephone: str
-    email: str
+    telephone: Optional[str] = None
     speciality_id: str
 
 class DoctorCreate(DoctorBase):
@@ -138,15 +140,25 @@ class DoctorCreate(DoctorBase):
     pass
 
 class DoctorUpdate(BaseModel):
-    name: Optional[str] = None
-    lastname: Optional[str] = None
-    dni: Optional[str] = None
+    username: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    password: Optional[constr(min_length=8)] = None
+    is_active: Optional[bool] = None
+    is_admin: Optional[bool] = None
+    is_superuser: Optional[bool] = None
     telephone: Optional[str] = None
-    email: Optional[str] = None
     speciality_id: Optional[str] = None
+    email: Optional[str] = None
 
 class DoctorResponse(DoctorBase):
     id: str
+    is_active: bool
+    is_admin: bool
+    is_superuser: bool
+    last_login: Optional[datetime] = None
+    date_joined: datetime
+    email: Optional[str] = None
 
     class Config:
         orm_mode = True

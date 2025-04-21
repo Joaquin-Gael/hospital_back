@@ -13,6 +13,8 @@ from datetime import time, datetime, timedelta
 
 from enum import Enum
 
+from app.models.users import BaseUser
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 class Locations(SQLModel, table=True):
@@ -93,7 +95,8 @@ class DoctorMedicalScheduleLink(SQLModel, table=True):
         ondelete="CASCADE"
     )
 
-class Doctors(SQLModel, table=True):
+class Doctors(BaseUser, table=True):
+    __tablename__ = "doctors"
     id: str = Field(
         sa_column=Column(
             name="doctor_id",
@@ -103,12 +106,6 @@ class Doctors(SQLModel, table=True):
         ),
         default_factory=lambda: str(uuid.uuid4()),
     )
-    name: str = Field(max_length=50)
-    lastname: str = Field(max_length=50)
-    dni: str = Field(max_length=8)
-    telephone: str = Field(max_length=50)
-    password: str = Field(max_length=50, nullable=False)
-    email: str = Field(max_length=50)
 
     # Asumiendo que la relación con Specialties sigue siendo uno a muchos o muchos a uno:
     speciality: Optional["Specialties"] = Relationship(back_populates="doctors")
@@ -119,14 +116,6 @@ class Doctors(SQLModel, table=True):
         back_populates="doctors",
         link_model=DoctorMedicalScheduleLink
     )
-
-    def set_password(self, raw_password: str):
-        """Genera y almacena el hash de la contraseña."""
-        self.password = pwd_context.hash(raw_password)
-
-    def check_password(self, raw_password: str) -> bool:
-        """Verifica la contraseña en texto plano contra el hash almacenado."""
-        return pwd_context.verify(raw_password, self.password)
 
 
 class DayOfWeek(str, Enum):

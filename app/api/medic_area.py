@@ -13,7 +13,7 @@ from fastapi.responses import ORJSONResponse
 
 from sqlmodel import select
 
-from typing import List
+from typing import List, Dict
 
 from rich import print
 from rich.console import Console
@@ -74,6 +74,9 @@ schedules = APIRouter(
     prefix="/schedules",
     tags=["schedules"],
     default_response_class=ORJSONResponse,
+    dependencies=[
+        Depends(auth)
+    ]
 )
 
 @schedules.get("/", response_model=List[MedicalScheduleResponse])
@@ -83,15 +86,21 @@ async def get_medical_schedules(request: Request, session: SessionDep):
     schedules = []
     for schedule_i in result:
         doctors: List[DoctorResponse] = []
-        for doctor_i in schedule_i.doctors:
+        for doc in schedule_i.doctors:
             doctor = DoctorResponse(
-                id=doctor_i.id,
-                name=doctor_i.name,
-                lastname=doctor_i.lastname,
-                dni=doctor_i.dni,
-                telephone=doctor_i.telephone,
-                email=doctor_i.email,
-                speciality_id=doctor_i.speciality_id
+                id=doc.id,
+                is_active=doc.is_active,
+                is_admin=doc.is_admin,
+                is_superuser=doc.is_superuser,
+                last_login=doc.last_login,
+                date_joined=doc.date_joined,
+                username=doc.name,
+                email=doc.email,
+                first_name=doc.first_name,
+                last_name=doc.last_name,
+                dni=doc.dni,
+                telephone=doc.telephone,
+                speciality_id=doc.speciality_id
             )
             doctors.append(doctor)
         schedule = MedicalScheduleResponse(
@@ -115,57 +124,36 @@ async def add_schedule(request: Request, medical_schedule: MedicalScheduleCreate
     session.add(schedule)
     session.commit()
     session.refresh(schedule)
+
+    doctors = []
+    for doc in schedule.doctors:
+        doctors.append(
+            DoctorResponse(
+                id=doc.id,
+                is_active=doc.is_active,
+                is_admin=doc.is_admin,
+                is_superuser=doc.is_superuser,
+                last_login=doc.last_login,
+                date_joined=doc.date_joined,
+                username=doc.name,
+                email=doc.email,
+                first_name=doc.first_name,
+                last_name=doc.last_name,
+                dni=doc.dni,
+                telephone=doc.telephone,
+                speciality_id=doc.speciality_id
+            ).model_dump()
+        )
+
     return ORJSONResponse(
         MedicalScheduleResponse(
             id=schedule.id,
             day=schedule.day,
             time_medic=schedule.time_medic,
-            doctors=schedule.doctors
+            doctors=doctors
         ).model_dump(),
         status_code=status.HTTP_201_CREATED
     )
-
-@schedules.post("/add/doctor/", response_model=MedicalScheduleResponse)
-async def add_doctor_by_id(request: Request, session: SessionDep, doc_id: str = Query(...), schedule_id: str = Query(...)):
-    try:
-        statement = select(MedicalSchedules).where(MedicalSchedules.id == schedule_id)
-        schedule: MedicalSchedules = session.execute(statement).scalars().first()
-        statement = select(Doctors).where(Doctors.id == doc_id)
-        doctor: Doctors = session.execute(statement).scalars().first()
-
-        schedule.doctors.append(doctor)
-
-        session.add(schedule)
-        session.commit()
-        session.refresh(schedule)
-
-        serial_docs: List[DoctorResponse] = []
-
-        for doc in schedule.doctors:
-            serial_docs.append(DoctorResponse(
-                id=doc.id,
-                name=doc.name,
-                lastname=doc.lastname,
-                email=doc.email,
-                dni=doc.dni,
-                speciality_id=doc.speciality_id,
-                telephone=doc.telephone
-            ))
-
-        return ORJSONResponse(
-            MedicalScheduleResponse(
-                id=schedule.id,
-                time_medic=schedule.time_medic,
-                day=schedule.day,
-                doctors=serial_docs
-            ).model_dump(),
-            status_code=status.HTTP_201_CREATED
-        )
-    except Exception as e:
-        console.print_exception(show_locals=True)
-        return ORJSONResponse({
-            "error": str(e),
-        }, status_code=400)
 
 @schedules.delete("/delete/{schedule_id}/", response_model=MedicalScheduleDelete)
 async def delete_schedule(request: Request, session: SessionDep, schedule_id: str):
@@ -189,10 +177,61 @@ async def delete_schedule(request: Request, session: SessionDep, schedule_id: st
             "error": f"Schedule {result.id} not found"
         }, status_code=status.HTTP_404_NOT_FOUND)
 
+@schedules.put("/add/doctor/", response_model=MedicalScheduleResponse)
+async def add_doctor_by_id(request: Request, session: SessionDep, doc_id: str = Query(...), schedule_id: str = Query(...)):
+    try:
+        statement = select(MedicalSchedules).where(MedicalSchedules.id == schedule_id)
+        schedule: MedicalSchedules = session.execute(statement).scalars().first()
+        statement = select(Doctors).where(Doctors.id == doc_id)
+        doctor: Doctors = session.execute(statement).scalars().first()
+
+        schedule.doctors.append(doctor)
+
+        session.add(schedule)
+        session.commit()
+        session.refresh(schedule)
+
+        serial_docs: List[DoctorResponse] = []
+
+        for doc in schedule.doctors:
+            serial_docs.append(DoctorResponse(
+                id=doc.id,
+                is_active=doc.is_active,
+                is_admin=doc.is_admin,
+                is_superuser=doc.is_superuser,
+                last_login=doc.last_login,
+                date_joined=doc.date_joined,
+                username=doc.name,
+                email=doc.email,
+                first_name=doc.first_name,
+                last_name=doc.last_name,
+                dni=doc.dni,
+                telephone=doc.telephone,
+                speciality_id=doc.speciality_id
+            ))
+
+        return ORJSONResponse(
+            MedicalScheduleResponse(
+                id=schedule.id,
+                time_medic=schedule.time_medic,
+                day=schedule.day,
+                doctors=serial_docs
+            ).model_dump(),
+            status_code=status.HTTP_201_CREATED
+        )
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        return ORJSONResponse({
+            "error": str(e),
+        }, status_code=400)
+
 doctors = APIRouter(
     prefix="/doctors",
     tags=["doctors"],
-    default_response_class=ORJSONResponse
+    default_response_class=ORJSONResponse,
+    dependencies=[
+        Depends(auth)
+    ]
 )
 
 @doctors.get("/", response_model=List[DoctorResponse])
@@ -204,16 +243,84 @@ async def get_doctors(request: Request, session: SessionDep):
         doctors.append(
             DoctorResponse(
                 id=doc.id,
-                name=doc.name,
-                lastname=doc.lastname,
+                is_active=doc.is_active,
+                is_admin=doc.is_admin,
+                is_superuser=doc.is_superuser,
+                last_login=doc.last_login,
+                date_joined=doc.date_joined,
+                username=doc.name,
+                email=doc.email,
+                first_name=doc.first_name,
+                last_name=doc.last_name,
                 dni=doc.dni,
                 telephone=doc.telephone,
-                email=doc.email,
                 speciality_id=doc.speciality_id
             ).model_dump()
         )
 
     return ORJSONResponse(doctors)
+
+@doctors.get("/{doctor_id}/", response_model=DoctorResponse)
+async def get_doctor_by_id(request: Request, dotor_id: str, session: SessionDep):
+    statement = select(Doctors).where(Doctors.id == dotor_id)
+    doc = session.execute(statement).scalars().first()
+
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Doctor {dotor_id} not found")
+
+    return ORJSONResponse(
+        DoctorResponse(
+            id=doc.id,
+            is_active=doc.is_active,
+            is_admin=doc.is_admin,
+            is_superuser=doc.is_superuser,
+            last_login=doc.last_login,
+            date_joined=doc.date_joined,
+            username=doc.name,
+            email=doc.email,
+            first_name=doc.first_name,
+            last_name=doc.last_name,
+            dni=doc.dni,
+            telephone=doc.telephone,
+            speciality_id=doc.speciality_id
+        )
+    )
+
+@doctors.get("/me/", response_model=DoctorResponse)
+async def me_doctor(request: Request, session: SessionDep):
+    doc: Doctors | User = request.state.user
+
+    if isinstance(doc, User):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
+
+    schedules: List["MedicalScheduleResponse"] = []
+    for schedule in doc.medical_schedules:
+        schedules.append(
+            MedicalScheduleResponse(
+                id=schedule.id,
+                time_medic=schedule.time_medic,
+                day=schedule.day,
+            )
+        )
+
+    return ORJSONResponse({
+        "doc":DoctorResponse(
+            id=doc.id,
+            is_active=doc.is_active,
+            is_admin=doc.is_admin,
+            is_superuser=doc.is_superuser,
+            last_login=doc.last_login,
+            date_joined=doc.date_joined,
+            username=doc.name,
+            email=doc.email,
+            first_name=doc.first_name,
+            last_name=doc.last_name,
+            dni=doc.dni,
+            telephone=doc.telephone,
+            speciality_id=doc.speciality_id
+        ),
+        "schedules":schedules
+    })
 
 @doctors.post("/add/", response_model=DoctorResponse)
 async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep):
@@ -238,11 +345,17 @@ async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep
         return ORJSONResponse(
             DoctorResponse(
                 id=new_doctor.id,
-                name=new_doctor.name,
-                lastname=new_doctor.lastname,
+                is_active=new_doctor.is_active,
+                is_admin=new_doctor.is_admin,
+                is_superuser=new_doctor.is_superuser,
+                last_login=new_doctor.last_login,
+                date_joined=new_doctor.date_joined,
+                username=new_doctor.name,
+                email=new_doctor.email,
+                first_name=new_doctor.first_name,
+                last_name=new_doctor.last_name,
                 dni=new_doctor.dni,
                 telephone=new_doctor.telephone,
-                email=new_doctor.email,
                 speciality_id=new_doctor.speciality_id
             ).model_dump(),
             status_code=status.HTTP_201_CREATED
@@ -253,26 +366,6 @@ async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep
         return ORJSONResponse({
             "error": str(e)
         }, status_code=status.HTTP_400_BAD_REQUEST)
-
-@doctors.get("/{doctor_id}/", response_model=DoctorResponse)
-async def get_doctor_by_id(request: Request, dotor_id: str, session: SessionDep):
-    statement = select(Doctors).where(Doctors.id == dotor_id)
-    doc = session.execute(statement).scalars().first()
-
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Doctor {dotor_id} not found")
-
-    return ORJSONResponse(
-        DoctorResponse(
-            id=doc.id,
-            name=doc.name,
-            lastname=doc.lastname,
-            dni=doc.dni,
-            telephone=doc.telephone,
-            email=doc.email,
-            speciality_id=doc.speciality_id
-        )
-    )
 
 @doctors.delete("/delete/{doctor_id}/", response_model=DoctorDelete)
 async def delete_doctor(request: Request, doctor_id: str, session: SessionDep):
@@ -288,6 +381,37 @@ async def delete_doctor(request: Request, doctor_id: str, session: SessionDep):
             "error": "Doctor not found"
         },status_code=404)
 
+@doctors.delete("/delete/{doctor_id}/schedule/{schedule_id}/", response_model=DoctorResponse)
+async def delete_doctor_schedule_by_id(request: Request, schedule_id: str, doctor_id: str, session: SessionDep):
+    doc: Doctors = session.execute(
+        select(Doctors)
+            .where(Doctors.id == doctor_id)
+    ).scalars().first()
+
+    doc.medical_schedules = [i for i in doc.medical_schedules if i.id != schedule_id]
+
+    session.add(doc)
+    session.commit()
+    session.refresh(doc)
+
+    return ORJSONResponse(
+        DoctorResponse(
+            id=doc.id,
+            is_active=doc.is_active,
+            is_admin=doc.is_admin,
+            is_superuser=doc.is_superuser,
+            last_login=doc.last_login,
+            date_joined=doc.date_joined,
+            username=doc.name,
+            email=doc.email,
+            first_name=doc.first_name,
+            last_name=doc.last_name,
+            dni=doc.dni,
+            telephone=doc.telephone,
+            speciality_id=doc.speciality_id
+        )
+    )
+
 @doctors.put("/update/{doctor_id}/", response_model=DoctorUpdate)
 async def update_doctor(request: Request, doctor_id: str, session: SessionDep, doctor: DoctorUpdate):
     try:
@@ -302,6 +426,8 @@ async def update_doctor(request: Request, doctor_id: str, session: SessionDep, d
         for field in form_fields:
             if field is not None:
                 setattr(doc, field, getattr(doctor, field))
+            elif field == "username":
+                doc.name = getattr(doctor, field)
             elif field == "password":
                 doc.set_password(doctor.password)
 
@@ -311,10 +437,8 @@ async def update_doctor(request: Request, doctor_id: str, session: SessionDep, d
 
         return ORJSONResponse(
             DoctorUpdate(
-                id=doc.id,
-                name=doc.name,
-                lastname=doc.lastname,
-                dni=doc.dni,
+                username=doc.name,
+                last_name=doc.last_name,
                 telephone=doc.telephone,
                 email=doc.email,
                 speciality_id=doc.speciality_id
@@ -346,11 +470,17 @@ async def add_schedule_by_id(request: Request, session: SessionDep, schedule_id:
         return ORJSONResponse(
             DoctorResponse(
                 id=doc.id,
-                name=doc.name,
-                lastname=doc.lastname,
+                is_active=doc.is_active,
+                is_admin=doc.is_admin,
+                is_superuser=doc.is_superuser,
+                last_login=doc.last_login,
+                date_joined=doc.date_joined,
+                username=doc.name,
+                email=doc.email,
+                first_name=doc.first_name,
+                last_name=doc.last_name,
                 dni=doc.dni,
                 telephone=doc.telephone,
-                email=doc.email,
                 speciality_id=doc.speciality_id
             )
         )
@@ -361,15 +491,76 @@ async def add_schedule_by_id(request: Request, session: SessionDep, schedule_id:
 locations = APIRouter(
     prefix="/locations",
     tags=["locations"],
+    dependencies=[
+        Depends(auth)
+    ]
 )
+
+@doctors.put("/ban/{doc_id}/", response_model=DoctorResponse)
+async def ban_user(request: Request, doc_id: str, session: SessionDep):
+    statement = select(Doctors).where(Doctors.id == doc_id)
+    doc: Doctors = session.execute(statement).scalars().first()
+
+    doc.is_banned = True
+    session.add(doc)
+    session.commit()
+    session.refresh(doc)
+
+    return ORJSONResponse({
+        "doc":DoctorResponse(
+            id=doc.id,
+            is_active=doc.is_active,
+            is_admin=doc.is_admin,
+            is_superuser=doc.is_superuser,
+            last_login=doc.last_login,
+            date_joined=doc.date_joined,
+            username=doc.name,
+            email=doc.email,
+            first_name=doc.first_name,
+            last_name=doc.last_name,
+            dni=doc.dni,
+            telephone=doc.telephone,
+            speciality_id=doc.speciality_id
+        ),
+        "message":f"User {doc.name} has been banned."
+    })
+
+@doctors.put("/unban/{doc_id}/", response_model=DoctorResponse)
+async def unban_user(request: Request, doc_id: str, session: SessionDep):
+    statement = select(Doctors).where(Doctors.id == doc_id)
+    doc: Doctors = session.execute(statement).scalars().first()
+
+    doc.is_banned = False
+    session.add(doc)
+    session.commit()
+    session.refresh(doc)
+
+    return ORJSONResponse({
+        "doc":DoctorResponse(
+            id=doc.id,
+            is_active=doc.is_active,
+            is_admin=doc.is_admin,
+            is_superuser=doc.is_superuser,
+            last_login=doc.last_login,
+            date_joined=doc.date_joined,
+            username=doc.name,
+            email=doc.email,
+            first_name=doc.first_name,
+            last_name=doc.last_name,
+            dni=doc.dni,
+            telephone=doc.telephone,
+            speciality_id=doc.speciality_id
+        ),
+        "message":f"User {doc.name} has been unbanned."
+    })
 
 @locations.get("/", response_model=List[LocationResponse])
 async def get_locations(request: Request, session: SessionDep):
     statement = select(Locations)
     result = session.execute(statement).scalars().all()
-    locations = []
+    locations: List["LocationResponse"] = []
     for location in result:
-        statement = select(Departments).where(Departments.location_id == locations.id)
+        statement = select(Departments).where(Departments.location_id == location.id)
         result: List["Departments"] = session.execute(statement).scalars().all()
         departments = []
         for department in result:
@@ -379,7 +570,7 @@ async def get_locations(request: Request, session: SessionDep):
             for specialty in result:
                 statement = select(Services).where(Services.specialty_id == specialty.id)
                 result: List["Services"] = session.execute(statement).scalars().all()
-                services = []
+                services: List["ServiceResponse"] = []
                 for service in result:
                     services.append(
                         ServiceResponse(
@@ -397,11 +588,17 @@ async def get_locations(request: Request, session: SessionDep):
                     doctors.append(
                         DoctorResponse(
                             id=doc.id,
-                            name=doc.name,
-                            lastname=doc.lastname,
+                            is_active=doc.is_active,
+                            is_admin=doc.is_admin,
+                            is_superuser=doc.is_superuser,
+                            last_login=doc.last_login,
+                            date_joined=doc.date_joined,
+                            username=doc.name,
+                            email=doc.email,
+                            first_name=doc.first_name,
+                            last_name=doc.last_name,
                             dni=doc.dni,
                             telephone=doc.telephone,
-                            email=doc.email,
                             speciality_id=doc.speciality_id
                         )
                     )
@@ -433,9 +630,34 @@ async def get_locations(request: Request, session: SessionDep):
             )
         )
 
+ # TODO: hacer los post
+
+@locations.delete("/delete/{location_id}", response_model=Dict[str, LocationResponse | str])
+async def delete_location(request: Request, location_id: int, session: SessionDep):
+    location: Locations = session.execute(
+        select(Locations)
+            .where(Locations.id == location_id)
+    ).scalars().first()
+
+    session.delete(location)
+    session.commit()
+
+    return ORJSONResponse({
+        "location":LocationResponse(
+            id=location.id,
+            name=location.name,
+            description=location.description
+        ),
+        "message":f"location {location_id} has been deleted."
+    })
+
+
 services = APIRouter(
     prefix="/services",
     tags=["services"],
+    dependencies=[
+        Depends(auth)
+    ]
 )
 
 @services.get("/", response_model=List[ServiceResponse])
@@ -488,7 +710,7 @@ async def set_service(request: Request, session: SessionDep, service: ServiceCre
 @services.delete("/delete/{service_id}/", response_model=ServiceResponse)
 async def delete_service(request: Request, session: SessionDep, service_id :str):
     try:
-        service = session.execute(select(Services).where(Services.id == services.id)).scalars().first()
+        service = session.execute(select(Services).where(Services.id == service_id)).scalars().first()
 
         session.delete(service)
         session.commit()
@@ -507,9 +729,21 @@ async def delete_service(request: Request, session: SessionDep, service_id :str)
         console.print_exception(show_locals=True)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
+@services.put("/update/{service_id}/", response_model=ServiceResponse)
+async def update_service(request: Request, session: SessionDep, service_id: str, service: ServiceUpdate):
+    service: Services = session.execute(
+        select(Services)
+            .where(Services.id == service_id)
+    ).scalars().first()
+
+
+
 specialities = APIRouter(
     prefix="/specialities",
     tags=["specialities"],
+    dependencies=[
+        Depends(auth)
+    ]
 )
 
 @specialities.get("/", response_model=List[SpecialtyResponse])
@@ -542,11 +776,17 @@ async def get_specialities(request: Request, session: SessionDep):
             doctors.append(
                 DoctorResponse(
                     id=doc.id,
-                    name=doc.name,
-                    lastname=doc.lastname,
+                    is_active=doc.is_active,
+                    is_admin=doc.is_admin,
+                    is_superuser=doc.is_superuser,
+                    last_login=doc.last_login,
+                    date_joined=doc.date_joined,
+                    username=doc.name,
+                    email=doc.email,
+                    first_name=doc.first_name,
+                    last_name=doc.last_name,
                     dni=doc.dni,
                     telephone=doc.telephone,
-                    email=doc.email,
                     speciality_id=doc.speciality_id
                 )
             )
@@ -562,11 +802,33 @@ async def get_specialities(request: Request, session: SessionDep):
             )
         )
 
-
     return ORJSONResponse(
         specialities,
         status_code=status.HTTP_200_OK
     )
+
+# TODO: hacer los post
+
+@specialities.delete("/delete/{speciality_id}}/", response_model=SpecialtyResponse)
+async def delete_speciality(request: Request, session: SessionDep, speciality_id: str):
+    speciality: Specialties = session.excecute(
+        select(Specialties)
+            .where(Specialties.id == speciality_id)
+    ).scalars().first()
+
+    session.delete(speciality)
+    session.commt()
+
+    return ORJSONResponse({
+        "speciality":SpecialtyResponse(
+            id=speciality.id,
+            name=speciality.name,
+            description=speciality.description,
+            department_id=speciality.department_id
+        ),
+        "message":f"Speciality {speciality.id} has been deleted."
+    })
+
 
 chat = APIRouter(
     prefix="/chat",
@@ -666,9 +928,6 @@ async def websocket_chat(websocket: WebSocket, session: SessionDep, chat_id, doc
 router = APIRouter(
     prefix="/medic",
     default_response_class=ORJSONResponse,
-    dependencies=[
-        Depends(auth)
-    ]
 )
 
 router.include_router(schedules)
