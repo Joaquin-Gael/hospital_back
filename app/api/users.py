@@ -50,7 +50,7 @@ async def get_users(request: Request, session: SessionDep):
 
     return ORJSONResponse(users)
 
-@public_router.get("/{user_id}/")
+@private_router.get("/{user_id}/")
 async def get_user_by_id(request: Request, session: SessionDep, user_id: str):
     statement = select(User).where(User.id == user_id)
     user: User = session.execute(statement).scalars().first()
@@ -73,7 +73,7 @@ async def get_user_by_id(request: Request, session: SessionDep, user_id: str):
         )
     )
 
-@private_router.post("/add/", response_model=UserRead)
+@public_router.post("/add/", response_model=UserRead)
 async def add_user(request: Request, session: SessionDep, user: UserCreate):
     try:
         user_db = User(
