@@ -7,7 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.15.2",
     "asyncpg>=0.30.0",
-    "bcrypt>=4.3.0",
+    "bcrypt>=4.0.0",
     "cryptography>=44.0.2",
     "fastapi[all]>=0.115.12",
     "orjson>=3.10.16",
@@ -16,5 +16,6 @@ dependencies = [
     "pyjwt>=2.10.1",
     "python-dotenv>=1.1.0",
     "python-multipart>=0.0.20",
+    "scalar-fastapi>=1.0.3",
     "sqlmodel>=0.0.24",
 ]

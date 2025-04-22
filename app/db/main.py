@@ -16,9 +16,9 @@ from typing import List, Tuple
 
 from app.config import debug, admin_user, User
 
-DB_URL = f"sqlite:///db.sqlite"
+DB_URL_TEST = f"sqlite:///db.sqlite"
 
-engine = create_engine(DB_URL, echo=debug)
+engine = create_engine(DB_URL_TEST, echo=debug)
 
 console = Console()
 
@@ -39,6 +39,14 @@ def set_admin():
     try:
         print("Setting admin")
         with Session(engine) as session:
+            admin: User = session.execute(
+                select(User)
+                    .where(User.email == admin_user.email)
+            ).scalars().first()
+
+            if admin:
+                return
+
             session.add(admin_user)
             session.commit()
             session.refresh(admin_user)

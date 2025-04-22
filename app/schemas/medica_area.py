@@ -38,8 +38,8 @@ class LocationResponse(LocationBase):
     id: str
     departments: Optional[List["DepartmentResponse"]] = []
 
-    class Config:
-        orm_mode = True
+    #class Config:
+    #    orm_mode = True
 
 # Modelo de eliminación (puede usarse para responder con un mensaje de confirmación)
 class LocationDelete(BaseModel):
@@ -65,8 +65,8 @@ class DepartmentResponse(DepartmentBase):
     id: str
     specialities: Optional[List["SpecialtyResponse"]] = []
 
-    class Config:
-        orm_mode = True
+    #class Config:
+    #    orm_mode = True
 
 class DepartmentDelete(BaseModel):
     id: str
@@ -92,8 +92,8 @@ class SpecialtyResponse(SpecialtyBase):
     services: Optional[List["ServiceResponse"]] = []
     doctors: Optional[List["DoctorResponse"]] = []
 
-    class Config:
-        orm_mode = True
+    #class Config:
+    #    orm_mode = True
 
 class SpecialtyDelete(BaseModel):
     id: str
@@ -119,8 +119,8 @@ class ServiceUpdate(BaseModel):
 class ServiceResponse(ServiceBase):
     id: str
 
-    class Config:
-        orm_mode = True
+    #class Config:
+    #   orm_mode = True
 
 class ServiceDelete(BaseModel):
     id: str
@@ -162,8 +162,8 @@ class DoctorResponse(DoctorBase):
     date_joined: datetime
     email: Optional[str] = None
 
-    class Config:
-        orm_mode = True
+    #class Config:
+    #    orm_mode = True
 
 class DoctorDelete(BaseModel):
     id: str
@@ -190,8 +190,8 @@ class MedicalScheduleResponse(MedicalScheduleBase):
     id: str
     doctors: Optional[List[DoctorResponse]] = []
 
-    class Config:
-        orm_mode = True
+    #class Config:
+    #    orm_mode = True
 
 class MedicalScheduleDelete(BaseModel):
     id: str
