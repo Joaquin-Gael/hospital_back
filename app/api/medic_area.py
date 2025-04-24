@@ -331,6 +331,11 @@ async def me_doctor(request: Request, session: SessionDep):
 @doctors.post("/add/", response_model=DoctorResponse)
 async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep):
     try:
+        user: User = request.state.user
+
+        if not user.is_superuser and not user.is_admin:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
+
         new_doctor: Doctors = Doctors(
             id=doctor.id,
             email=doctor.email,
@@ -503,7 +508,7 @@ locations = APIRouter(
 )
 
 @doctors.put("/ban/{doc_id}/", response_model=DoctorResponse)
-async def ban_user(request: Request, doc_id: str, session: SessionDep):
+async def ban_doc(request: Request, doc_id: str, session: SessionDep):
     statement = select(Doctors).where(Doctors.id == doc_id)
     doc: Doctors = session.execute(statement).scalars().first()
 
@@ -532,7 +537,7 @@ async def ban_user(request: Request, doc_id: str, session: SessionDep):
     })
 
 @doctors.put("/unban/{doc_id}/", response_model=DoctorResponse)
-async def unban_user(request: Request, doc_id: str, session: SessionDep):
+async def unban_doc(request: Request, doc_id: str, session: SessionDep):
     statement = select(Doctors).where(Doctors.id == doc_id)
     doc: Doctors = session.execute(statement).scalars().first()
 

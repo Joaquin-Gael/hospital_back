@@ -85,7 +85,8 @@ app = FastAPI(
     },
     docs_url=None,
     redoc_url=None,
-    debug=debug
+    debug=debug,
+    redirect_slashes=True
 )
 
 @app.get("/_health_check/")

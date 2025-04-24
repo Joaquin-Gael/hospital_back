@@ -21,10 +21,25 @@ from uuid import UUID
 
 from rich.console import Console
 
+import logging
+
+import sys
+
 from app.config import token_key, api_name, version
 from app.models.users import User
 from app.models.medic_area import Doctors
 from app.db.main import Session, engine
+
+logger = logging.getLogger("uvicorn.error")
+logger.setLevel(logging.DEBUG)
+
+handler = logging.StreamHandler(sys.stdout)
+formatter = logging.Formatter(
+    "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
+handler.setFormatter(formatter)
+
+logger.addHandler(handler)
 
 encoder_key = Fernet.generate_key()
 
@@ -151,7 +166,7 @@ class JWTBearer:
     def __init__(self, auto_error: bool = True):
         self.auto_error = auto_error
 
-    async def __call__(self, request: Request, authorization: Optional[str] = Header(None)) -> User | Doctors | None: # TODO: , session: str = Cookie(...)
+    async def __call__(self, request: Request, authorization: Optional[str] = Header(None), session: Optional[str] = Cookie(None)) -> User | Doctors | None: # TODO: , session: str = Cookie(...)
         if authorization is None or not authorization.startswith("Bearer "):
             if self.auto_error:
                 raise HTTPException(
@@ -163,15 +178,22 @@ class JWTBearer:
                 detail="No credentials provided or invalid format"
             )
 
+        if session is None:
+            logger.debug(f"Session Token: {session}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No session provided or invalid format"
+            )
+
         token = authorization.split(" ")[1]
-        #cookie_token = session.split(" ")[1]
+        cookie_token = session
         try:
             payload = decode_token(token)
-            #cookie_payload = decode_token(cookie_token)
+            cookie_payload = decode_token(cookie_token)
             user_id = payload.get("sub")
-            #cookie_user_id = cookie_payload.get("sub")
-            #if (user_id is None or cookie_user_id is None) or (user_id != cookie_user_id):
-            if user_id is None:
+            cookie_user_id = cookie_payload.get("sub")
+            if (user_id is None or cookie_user_id is None) or (user_id != cookie_user_id):
+            #if user_id is None:
                 raise HTTPException(status_code=401, detail="Invalid token payload")
 
             if "doc" in payload.get("scopes"):

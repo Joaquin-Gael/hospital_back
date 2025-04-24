@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi import APIRouter, Request, Depends, HTTPException, status
 from fastapi.responses import ORJSONResponse
 
 from sqlalchemy import select
@@ -8,10 +8,25 @@ from typing import List
 from rich import print
 from rich.console import Console
 
+import logging
+
+import sys
+
 from app.schemas.users import UserRead, UserCreate, UserDelete, UserUpdate
 from app.models.users import User
 from app.core.auth import JWTBearer
 from app.db.main import SessionDep
+
+logger = logging.getLogger("uvicorn.error")
+logger.setLevel(logging.DEBUG)
+
+handler = logging.StreamHandler(sys.stdout)
+formatter = logging.Formatter(
+    "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
+handler.setFormatter(formatter)
+
+logger.addHandler(handler)
 
 console = Console()
 
@@ -72,6 +87,33 @@ async def get_user_by_id(request: Request, session: SessionDep, user_id: str):
             dni=user.dni,
         )
     )
+
+@private_router.get("/me/", response_model=UserRead)
+async def me_user(request: Request, session: SessionDep, user: User = Depends(auth)):
+    print(user)
+    logger.debug(f"User: {user} is not an instance of User")
+
+    if not isinstance(user, User):
+        logger.debug(f"User: {user} is not an instance of User")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Not authorized: {user}")
+
+
+    return ORJSONResponse({
+        "user":UserRead(
+            id=user.id,
+            is_active=user.is_active,
+            is_admin=user.is_admin,
+            is_superuser=user.is_superuser,
+            last_login=user.last_login,
+            date_joined=user.date_joined,
+            username=user.name,
+            email=user.email,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            dni=user.dni,
+            telephone=user.telephone,
+        ),
+    })
 
 @public_router.post("/add/", response_model=UserRead)
 async def add_user(request: Request, session: SessionDep, user: UserCreate):
@@ -216,7 +258,6 @@ async def unban_user(request: Request, user_id: str, session: SessionDep):
 
 router = APIRouter(
     tags=["users"],
-    responses={404: {"description": "Not found"}},
     prefix="/users",
     default_response_class=ORJSONResponse,
 )
