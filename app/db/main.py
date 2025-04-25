@@ -1,4 +1,3 @@
-from mako.testing.helpers import result_lines
 from sqlmodel import create_engine, Session, SQLModel, select
 
 from typing import Annotated
@@ -16,7 +15,9 @@ from typing import List, Tuple
 
 from app.config import debug, admin_user, User
 
-DB_URL_TEST = f"sqlite:///db.sqlite"
+#from mako.testing.helpers import result_lines #TODO: testear
+
+DB_URL_TEST = f"postgresql+psycopg2://postgres:4321@localhost:5433/dev"
 
 engine = create_engine(DB_URL_TEST, echo=debug)
 
@@ -81,3 +82,5 @@ def get_session():
         yield session
 
 SessionDep = Annotated[Session, Depends(get_session)]
+
+metadata = SQLModel.metadata

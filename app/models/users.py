@@ -1,5 +1,5 @@
 from sqlmodel import SQLModel, Field
-from sqlalchemy import Column, String, Integer, VARCHAR, UUID
+from sqlalchemy import Column, String, Integer, VARCHAR, UUID as SQLUUID
 
 from datetime import datetime
 from typing import Optional
@@ -68,13 +68,12 @@ class BaseUser(SQLModel, table=False):
 
 class User(BaseUser, table=True):
     __tablename__ = "users"
-    id: Optional[str] = Field( # TODO: pasar a postgres cambiar a UUID
+    id: Optional[UUID] = Field( # TODO: pasar a postgres cambiar a UUID
         sa_column=Column(
             name="user_id",
-            type_=String(36),
+            type_=SQLUUID,
             primary_key=True,
-            autoincrement="auto",
             unique=True,
         ),
-        default_factory=lambda: str(uuid.uuid4()),
+        default_factory=uuid.uuid4,
     )

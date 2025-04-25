@@ -3,9 +3,9 @@ from fastapi.responses import ORJSONResponse
 
 from sqlalchemy import select
 
-from typing import List
+from typing import List, Dict
 
-from rich import print
+#from rich import print
 from rich.console import Console
 
 import logging
@@ -36,12 +36,15 @@ private_router = APIRouter(
     dependencies=[
         Depends(auth)
     ],
+    redirect_slashes=True,
 )
 
-public_router = APIRouter()
+public_router = APIRouter(
+    redirect_slashes=True,
+)
 
 @private_router.get("/", response_model=List[UserRead])
-async def get_users(request: Request, session: SessionDep):
+async def get_users(session: SessionDep):
     statement = select(User)
     result: List[User] = session.execute(statement).scalars().all()
     users = []
@@ -66,7 +69,7 @@ async def get_users(request: Request, session: SessionDep):
     return ORJSONResponse(users)
 
 @private_router.get("/{user_id}/")
-async def get_user_by_id(request: Request, session: SessionDep, user_id: str):
+async def get_user_by_id(session: SessionDep, user_id: str):
     statement = select(User).where(User.id == user_id)
     user: User = session.execute(statement).scalars().first()
     if not user:
@@ -85,16 +88,17 @@ async def get_user_by_id(request: Request, session: SessionDep, user_id: str):
             first_name=user.first_name,
             last_name=user.last_name,
             dni=user.dni,
-        )
+        ).model_dump()
     )
 
-@private_router.get("/me/", response_model=UserRead)
-async def me_user(request: Request, session: SessionDep, user: User = Depends(auth)):
-    print(user)
-    logger.debug(f"User: {user} is not an instance of User")
+@private_router.get("/me", response_model=UserRead)
+async def me_user(request: Request): # TODO: , user: User = Depends(auth)
+    user: User = request.state.user
+    #print(user)
+    #logger.debug(f"User: {user} is not an instance of User")
 
     if not isinstance(user, User):
-        logger.debug(f"User: {user} is not an instance of User")
+        #logger.debug(f"User: {user} is not an instance of User")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Not authorized: {user}")
 
 
@@ -112,11 +116,18 @@ async def me_user(request: Request, session: SessionDep, user: User = Depends(au
             last_name=user.last_name,
             dni=user.dni,
             telephone=user.telephone,
-        ),
+        ).model_dump(),
+    })
+
+@private_router.get("/scopes", response_model=Dict[str, List[str]])
+async def get_scopes(request: Request):
+    scopes = request.state.scopes
+    return ORJSONResponse({
+        "scopes":scopes,
     })
 
 @public_router.post("/add/", response_model=UserRead)
-async def add_user(request: Request, session: SessionDep, user: UserCreate):
+async def add_user(session: SessionDep, user: UserCreate):
     try:
         user_db = User(
             email=user.email,
@@ -150,6 +161,8 @@ async def add_user(request: Request, session: SessionDep, user: UserCreate):
 
 @private_router.delete("/delete/{user_id}/", response_model=UserDelete)
 async def delete_user(request: Request, user_id: str, session: SessionDep):
+    if not request.state.user.is_superuser or str(request.state.user.id) == user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
     try:
         statement = select(User).where(User.id == user_id)
         user: User = session.execute(statement).scalars().first()
@@ -170,15 +183,16 @@ async def delete_user(request: Request, user_id: str, session: SessionDep):
         return ORJSONResponse({"error": "User not found"}, status_code=404)
 
 @private_router.put("/update/{user_id}/", response_model=UserRead)
-async def update_user(request: Request, user_id: str, session: SessionDep, user_form: UserUpdate):
+async def update_user(user_id: str, session: SessionDep, user_form: UserUpdate):
     statement = select(User).where(User.id == user_id)
     user: User = session.execute(statement).scalars().first()
 
     form_fields: List[str] = list(UserUpdate.__fields__.keys())
 
     for field in form_fields:
-        if field is not None and field != "username":
-            setattr(user, field, getattr(user_form, field))
+        value = getattr(user_form, field, None)
+        if value is not None and field != "username":
+            setattr(user, field, value)
         elif field == "username":
             user.name = user_form.username
         elif field == "password":
@@ -206,6 +220,9 @@ async def update_user(request: Request, user_id: str, session: SessionDep, user_
 
 @private_router.put("/ban/{user_id}/", response_model=UserRead)
 async def ban_user(request: Request, user_id: str, session: SessionDep):
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
     statement = select(User).where(User.id == user_id)
     user: User = session.execute(statement).scalars().first()
 
@@ -232,6 +249,9 @@ async def ban_user(request: Request, user_id: str, session: SessionDep):
 
 @private_router.put("/unban/{user_id}/", response_model=UserRead)
 async def unban_user(request: Request, user_id: str, session: SessionDep):
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
     statement = select(User).where(User.id == user_id)
     user: User = session.execute(statement).scalars().first()
 

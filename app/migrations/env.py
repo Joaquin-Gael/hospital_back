@@ -18,12 +18,13 @@ if BASE_DIR not in sys.path:
 
 from app.models.users import User, BaseUser
 from app.models.medic_area import Services, Specialties, MedicalSchedules, Doctors, Departments, Locations
+from app.db.main import DB_URL_TEST
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-DB_URL = f"sqlite:///{Path(__file__).resolve().parent.parent}/db.sqlite"
+DB_URL = DB_URL_TEST
 
 config.set_main_option("sqlalchemy.url", DB_URL)
 

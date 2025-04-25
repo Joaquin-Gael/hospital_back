@@ -23,7 +23,7 @@ console = Console()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    #init_db() # NOTE: Es solo para testeo las migraciones son las que importan
+    init_db() # NOTE: Es solo para testeo las migraciones son las que importan
     migrate()
     set_admin()
     console.rule("[green]Server Opened[/green]")
@@ -54,17 +54,21 @@ async def lifespan(app: FastAPI):
             import time
 
             db_name = DB_URL_TEST.split("/")[-1]
+            db_driver = DB_URL_TEST.split(":")[0]
 
-            db_path = Path(db_name).resolve()
+            if db_driver == "sqlite":
+                db_path = Path(db_name).resolve()
 
-            for _ in range(5):
-                try:
-                    db_path.unlink()
-                    os.remove(db_path)
-                    break
-                except PermissionError:
-                    console.print_exception()
-                    time.sleep(1)
+                for _ in range(5):
+                    try:
+                        db_path.unlink()
+                        os.remove(db_path)
+                        break
+                    except PermissionError:
+                        console.print_exception()
+                        time.sleep(1)
+            else:
+                pass
 
         except OSError:
             console.print_exception(show_locals=True)

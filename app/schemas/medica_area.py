@@ -1,10 +1,16 @@
 from enum import Enum
+
 from typing import Optional, List
+
 from datetime import time
-from pydantic import BaseModel, EmailStr, constr
+
+from pydantic import BaseModel, EmailStr, constr, ValidationError, field_validator
+
 from datetime import datetime
 
 from app.models.medic_area import Chat
+
+from uuid import UUID
 
 
 # Definición del enumerado para los días de la semana
@@ -35,7 +41,7 @@ class LocationUpdate(BaseModel):
 
 # Modelo de respuesta: incluye id y relaciones (en este caso, la lista de departamentos)
 class LocationResponse(LocationBase):
-    id: str
+    id: UUID
     departments: Optional[List["DepartmentResponse"]] = []
 
     #class Config:
@@ -43,7 +49,7 @@ class LocationResponse(LocationBase):
 
 # Modelo de eliminación (puede usarse para responder con un mensaje de confirmación)
 class LocationDelete(BaseModel):
-    id: str
+    id: UUID
     message: str
 
 # ------------------------ DEPARTMENTS ------------------------
@@ -62,14 +68,14 @@ class DepartmentUpdate(BaseModel):
     location_id: Optional[str] = None
 
 class DepartmentResponse(DepartmentBase):
-    id: str
+    id: UUID
     specialities: Optional[List["SpecialtyResponse"]] = []
 
     #class Config:
     #    orm_mode = True
 
 class DepartmentDelete(BaseModel):
-    id: str
+    id: UUID
     message: str
 
 # ------------------------ SPECIALTIES ------------------------
@@ -77,7 +83,7 @@ class DepartmentDelete(BaseModel):
 class SpecialtyBase(BaseModel):
     name: str
     description: str
-    department_id: str
+    department_id: UUID
 
 class SpecialtyCreate(SpecialtyBase):
     pass
@@ -88,7 +94,7 @@ class SpecialtyUpdate(BaseModel):
     department_id: Optional[str] = None
 
 class SpecialtyResponse(SpecialtyBase):
-    id: str
+    id: UUID
     services: Optional[List["ServiceResponse"]] = []
     doctors: Optional[List["DoctorResponse"]] = []
 
@@ -96,7 +102,7 @@ class SpecialtyResponse(SpecialtyBase):
     #    orm_mode = True
 
 class SpecialtyDelete(BaseModel):
-    id: str
+    id: UUID
     message: str
 
 # ------------------------ SERVICES ------------------------
@@ -117,13 +123,13 @@ class ServiceUpdate(BaseModel):
     specialty_id: Optional[str] = None
 
 class ServiceResponse(ServiceBase):
-    id: str
+    id: UUID
 
     #class Config:
     #   orm_mode = True
 
 class ServiceDelete(BaseModel):
-    id: str
+    id: UUID
     message: str
 
 # ------------------------ DOCTORS ------------------------
@@ -135,7 +141,7 @@ class DoctorBase(BaseModel):
     last_name: Optional[str] = None
     dni: str
     telephone: Optional[str] = None
-    speciality_id: str
+    speciality_id: UUID
 
 class DoctorCreate(DoctorBase):
     password: str
@@ -154,7 +160,7 @@ class DoctorUpdate(BaseModel):
     email: Optional[str] = None
 
 class DoctorResponse(DoctorBase):
-    id: str
+    id: UUID
     is_active: bool
     is_admin: bool
     is_superuser: bool
@@ -166,7 +172,7 @@ class DoctorResponse(DoctorBase):
     #    orm_mode = True
 
 class DoctorDelete(BaseModel):
-    id: str
+    id: UUID
     message: str
 
 class DoctorAuth(BaseModel):
@@ -177,30 +183,62 @@ class DoctorAuth(BaseModel):
 
 class MedicalScheduleBase(BaseModel):
     day: DayOfWeek
-    time_medic: time
+    start_time: time
+    end_time: time
 
 class MedicalScheduleCreate(MedicalScheduleBase):
     pass
 
 class MedicalScheduleUpdate(BaseModel):
-    day: Optional[DayOfWeek] = None
-    time_medic: Optional[time] = None
+    day: Optional[DayOfWeek | str] = None
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+
+    @classmethod
+    @field_validator("start_time", mode="before")
+    def validate_day(cls, v: time):
+        if v.hour < 0 or v.hour > 23:
+            raise ValueError("El valor de start_time debe estar entre 0 y 23.")
+        if v.minute < 0 or v.minute > 59:
+            raise ValueError("El valor de start_time debe estar entre 0 y 59.")
+        if v.second < 0 or v.second > 59:
+            raise ValueError("El valor de start_time debe estar entre 0 y 59.")
+
+        if v > cls.end_time:
+            raise ValueError("El valor de start_time debe ser menor que end_time.")
+
+        return v
+
+    @classmethod
+    @field_validator("start_time", mode="before")
+    def validate_day(cls, v: time):
+        if v.hour < 0 or v.hour > 23:
+            raise ValueError("El valor de start_time debe estar entre 0 y 23.")
+        if v.minute < 0 or v.minute > 59:
+            raise ValueError("El valor de start_time debe estar entre 0 y 59.")
+        if v.second < 0 or v.second > 59:
+            raise ValueError("El valor de start_time debe estar entre 0 y 59.")
+
+        if v < cls.start_time:
+            raise ValueError("El valor de end_time debe ser mayor que start_time.")
+
+        return v
 
 class MedicalScheduleResponse(MedicalScheduleBase):
-    id: str
+    id: UUID
     doctors: Optional[List[DoctorResponse]] = []
 
     #class Config:
     #    orm_mode = True
 
 class MedicalScheduleDelete(BaseModel):
-    id: str
+    id: UUID
     message: str
 
 # -------------------------- MEDICAL CHATS -------------------------------------
 
 class MessageBase(BaseModel):
-    id: str
+    id: UUID
     content: str
     created_at: datetime
     deleted_at: datetime
@@ -210,7 +248,7 @@ class MessageResponse(MessageBase):
     chat: Optional["ChatResponse"] = None
 
 class ChatBase(BaseModel):
-    id: str
+    id: UUID
 
 class ChatResponse(ChatBase):
     doc_2: Optional["DoctorResponse"] = None

@@ -33,7 +33,10 @@ from app.schemas.medica_area import (
     MedicalScheduleCreate,
     MedicalScheduleDelete,
     MedicalScheduleUpdate,
-    MedicalScheduleResponse
+    MedicalScheduleResponse, SpecialtyCreate
+)
+from app.schemas.medica_area import (
+    DayOfWeek
 )
 from app.schemas.medica_area import (
     DoctorResponse,
@@ -122,10 +125,11 @@ async def get_medical_schedules(request: Request, session: SessionDep):
     )
 
 @schedules.post("/add/", response_model=MedicalScheduleResponse)
-async def add_schedule(request: Request, medical_schedule: MedicalScheduleCreate, session: SessionDep):
+async def add_schedule(medical_schedule: MedicalScheduleCreate, session: SessionDep):
     schedule = MedicalSchedules(
         day=medical_schedule.day,
-        time_medic=medical_schedule.time_medic,
+        start_time=medical_schedule.start_time,
+        end_time=medical_schedule.end_time,
     )
     session.add(schedule)
     session.commit()
@@ -155,14 +159,15 @@ async def add_schedule(request: Request, medical_schedule: MedicalScheduleCreate
         MedicalScheduleResponse(
             id=schedule.id,
             day=schedule.day,
-            time_medic=schedule.time_medic,
+            start_time=schedule.start_time,
+            end_time=schedule.end_time,
             doctors=doctors
         ).model_dump(),
         status_code=status.HTTP_201_CREATED
     )
 
 @schedules.delete("/delete/{schedule_id}/", response_model=MedicalScheduleDelete)
-async def delete_schedule(request: Request, session: SessionDep, schedule_id: str):
+async def delete_schedule(session: SessionDep, schedule_id: str):
     statement = select(MedicalSchedules).where(MedicalSchedules.id == schedule_id)
     result: MedicalSchedules = session.execute(statement).scalars().first()
 
@@ -175,7 +180,7 @@ async def delete_schedule(request: Request, session: SessionDep, schedule_id: st
             MedicalScheduleDelete(
                 id=result.id,
                 message=f"Schedule {result.id} deleted"
-            ),
+            ).model_dump(),
             status_code=status.HTTP_202_ACCEPTED
         )
     else:
@@ -184,7 +189,7 @@ async def delete_schedule(request: Request, session: SessionDep, schedule_id: st
         }, status_code=status.HTTP_404_NOT_FOUND)
 
 @schedules.put("/add/doctor/", response_model=MedicalScheduleResponse)
-async def add_doctor_by_id(request: Request, session: SessionDep, doc_id: str = Query(...), schedule_id: str = Query(...)):
+async def add_doctor_by_id(session: SessionDep, doc_id: str = Query(...), schedule_id: str = Query(...)):
     try:
         statement = select(MedicalSchedules).where(MedicalSchedules.id == schedule_id)
         schedule: MedicalSchedules = session.execute(statement).scalars().first()
@@ -219,7 +224,8 @@ async def add_doctor_by_id(request: Request, session: SessionDep, doc_id: str = 
         return ORJSONResponse(
             MedicalScheduleResponse(
                 id=schedule.id,
-                time_medic=schedule.time_medic,
+                start_time=schedule.start_time,
+                end_time=schedule.end_time,
                 day=schedule.day,
                 doctors=serial_docs
             ).model_dump(),
@@ -230,6 +236,71 @@ async def add_doctor_by_id(request: Request, session: SessionDep, doc_id: str = 
         return ORJSONResponse({
             "error": str(e),
         }, status_code=400)
+
+@schedules.put("/update/")
+async def update_schedule(schedule: MedicalScheduleUpdate, session: SessionDep):
+    """
+    An enumeration of the days of the week.
+
+    The `day` field must be one of the following string values:
+      - "Monday"
+      - "Tuesday"
+      - "Wednesday"
+      - "Thursday"
+      - "Friday"
+      - "Saturday"
+      - "Sunday"
+
+    Usage:
+        {
+            "day": "Monday",
+        }
+        Code:
+            ```
+            day = DayOfWeek.Monday.value
+            ```
+
+    Validation:
+        When assigning to a `day` variable or accepting user input,
+        ensure that the provided string matches exactly one of the
+        above values. For example:
+
+        ```python
+        def set_meeting_day(day: str):
+            try:
+                selected_day = DayOfWeek(day)
+            except ValueError:
+                raise ValueError(f"Invalid day: {day}. Must be one of {list(DayOfWeek)}")
+            # proceed with selected_day
+        ```
+    """
+    try:
+        statement = select(MedicalSchedules).where(MedicalSchedules.id == schedule.id)
+        result: MedicalSchedules = session.execute(statement).scalars().first()
+
+        form_fields: List[str] = MedicalScheduleUpdate.__fields__.keys()
+
+        for field in form_fields:
+            value = getattr(schedule, field, None)
+            if value is not None and field != "username":
+                setattr(result, field, value)
+
+        session.add(result)
+        session.commit()
+        session.refresh(result)
+
+        return ORJSONResponse(
+            MedicalScheduleResponse(
+                id=result.id,
+                start_time=result.start_time,
+                end_time=result.end_time,
+                day=result.day,
+            ).model_dump(),
+        )
+
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        raise HTTPException(status_code=404, detail=f"Schedule {schedule.id} not found")
 
 doctors = APIRouter(
     prefix="/doctors",
@@ -424,7 +495,7 @@ async def delete_doctor_schedule_by_id(request: Request, schedule_id: str, docto
     )
 
 @doctors.put("/update/{doctor_id}/", response_model=DoctorUpdate)
-async def update_doctor(request: Request, doctor_id: str, session: SessionDep, doctor: DoctorUpdate):
+async def update_doctor(doctor_id: str, session: SessionDep, doctor: DoctorUpdate):
     try:
         doc = session.excecute(
             select(Doctors)
@@ -435,8 +506,9 @@ async def update_doctor(request: Request, doctor_id: str, session: SessionDep, d
 
 
         for field in form_fields:
-            if field is not None:
-                setattr(doc, field, getattr(doctor, field))
+            value = getattr(doctor, field, None)
+            if value is not None and field != "username":
+                setattr(doc, field, value)
             elif field == "username":
                 doc.name = getattr(doctor, field)
             elif field == "password":
@@ -461,7 +533,7 @@ async def update_doctor(request: Request, doctor_id: str, session: SessionDep, d
         raise HTTPException(status_code=404, detail=f"Doctor {doctor_id} not found")
 
 @doctors.put("/add/schedule/", response_model=DoctorResponse)
-async def add_schedule_by_id(request: Request, session: SessionDep, schedule_id: str = Query(...), doc_id: str = Query(...)):
+async def add_schedule_by_id(session: SessionDep, schedule_id: str = Query(...), doc_id: str = Query(...)):
     try:
         doc = session.execute(
             select(Doctors)
@@ -641,7 +713,28 @@ async def get_locations(request: Request, session: SessionDep):
             )
         )
 
- # TODO: hacer los post
+@locations.post("/add/", response_model=LocationResponse)
+async def set_location(request: Request, session: SessionDep, location: LocationCreate):
+    try:
+        new_location = Locations(
+            name=location.name,
+            description=location.description
+        )
+
+        session.add(new_location)
+        session.commit()
+        session.refresh(new_location)
+
+        return ORJSONResponse(
+            LocationResponse(
+                id=new_location.id,
+                name=new_location.name
+            ).model_dump(),
+            status_code=status.HTTP_201_CREATED
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 @locations.delete("/delete/{location_id}", response_model=Dict[str, LocationResponse | str])
 async def delete_location(request: Request, location_id: int, session: SessionDep):
@@ -662,6 +755,7 @@ async def delete_location(request: Request, location_id: int, session: SessionDe
         "message":f"location {location_id} has been deleted."
     })
 
+# TODO: hacer los puts
 
 services = APIRouter(
     prefix="/services",
@@ -817,6 +911,33 @@ async def get_specialities(request: Request, session: SessionDep):
         specialities,
         status_code=status.HTTP_200_OK
     )
+
+@specialities.post("/add/", response_model=SpecialtyResponse)
+async def add_speciality(request: Request, session: SessionDep, specialty: SpecialtyCreate):
+    try:
+        new_speciality = Specialties(
+            name=specialty.name,
+            description=specialty.description,
+            department_id=specialty.department_id
+        )
+
+        session.add(new_speciality)
+        session.commit()
+        session.refresh(new_speciality)
+
+        return ORJSONResponse(
+            SpecialtyResponse(
+                id=new_speciality.id,
+                name=new_speciality.name,
+                description=new_speciality.description,
+                department_id=new_speciality.department_id
+            ).model_dump(),
+            status_code=status.HTTP_201_CREATED
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
 
 # TODO: hacer los post
 

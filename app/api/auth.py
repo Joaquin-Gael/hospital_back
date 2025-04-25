@@ -25,8 +25,19 @@ router = APIRouter(
     tags=["auth"],
 )
 
+@router.get("/session/status")
+async def session_status(request: Request):
+    session = request.cookies.get("session", None)
+    if session is None:
+        raise HTTPException(status_code=404, detail="User Have not session cookie")
+
+    return ORJSONResponse({
+        "session": True,
+        "state": "session_status"
+    }, status_code=status.HTTP_200_OK)
+
 @router.post("/doc/login", response_model=TokenDoctorsResponse)
-async def doc_login(request: Request, session: SessionDep, credentials: DoctorAuth):
+async def doc_login(session: SessionDep, credentials: DoctorAuth):
     statement = select(Doctors).where(Doctors.email == credentials.email)
     result = session.execute(statement)
     doc: Doctors = result.scalars().first()
@@ -50,19 +61,25 @@ async def doc_login(request: Request, session: SessionDep, credentials: DoctorAu
             token_type="Bearer",
             doc=DoctorResponse(
                 id=doc.id,
-                name=doc.name,
-                lastname=doc.lastname,
+                username=doc.name,
+                last_name=doc.last_name,
+                first_name=doc.first_name,
                 dni=doc.dni,
                 telephone=doc.telephone,
                 email=doc.email,
-                speciality_id=doc.speciality_id
+                speciality_id=doc.speciality_id,
+                is_active=doc.is_active,
+                is_admin=doc.is_admin,
+                is_superuser=doc.is_superuser,
+                last_login=doc.last_login,
+                date_joined=doc.date_joined,
             ),
             refresh_token=refresh_token
         ).model_dump()
     )
 
 @router.post("/login", response_model=TokenUserResponse)
-async def login(request: Request, session: SessionDep, credentials: UserAuth):
+async def login(session: SessionDep, credentials: UserAuth):
     statement = select(User).where(User.email == credentials.email)
     result = session.execute(statement)
     user: User = result.scalars().first()
@@ -73,7 +90,7 @@ async def login(request: Request, session: SessionDep, credentials: UserAuth):
         raise HTTPException(status_code=400, detail="Invalid credentials payload")
 
     user_data = {
-        "sub":user.id,
+        "sub":str(user.id),
         "scopes":[]
     }
 
@@ -107,13 +124,13 @@ async def login(request: Request, session: SessionDep, credentials: UserAuth):
                 first_name=user.first_name,
                 last_name=user.last_name,
                 dni=user.dni,
-            ),
+            ).model_dump(),
             refresh_token=refresh_token,
         ).model_dump()
     )
 
 @router.get("/refresh", response_model=TokenUserResponse)
-async def refresh(request: Request, user: User = Depends(auth)):
+async def refresh(user: User = Depends(auth)):
 
     if isinstance(user, Doctors):
         doc_data = {
@@ -130,12 +147,18 @@ async def refresh(request: Request, user: User = Depends(auth)):
                 token_type="Bearer",
                 doc=DoctorResponse(
                     id=user.id,
-                    name=user.name,
-                    lastname=user.lastname,
+                    username=user.name,
+                    last_name=user.last_name,
+                    first_name=user.first_name,
                     dni=user.dni,
                     telephone=user.telephone,
                     email=user.email,
-                    speciality_id=user.speciality_id
+                    speciality_id=user.speciality_id,
+                    is_active=user.is_active,
+                    is_admin=user.is_admin,
+                    is_superuser=user.is_superuser,
+                    last_login=user.last_login,
+                    date_joined=user.date_joined,
                 ),
                 refresh_token=refresh_token
             ).model_dump()
@@ -182,7 +205,7 @@ async def refresh(request: Request, user: User = Depends(auth)):
     )
 
 @router.put("/session")
-async def gen_session(request: Request, authorization: Optional[str] = Header(None)):
+async def gen_session(authorization: Optional[str] = Header(None)):
     if authorization is None or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -210,7 +233,7 @@ async def gen_session(request: Request, authorization: Optional[str] = Header(No
     return response
 
 @router.delete("/logout")
-async def logout(request: Request, user: User = Depends(auth)):
+async def logout(request: Request):
     session = request.cookies.get("session", None)
     if session is None:
         raise HTTPException(status_code=404, detail="Invalid session cookie")

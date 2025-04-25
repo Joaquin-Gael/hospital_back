@@ -1,6 +1,10 @@
 from datetime import datetime
+
 from typing import Optional
+
 from pydantic import BaseModel, EmailStr, constr
+
+from uuid import UUID
 
 class UserBase(BaseModel):
     username: str
@@ -14,7 +18,7 @@ class UserCreate(UserBase):
     password: constr(min_length=8)
 
 class UserRead(UserBase):
-    id: str
+    id: UUID
     is_active: bool
     is_admin: bool
     is_superuser: bool
@@ -37,7 +41,7 @@ class UserUpdate(BaseModel):
         orm_mode = True
 
 class UserDelete(UserBase):
-    id: str
+    id: UUID
 
 
 class UserAuth(BaseModel):

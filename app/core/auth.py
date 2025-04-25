@@ -115,7 +115,6 @@ def _(data: type(None)) -> bytes:
 
 
 
-
 T = TypeVar("T")
 
 def decode(data: bytes, dtype: Type[T] | None = None) -> T | Any:
@@ -206,6 +205,7 @@ class JWTBearer:
                 user = result.scalars().first()
 
             request.state.user = user
+            request.state.scopes = payload.get("scopes")
 
             return user
 
