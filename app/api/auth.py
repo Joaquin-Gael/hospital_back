@@ -1,15 +1,16 @@
-from fastapi import APIRouter, Request, Depends, HTTPException, Header, status, Response
+from fastapi import APIRouter, Request, Depends, HTTPException, Header, status, Response, Query
 from fastapi.responses import ORJSONResponse
 
-from rich import print
+#from rich import print #TODO: sacar al terminar
 from rich.console import Console
 
 from typing import List, Optional
 
 from sqlmodel import select
 
-from app.models.users import User
-from app.models.medic_area import Doctors
+from datetime import datetime, timedelta
+
+from app.models import Doctors, User
 from app.db.main import SessionDep
 from app.core.auth import gen_token, JWTBearer, decode_token
 from app.schemas.users import UserAuth, UserRead
@@ -107,6 +108,12 @@ async def login(session: SessionDep, credentials: UserAuth):
 
     token = gen_token(user_data)
     refresh_token = gen_token(user_data, refresh=True)
+
+    user.last_login = datetime.now()
+
+    session.add(user)
+    session.commit()
+    session.refresh(user)
 
     return ORJSONResponse(
         TokenUserResponse(

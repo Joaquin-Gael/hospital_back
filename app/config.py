@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-from app.models.users import User
+from app.models import User
 
 load_dotenv()
 

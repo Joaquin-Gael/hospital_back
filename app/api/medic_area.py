@@ -13,13 +13,14 @@ from fastapi.responses import ORJSONResponse
 
 from sqlmodel import select
 
-from typing import List, Dict
+from typing import List
 
 from rich import print
 from rich.console import Console
 
-from app.models.users import User
-from app.models.medic_area import (
+from uuid import UUID
+
+from app.models import (
     Doctors,
     MedicalSchedules,
     Locations,
@@ -27,16 +28,20 @@ from app.models.medic_area import (
     Specialties,
     Departments,
     ChatMessages,
-    Chat
+    Chat,
+    User,
+    Turns,
+    Appointments,
 )
 from app.schemas.medica_area import (
     MedicalScheduleCreate,
     MedicalScheduleDelete,
     MedicalScheduleUpdate,
-    MedicalScheduleResponse, SpecialtyCreate
+    MedicalScheduleResponse
 )
 from app.schemas.medica_area import (
-    DayOfWeek
+    DayOfWeek,
+    TurnsState
 )
 from app.schemas.medica_area import (
     DoctorResponse,
@@ -48,28 +53,43 @@ from app.schemas.medica_area import (
     LocationResponse,
     LocationCreate,
     LocationDelete,
-    LocationUpdate,
+    LocationUpdate
 )
 from app.schemas.medica_area import (
-    DepartmentResponse
+    DepartmentResponse,
+    DepartmentCreate,
+    DepartmentDelete,
+    DepartmentUpdate
 )
 from app.schemas.medica_area import (
     SpecialtyResponse,
-    ServiceCreate,
-    ServiceDelete,
+    SpecialtyDelete,
+    SpecialtyCreate,
     SpecialtyUpdate
 )
 from app.schemas.medica_area import (
     ServiceResponse,
     ServiceCreate,
     ServiceDelete,
-    ServiceUpdate,
+    ServiceUpdate
 )
 from app.schemas.medica_area import (
     ChatResponse
 )
 from app.schemas.medica_area import (
     MessageResponse,
+)
+from app.schemas.medica_area import (
+    TurnsResponse,
+    TurnsDelete,
+    TurnsUpdate,
+    TurnsCreate
+)
+from app.schemas.medica_area import (
+    AppointmentResponse,
+    AppointmentCreate,
+    AppointmentUpdate,
+    AppointmentDelete
 )
 from app.db.main import SessionDep
 from app.core.auth import JWTBearer, JWTWebSocket
@@ -78,6 +98,70 @@ auth = JWTBearer(auto_error=False)
 ws_auth = JWTWebSocket()
 
 console = Console()
+
+departments = APIRouter(
+    prefix="/departments",
+    tags=["departments"],
+    default_response_class=ORJSONResponse,
+    dependencies=[
+        Depends(auth)
+    ]
+)
+
+@departments.get("/", response_model=DepartmentResponse)
+async def get_departments(request: Request, session: SessionDep):
+    result = session.execute(
+        select(Departments)
+    )
+
+    departments_list: List[DepartmentResponse] = []
+    for department in result:
+        departments_list.append(
+            DepartmentResponse(
+                id=department.id,
+                name=department.name,
+                description=department.description,
+                location_id=department.location_id
+            ).model_dump()
+        )
+
+    return departments_list
+
+@departments.get("/{department_id}/", response_model=DepartmentResponse)
+async def get_department_by_id(request: Request, department_id: int, session: SessionDep):
+    department = session.execute(
+        select(Departments).where(Departments.id == department_id)
+    ).scalars().first()
+
+    return DepartmentResponse(
+        id=department.id,
+        name=department.name,
+        description=department.description,
+        location_id=department.location_id
+    ).model_dump()
+
+# TODO: hacer los post
+
+@departments.delete("/delete/{department_id}/", response_model=DepartmentDelete)
+async def delete_department_by_id(request: Request, department_id: int, session: SessionDep):
+    try:
+        department: Departments = session.execute(
+            select(Departments).where(Departments.id == department_id)
+        ).scalars().first()
+
+        session.delete(department)
+        session.commit()
+        session.refresh(department)
+
+        return DepartmentDelete(
+            id=department.id,
+            message=f"Department {department.name} has been deleted"
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Department {department_id} not found")
+
+# TODO: hacer los puts
 
 schedules = APIRouter(
     prefix="/schedules",
@@ -736,7 +820,7 @@ async def set_location(request: Request, session: SessionDep, location: Location
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-@locations.delete("/delete/{location_id}", response_model=Dict[str, LocationResponse | str])
+@locations.delete("/delete/{location_id}", response_model=LocationDelete)
 async def delete_location(request: Request, location_id: int, session: SessionDep):
     location: Locations = session.execute(
         select(Locations)
@@ -746,14 +830,12 @@ async def delete_location(request: Request, location_id: int, session: SessionDe
     session.delete(location)
     session.commit()
 
-    return ORJSONResponse({
-        "location":LocationResponse(
+    return ORJSONResponse(
+        LocationDelete(
             id=location.id,
-            name=location.name,
-            description=location.description
-        ),
-        "message":f"location {location_id} has been deleted."
-    })
+            message=f"Location {location.name} deleted"
+        ).model_dump()
+    )
 
 # TODO: hacer los puts
 
@@ -812,7 +894,7 @@ async def set_service(request: Request, session: SessionDep, service: ServiceCre
             "error": str(e),
         }, status_code=status.HTTP_400_BAD_REQUEST)
 
-@services.delete("/delete/{service_id}/", response_model=ServiceResponse)
+@services.delete("/delete/{service_id}/", response_model=ServiceDelete)
 async def delete_service(request: Request, session: SessionDep, service_id :str):
     try:
         service = session.execute(select(Services).where(Services.id == service_id)).scalars().first()
@@ -820,26 +902,41 @@ async def delete_service(request: Request, session: SessionDep, service_id :str)
         session.delete(service)
         session.commit()
 
-        return ORJSONResponse({
-            "service":ServiceResponse(
+        return ORJSONResponse(
+            ServiceDelete(
                 id=service.id,
-                name=service.name,
-                description=service.description,
-                price=service.price,
-                specialty_id=service.specialty_id
-            ),
-            "status":f"service {service.id} deleted"
-        })
+                message=f"Service {service.name} has been deleted"
+            ).model_dump()
+        )
     except Exception as e:
         console.print_exception(show_locals=True)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 @services.put("/update/{service_id}/", response_model=ServiceResponse)
 async def update_service(request: Request, session: SessionDep, service_id: str, service: ServiceUpdate):
-    service: Services = session.execute(
+    new_service: Services = session.execute(
         select(Services)
             .where(Services.id == service_id)
     ).scalars().first()
+
+    fields = service._fields_.keys()
+
+    for field in fields:
+        value = getattr(service, field)
+        if value is None:
+            continue
+        setattr(new_service, field, value)
+
+    session.add(new_service)
+    session.commit()
+
+    return ORJSONResponse(
+        ServiceResponse(
+            id=new_service.id,
+            name=new_service.name,
+            description=new_service.description,
+        ).model_dump()
+    )
 
 
 
@@ -939,9 +1036,7 @@ async def add_speciality(request: Request, session: SessionDep, specialty: Speci
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-# TODO: hacer los post
-
-@specialities.delete("/delete/{speciality_id}}/", response_model=SpecialtyResponse)
+@specialities.delete("/delete/{speciality_id}}/", response_model=SpecialtyDelete)
 async def delete_speciality(request: Request, session: SessionDep, speciality_id: str):
     speciality: Specialties = session.excecute(
         select(Specialties)
@@ -951,16 +1046,14 @@ async def delete_speciality(request: Request, session: SessionDep, speciality_id
     session.delete(speciality)
     session.commt()
 
-    return ORJSONResponse({
-        "speciality":SpecialtyResponse(
+    return ORJSONResponse(
+        SpecialtyDelete(
             id=speciality.id,
-            name=speciality.name,
-            description=speciality.description,
-            department_id=speciality.department_id
-        ),
-        "message":f"Speciality {speciality.id} has been deleted."
-    })
+            message=f"Specialty {speciality.name} has been deleted"
+        ).model_dump()
+    )
 
+# TODO: hacer los puts
 
 chat = APIRouter(
     prefix="/chat",
@@ -969,16 +1062,16 @@ chat = APIRouter(
 
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: dict[str, WebSocket] = {}  # user_id → WebSocket
+        self.active_connections: dict[UUID, WebSocket] = {}  # user_id → WebSocket
 
-    async def connect(self, user_id: str, websocket: WebSocket):
+    async def connect(self, user_id: UUID, websocket: WebSocket):
         await websocket.accept()  # Handshake HTTP→WS :contentReference[oaicite:4]{index=4}
         self.active_connections[user_id] = websocket
 
-    def disconnect(self, user_id: str):
+    def disconnect(self, user_id: UUID):
         self.active_connections.pop(user_id, None)
 
-    async def send_personal_message(self, message: dict, user_id: str):
+    async def send_personal_message(self, message: dict, user_id: UUID):
         ws = self.active_connections.get(user_id)
         if ws:
             await ws.send_json(message)  # envía JSON → cliente :contentReference[oaicite:5]{index=5}
@@ -1002,12 +1095,47 @@ async def get_chats(request: Request, session: SessionDep):
 
         chats_list: List["ChatResponse"] = []
         for chat_i in chats:
+            doctor_1: Doctors = session.execute(
+                select(Doctors).where(Doctors.id == chat_i.doc_1_id)
+            )
+            doctor_2: Doctors = session.execute(
+                select(Doctors).where(Doctors.id == chat_i.doc_2_id)
+            )
+
             chats_list.append(
                 ChatResponse(
                     id=chat_i.id,
-                    # TODO: completar con los doctores
-                )
-                    .model_dump()
+                    doc_1=DoctorResponse(
+                        id=doctor_1.id,
+                        is_active=doctor_1.is_active,
+                        is_admin=doctor_1.is_admin,
+                        is_superuser=doctor_1.is_superuser,
+                        last_login=doctor_1.last_login,
+                        date_joined=doctor_1.date_joined,
+                        username=doctor_1.name,
+                        email=doctor_1.email,
+                        first_name=doctor_1.first_name,
+                        last_name=doctor_1.last_name,
+                        dni=doctor_1.dni,
+                        telephone=doctor_1.telephone,
+                        speciality_id=doctor_1.speciality_id
+                    ),
+                    doc_2=DoctorResponse(
+                        id=doctor_2.id,
+                        is_active=doctor_2.is_active,
+                        is_admin=doctor_2.is_admin,
+                        is_superuser=doctor_2.is_superuser,
+                        last_login=doctor_2.last_login,
+                        date_joined=doctor_2.date_joined,
+                        username=doctor_2.name,
+                        email=doctor_2.email,
+                        first_name=doctor_2.first_name,
+                        last_name=doctor_2.last_name,
+                        dni=doctor_2.dni,
+                        telephone=doctor_2.telephone,
+                        speciality_id=doctor_2.speciality_id
+                    )
+                ).model_dump()
             )
 
         return ORJSONResponse(
@@ -1019,7 +1147,11 @@ async def get_chats(request: Request, session: SessionDep):
         raise HTTPException(status_code=500, detail=str(e))
 
 @chat.post("/add")
-async def create_chat(request: Request, session: SessionDep, doc: Doctors | User = Depends(auth), doc_2_id = Query(...)):
+async def create_chat(request: Request, session: SessionDep, doc_2_id = Query(...)):
+    if not "doc" in request.state.scopes:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    doc: Doctors = request.state.user
 
     if isinstance(doc, User):
         raise HTTPException(status_code=403, detail="You are not authorized")
@@ -1038,8 +1170,16 @@ async def create_chat(request: Request, session: SessionDep, doc: Doctors | User
     }, status_code=status.HTTP_200_OK)
 
 @chat.websocket("/ws/chat/{chat_id}")
-async def websocket_chat(websocket: WebSocket, session: SessionDep, chat_id, doc: Doctors | User = Depends(ws_auth)):
+async def websocket_chat(request: Request, websocket: WebSocket, session: SessionDep, chat_id):
+    if not "doc" in request.state.scopes:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
     try:
+        doc: Doctors = request.state.user
+
+        if isinstance(doc, User):
+            raise HTTPException(status_code=403, detail="You are not authorized")
+
         chat: Chat = session.execute(select(Chat).where(Chat.id == chat_id))
         print(chat)
         if chat.doc_1_id == doc.id or chat.doc_2_id == doc.id:
@@ -1093,3 +1233,4 @@ router.include_router(locations)
 router.include_router(services)
 router.include_router(specialities)
 router.include_router(chat)
+router.include_router(departments)

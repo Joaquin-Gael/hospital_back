@@ -26,8 +26,7 @@ import logging
 import sys
 
 from app.config import token_key, api_name, version
-from app.models.users import User
-from app.models.medic_area import Doctors
+from app.models import Doctors, User
 from app.db.main import Session, engine
 
 logger = logging.getLogger("uvicorn.error")
@@ -165,7 +164,7 @@ class JWTBearer:
     def __init__(self, auto_error: bool = True):
         self.auto_error = auto_error
 
-    async def __call__(self, request: Request, authorization: Optional[str] = Header(None), session: Optional[str] = Cookie(None)) -> User | Doctors | None: # TODO: , session: str = Cookie(...)
+    async def __call__(self, request: Request, authorization: Optional[str] = Header(None), session: Optional[str] = Cookie(None)) -> User | Doctors | None:
         if authorization is None or not authorization.startswith("Bearer "):
             if self.auto_error:
                 raise HTTPException(

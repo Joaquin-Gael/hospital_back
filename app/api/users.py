@@ -13,7 +13,7 @@ import logging
 import sys
 
 from app.schemas.users import UserRead, UserCreate, UserDelete, UserUpdate
-from app.models.users import User
+from app.models import User
 from app.core.auth import JWTBearer
 from app.db.main import SessionDep
 
@@ -92,13 +92,10 @@ async def get_user_by_id(session: SessionDep, user_id: str):
     )
 
 @private_router.get("/me", response_model=UserRead)
-async def me_user(request: Request): # TODO: , user: User = Depends(auth)
+async def me_user(request: Request):
     user: User = request.state.user
-    #print(user)
-    #logger.debug(f"User: {user} is not an instance of User")
 
     if not isinstance(user, User):
-        #logger.debug(f"User: {user} is not an instance of User")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Not authorized: {user}")
 
 
