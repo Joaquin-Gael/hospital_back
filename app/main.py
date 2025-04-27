@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
         # Panel con el mensaje y detalles
         mensaje = (
             "[bold cyan]La documentación de tu API está disponible en:[/bold cyan]\n"
-            "  [bold magenta]http://localhost:8000/scalar[/bold magenta]\n\n"
+            f"  [bold magenta]http://localhost:8000/{id_prefix}/scalar[/bold magenta]\n\n"
             "[dim]Permanecerá accesible mientras debug esté activado.[/dim]"
         )
         console.print(
@@ -152,10 +152,11 @@ async def scalar_html():
         layout=Layout.MODERN,
     )
 
+main_router.include_router(users.router)
+main_router.include_router(medic_area.router)
+main_router.include_router(auth.router)
+
 app.include_router(main_router)
-app.include_router(users.router)
-app.include_router(medic_area.router)
-app.include_router(auth.router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
