@@ -234,8 +234,11 @@ async def gen_session(authorization: Optional[str] = Header(None)):
         max_age=payload.get("exp", 3600),
         expires=payload.get("exp", 3600),
         httponly=False,
-        samesite="lax"
+        samesite="none",
+        secure=False
     )
+
+    print(response.headers)
 
     return response
 

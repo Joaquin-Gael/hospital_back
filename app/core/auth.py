@@ -164,7 +164,7 @@ class JWTBearer:
     def __init__(self, auto_error: bool = True):
         self.auto_error = auto_error
 
-    async def __call__(self, request: Request, authorization: Optional[str] = Header(None), session: Optional[str] = Cookie(None)) -> User | Doctors | None:
+    async def __call__(self, request: Request, authorization: Optional[str] = Header(None)) -> User | Doctors | None: #, session: Optional[str] = Cookie(None)
         if authorization is None or not authorization.startswith("Bearer "):
             if self.auto_error:
                 raise HTTPException(
@@ -176,22 +176,22 @@ class JWTBearer:
                 detail="No credentials provided or invalid format"
             )
 
-        if session is None:
-            logger.debug(f"Session Token: {session}")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No session provided or invalid format"
-            )
+        #if session is None:
+        #    logger.debug(f"Session Token: {session}")
+        #    raise HTTPException(
+        #        status_code=status.HTTP_403_FORBIDDEN,
+        #        detail="No session provided or invalid format"
+        #    )
 
         token = authorization.split(" ")[1]
-        cookie_token = session
+        #cookie_token = session
         try:
             payload = decode_token(token)
-            cookie_payload = decode_token(cookie_token)
+            #cookie_payload = decode_token(cookie_token)
             user_id = payload.get("sub")
-            cookie_user_id = cookie_payload.get("sub")
-            if (user_id is None or cookie_user_id is None) or (user_id != cookie_user_id):
-            #if user_id is None:
+            #cookie_user_id = cookie_payload.get("sub")
+            #if (user_id is None or cookie_user_id is None) or (user_id != cookie_user_id):
+            if user_id is None:
                 raise HTTPException(status_code=401, detail="Invalid token payload")
 
             if "doc" in payload.get("scopes"):

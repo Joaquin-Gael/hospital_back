@@ -1,6 +1,7 @@
-from fastapi import FastAPI
-from fastapi.responses import ORJSONResponse
+from fastapi import FastAPI, APIRouter, Request
+from fastapi.responses import ORJSONResponse, FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from scalar_fastapi import get_scalar_api_reference
 
@@ -13,6 +14,10 @@ from rich.panel import Panel
 
 from enum import Enum
 
+from uuid import uuid4, UUID
+
+from pathlib import Path
+
 from app.db.main import init_db, set_admin, migrate, test_db, DB_URL_TEST
 from app.api import users, medic_area, auth
 from app.config import api_name, version, debug
@@ -20,6 +25,12 @@ from app.config import api_name, version, debug
 install(show_locals=True)
 
 console = Console()
+
+id_prefix: UUID = uuid4()
+
+main_router = APIRouter(
+    prefix=f"/{id_prefix}",
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -93,7 +104,7 @@ app = FastAPI(
     redirect_slashes=True
 )
 
-@app.get("/_health_check/")
+@main_router.get("/_health_check/")
 async def health_check():
     # TODO: hacer la comprobacion de la base de datos un una compleja
     result = test_db()
@@ -132,7 +143,7 @@ class SearchHotKey(Enum):
     Y = "y"
     Z = "z"
 
-@app.get("/scalar", include_in_schema=False)
+@main_router.get("/scalar", include_in_schema=False)
 async def scalar_html():
     return get_scalar_api_reference(
         openapi_url=app.openapi_url,
@@ -141,6 +152,7 @@ async def scalar_html():
         layout=Layout.MODERN,
     )
 
+app.include_router(main_router)
 app.include_router(users.router)
 app.include_router(medic_area.router)
 app.include_router(auth.router)
@@ -151,3 +163,38 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class SPAStaticFiles(StaticFiles):
+    def __init__(self, directory: str="dist/hospital-sdlg/browser", html: bool=True, check_dir: bool=True, api_prefix: UUID=id_prefix, index_file: str="index.html"):
+        super().__init__(directory=directory, html=html, check_dir=check_dir)
+        self.api_prefix = str(api_prefix)
+        self.index_file = index_file
+
+        self.app = super().__call__
+
+
+    async def __call__(self, scope, receive, send):
+        assert scope["type"] == "http"
+
+        request = Request(scope, receive)
+
+        path = request.url.path.lstrip("/")
+
+        if request.url.path.startswith(self.api_prefix):
+            await self.app(scope, receive, send)
+            return
+
+        full_path = (Path(self.directory) / path).resolve()
+        if full_path.exists():
+            await self.app(scope, receive, send)
+            return
+
+        index_path = Path(self.directory) /self.index_file
+        response = FileResponse(index_path)
+        await response(scope, receive, send)
+
+@app.get("/id_prefix_api_secret/", include_in_schema=True) #TODO: pasar al false en deploy
+async def get_secret():
+    return {"id_prefix_api_secret": str(id_prefix)}
+
+app.mount("/", SPAStaticFiles(), name="spa")
