@@ -140,10 +140,36 @@ async def get_department_by_id(request: Request, department_id: int, session: Se
         location_id=department.location_id
     ).model_dump()
 
-# TODO: hacer los post
+@departments.post("/add/", response_model=DepartmentResponse)
+async def add_department(request: Request, department: DepartmentCreate, session: SessionDep):
+
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
+
+    new_department: Departments = Departments(
+        id=department.id,
+        name=department.name,
+        description=department.description,
+        location_id=department.location_id
+    )
+
+    session.add(new_department)
+    session.commit()
+    session.refresh(new_department)
+
+    return DepartmentResponse(
+        id=new_department.id,
+        name=new_department.name,
+        description=new_department.description,
+        location_id=new_department.location_id
+    ).model_dump()
 
 @departments.delete("/delete/{department_id}/", response_model=DepartmentDelete)
 async def delete_department_by_id(request: Request, department_id: int, session: SessionDep):
+
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
+
     try:
         department: Departments = session.execute(
             select(Departments).where(Departments.id == department_id)
@@ -161,7 +187,31 @@ async def delete_department_by_id(request: Request, department_id: int, session:
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Department {department_id} not found")
 
-# TODO: hacer los puts
+
+@departments.patch("/update/{department_id}/", response_model=DepartmentResponse)
+async def update_department(request: Request, department_id: str , department: DepartmentUpdate, session: SessionDep):
+
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
+
+    new_department: Departments = session.execute(
+        select(Departments).where(Departments.id == department_id)
+    ).scalars().first()
+
+    new_department.name = department.name
+    new_department.description = department.description
+    new_department.location_id = department.location_id
+
+    session.add(new_department)
+    session.commit()
+    session.refresh(new_department)
+
+    return DepartmentResponse(
+        id=new_department.id,
+        name=new_department.name,
+        description=new_department.description,
+        location_id=new_department.location_id
+    ).model_dump()
 
 schedules = APIRouter(
     prefix="/schedules",
@@ -448,7 +498,7 @@ async def get_doctor_by_id(request: Request, dotor_id: str, session: SessionDep)
     )
 
 @doctors.get("/me/", response_model=DoctorResponse)
-async def me_doctor(request: Request, session: SessionDep):
+async def me_doctor(request: Request):
     doc: Doctors | User = request.state.user
 
     if isinstance(doc, User):
@@ -535,6 +585,10 @@ async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep
 
 @doctors.delete("/delete/{doctor_id}/", response_model=DoctorDelete)
 async def delete_doctor(request: Request, doctor_id: str, session: SessionDep):
+
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
+
     statement = select(Doctors).where(Doctors.id == doctor_id)
     result = session.execute(statement).scalars().first()
     if result:
@@ -549,6 +603,10 @@ async def delete_doctor(request: Request, doctor_id: str, session: SessionDep):
 
 @doctors.delete("/delete/{doctor_id}/schedule/{schedule_id}/", response_model=DoctorResponse)
 async def delete_doctor_schedule_by_id(request: Request, schedule_id: str, doctor_id: str, session: SessionDep):
+
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
+
     doc: Doctors = session.execute(
         select(Doctors)
             .where(Doctors.id == doctor_id)
@@ -579,7 +637,11 @@ async def delete_doctor_schedule_by_id(request: Request, schedule_id: str, docto
     )
 
 @doctors.put("/update/{doctor_id}/", response_model=DoctorUpdate)
-async def update_doctor(doctor_id: str, session: SessionDep, doctor: DoctorUpdate):
+async def update_doctor(request: Request, doctor_id: str, session: SessionDep, doctor: DoctorUpdate):
+
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
+
     try:
         doc = session.excecute(
             select(Doctors)
@@ -617,7 +679,11 @@ async def update_doctor(doctor_id: str, session: SessionDep, doctor: DoctorUpdat
         raise HTTPException(status_code=404, detail=f"Doctor {doctor_id} not found")
 
 @doctors.put("/add/schedule/", response_model=DoctorResponse)
-async def add_schedule_by_id(session: SessionDep, schedule_id: str = Query(...), doc_id: str = Query(...)):
+async def add_schedule_by_id(request: Request, session: SessionDep, schedule_id: str = Query(...), doc_id: str = Query(...)):
+
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
+
     try:
         doc = session.execute(
             select(Doctors)
@@ -665,6 +731,10 @@ locations = APIRouter(
 
 @doctors.put("/ban/{doc_id}/", response_model=DoctorResponse)
 async def ban_doc(request: Request, doc_id: str, session: SessionDep):
+
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
+
     statement = select(Doctors).where(Doctors.id == doc_id)
     doc: Doctors = session.execute(statement).scalars().first()
 
@@ -694,6 +764,10 @@ async def ban_doc(request: Request, doc_id: str, session: SessionDep):
 
 @doctors.put("/unban/{doc_id}/", response_model=DoctorResponse)
 async def unban_doc(request: Request, doc_id: str, session: SessionDep):
+
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
+
     statement = select(Doctors).where(Doctors.id == doc_id)
     doc: Doctors = session.execute(statement).scalars().first()
 
@@ -799,6 +873,10 @@ async def get_locations(request: Request, session: SessionDep):
 
 @locations.post("/add/", response_model=LocationResponse)
 async def set_location(request: Request, session: SessionDep, location: LocationCreate):
+
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
+
     try:
         new_location = Locations(
             name=location.name,
@@ -822,6 +900,10 @@ async def set_location(request: Request, session: SessionDep, location: Location
 
 @locations.delete("/delete/{location_id}", response_model=LocationDelete)
 async def delete_location(request: Request, location_id: int, session: SessionDep):
+
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
+
     location: Locations = session.execute(
         select(Locations)
             .where(Locations.id == location_id)
@@ -837,7 +919,32 @@ async def delete_location(request: Request, location_id: int, session: SessionDe
         ).model_dump()
     )
 
-# TODO: hacer los puts
+@locations.put("/update/{location_id}/", response_model=LocationResponse)
+async def update_location(request: Request, location_id: int, session: SessionDep, location: LocationUpdate):
+
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
+
+    new_location = session.execute(
+        select(Locations)
+            .where(Locations.id == location_id)
+    ).scalars().first()
+
+    new_location.name = location.name
+    new_location.description = location.description
+
+    session.add(new_location)
+    session.commit()
+    session.refresh(new_location)
+
+    return ORJSONResponse(
+        LocationResponse(
+            id=new_location.id,
+            name=new_location.name,
+            description=new_location.description
+        ).model_dump()
+    )
+
 
 services = APIRouter(
     prefix="/services",
@@ -867,6 +974,10 @@ async def get_services(request: Request, session: SessionDep):
 
 @services.post("/add/", response_model=ServiceResponse)
 async def set_service(request: Request, session: SessionDep, service: ServiceCreate):
+
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
+
     try:
         new_service = Services(
             name=service.name,
@@ -914,6 +1025,10 @@ async def delete_service(request: Request, session: SessionDep, service_id :str)
 
 @services.put("/update/{service_id}/", response_model=ServiceResponse)
 async def update_service(request: Request, session: SessionDep, service_id: str, service: ServiceUpdate):
+
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
+
     new_service: Services = session.execute(
         select(Services)
             .where(Services.id == service_id)
@@ -1011,6 +1126,10 @@ async def get_specialities(request: Request, session: SessionDep):
 
 @specialities.post("/add/", response_model=SpecialtyResponse)
 async def add_speciality(request: Request, session: SessionDep, specialty: SpecialtyCreate):
+
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
+
     try:
         new_speciality = Specialties(
             name=specialty.name,
@@ -1038,6 +1157,10 @@ async def add_speciality(request: Request, session: SessionDep, specialty: Speci
 
 @specialities.delete("/delete/{speciality_id}}/", response_model=SpecialtyDelete)
 async def delete_speciality(request: Request, session: SessionDep, speciality_id: str):
+
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
+
     speciality: Specialties = session.excecute(
         select(Specialties)
             .where(Specialties.id == speciality_id)
@@ -1053,7 +1176,34 @@ async def delete_speciality(request: Request, session: SessionDep, speciality_id
         ).model_dump()
     )
 
-# TODO: hacer los puts
+@specialities.put("/update/{speciality_id}/", response_model=SpecialtyResponse)
+async def update_speciality(request: Request, session: SessionDep, speciality_id: str, speciality: SpecialtyUpdate):
+
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
+
+    new_speciality: Services = session.execute(
+        select(Specialties).where(Specialties.id == speciality_id)
+    ).scalers().first()
+
+    fields = speciality._fields_.keys()
+    for field in fields:
+        value = getattr(speciality, field)
+        if value is not None:
+            setattr(new_speciality, field, value)
+
+    session.add(new_speciality)
+    session.commit()
+    session.refresh(new_speciality)
+
+    return ORJSONResponse(
+        SpecialtyResponse(
+            id=new_speciality.id,
+            name=new_speciality.name,
+            description=new_speciality.description,
+            department_id=new_speciality.department_id
+        ).model_dump()
+    )
 
 chat = APIRouter(
     prefix="/chat",

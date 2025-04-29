@@ -29,7 +29,7 @@ console = Console()
 id_prefix: UUID = uuid4()
 
 main_router = APIRouter(
-    prefix=f"/{id_prefix}",
+    prefix=f"/{str(id_prefix)}",
 )
 
 @asynccontextmanager
@@ -150,6 +150,8 @@ async def scalar_html():
         title=app.title,
         hide_download_button=True,
         layout=Layout.MODERN,
+        dark_mode=True,
+        scalar_favicon_url="/assets/logo-siglas-negro.png"
     )
 
 main_router.include_router(users.router)

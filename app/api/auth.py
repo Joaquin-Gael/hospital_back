@@ -238,7 +238,7 @@ async def gen_session(authorization: Optional[str] = Header(None)):
         secure=False
     )
 
-    print(response.headers)
+    #print(response.headers)
 
     return response
 
