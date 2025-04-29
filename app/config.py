@@ -8,7 +8,9 @@ load_dotenv()
 debug:bool = bool(int(os.getenv("DEBUG")))
 
 api_name = "Hospital API"
-version = "1.0.0"
+version = "0.2.7"
+
+cors_host = os.getenv("DOMINIO")
 
 token_key = os.getenv("TOKEN_KEY")
 

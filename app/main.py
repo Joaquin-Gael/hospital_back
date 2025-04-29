@@ -20,7 +20,7 @@ from pathlib import Path
 
 from app.db.main import init_db, set_admin, migrate, test_db, DB_URL_TEST
 from app.api import users, medic_area, auth
-from app.config import api_name, version, debug
+from app.config import api_name, version, debug, cors_host
 
 install(show_locals=True)
 
@@ -143,16 +143,17 @@ class SearchHotKey(Enum):
     Y = "y"
     Z = "z"
 
-@main_router.get("/scalar", include_in_schema=False)
-async def scalar_html():
-    return get_scalar_api_reference(
-        openapi_url=app.openapi_url,
-        title=app.title,
-        hide_download_button=True,
-        layout=Layout.MODERN,
-        dark_mode=True,
-        scalar_favicon_url="/assets/logo-siglas-negro.png"
-    )
+if debug:
+    @main_router.get("/scalar", include_in_schema=False)
+    async def scalar_html():
+        return get_scalar_api_reference(
+            openapi_url=app.openapi_url,
+            title=app.title,
+            hide_download_button=True,
+            layout=Layout.MODERN,
+            dark_mode=True,
+            scalar_favicon_url="/assets/logo-siglas-negro.png"
+        )
 
 main_router.include_router(users.router)
 main_router.include_router(medic_area.router)
@@ -161,7 +162,7 @@ main_router.include_router(auth.router)
 app.include_router(main_router)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"] if debug else [cors_host],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -196,7 +197,7 @@ class SPAStaticFiles(StaticFiles):
         response = FileResponse(index_path)
         await response(scope, receive, send)
 
-@app.get("/id_prefix_api_secret/", include_in_schema=True) #TODO: pasar al false en deploy
+@app.get("/id_prefix_api_secret/", include_in_schema=debug)
 async def get_secret():
     return {"id_prefix_api_secret": str(id_prefix)}
 
