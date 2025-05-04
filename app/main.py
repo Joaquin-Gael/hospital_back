@@ -7,7 +7,7 @@ from scalar_fastapi import get_scalar_api_reference
 
 from contextlib import asynccontextmanager
 
-from rich import print
+#from rich import print
 from rich.traceback import install
 from rich.console import Console
 from rich.panel import Panel
@@ -162,7 +162,7 @@ main_router.include_router(auth.router)
 app.include_router(main_router)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if debug else [cors_host],
+    allow_origins=["http://localhost:8000"] if debug else [cors_host],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

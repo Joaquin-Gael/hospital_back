@@ -13,7 +13,10 @@ wheels/
 db.sqlite
 
 # Enviroment
-app/.env
+app/*.env
 
 #Front Test
 app/dist
+
+# Storage
+*.json

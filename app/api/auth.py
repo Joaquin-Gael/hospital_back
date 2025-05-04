@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends, HTTPException, Header, status, Response, Query
+from fastapi import APIRouter, Request, Depends, HTTPException, Header, status
 from fastapi.responses import ORJSONResponse
 
 #from rich import print #TODO: sacar al terminar
@@ -16,6 +16,7 @@ from app.core.auth import gen_token, JWTBearer, decode_token
 from app.schemas.users import UserAuth, UserRead
 from app.schemas.auth import TokenUserResponse, TokenDoctorsResponse
 from app.schemas.medica_area import DoctorAuth, DoctorResponse
+from app.storage import storage
 
 console = Console()
 
@@ -25,17 +26,6 @@ router = APIRouter(
     prefix="/auth",
     tags=["auth"],
 )
-
-@router.get("/session/status")
-async def session_status(request: Request):
-    session = request.cookies.get("session", None)
-    if session is None:
-        raise HTTPException(status_code=404, detail="User Have not session cookie")
-
-    return ORJSONResponse({
-        "session": True,
-        "state": "session_status"
-    }, status_code=status.HTTP_200_OK)
 
 @router.post("/doc/login", response_model=TokenDoctorsResponse)
 async def doc_login(session: SessionDep, credentials: DoctorAuth):
@@ -211,8 +201,8 @@ async def refresh(user: User = Depends(auth)):
         ).model_dump()
     )
 
-@router.put("/session")
-async def gen_session(authorization: Optional[str] = Header(None)):
+@router.delete("/logout")
+async def logout(authorization: Optional[str] = Header(None)):
     if authorization is None or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -221,38 +211,9 @@ async def gen_session(authorization: Optional[str] = Header(None)):
 
     token = authorization.split(" ")[1]
 
-    payload = decode_token(token)
+    if storage.get("ban-token"):
+        storage.update("ban-token", token)
 
-    response = ORJSONResponse({
-        "session": True,
-        "state":"gen_session"
-    })
+    result = storage.set("ban-token", token)
 
-    response.set_cookie(
-        key="session",
-        value=token,
-        max_age=payload.get("exp", 3600),
-        expires=payload.get("exp", 3600),
-        httponly=False,
-        samesite="none",
-        secure=False
-    )
-
-    #print(response.headers)
-
-    return response
-
-@router.delete("/logout")
-async def logout(request: Request):
-    session = request.cookies.get("session", None)
-    if session is None:
-        raise HTTPException(status_code=404, detail="Invalid session cookie")
-
-    response = ORJSONResponse({
-        "session": session,
-        "state": "logout"
-    })
-
-    response.delete_cookie("session")
-
-    return response
+    print(result)

@@ -16,6 +16,8 @@ from datetime import date as date_type, time as time_type
 
 from enum import Enum
 
+import re
+
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -64,7 +66,24 @@ class BaseUser(SQLModel, table=False):
 
 
     def set_password(self, raw_password: str):
-        """Genera y almacena el hash de la contraseña."""
+        """
+        Sets a password for the user after validating against a specific pattern for
+        security. The password must match the defined security requirements for
+        complexity. Once validated, it hashes the password using a secure hashing
+        algorithm and stores it.
+
+        :param raw_password: The plain text password to be set. The password must
+            meet the following criteria: at least one lowercase letter, one uppercase
+            letter, one numeral, one special character, and a minimum length of 8 characters.
+        :type raw_password: str
+        :return: None
+        :raises ValueError: If the provided raw_password does not meet the required
+            pattern for password complexity.
+        """
+        pattern = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$'
+        if re.match(pattern, raw_password) is None:
+            raise Exception(f"value: {raw_password} does not match the required pattern")
+
         self.password = pwd_context.hash(raw_password)
 
     def check_password(self, raw_password: str) -> bool:

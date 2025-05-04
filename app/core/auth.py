@@ -28,6 +28,7 @@ import sys
 from app.config import token_key, api_name, version
 from app.models import Doctors, User
 from app.db.main import Session, engine
+from app.storage import storage
 
 logger = logging.getLogger("uvicorn.error")
 logger.setLevel(logging.DEBUG)
@@ -176,21 +177,16 @@ class JWTBearer:
                 detail="No credentials provided or invalid format"
             )
 
-        #if session is None:
-        #    logger.debug(f"Session Token: {session}")
-        #    raise HTTPException(
-        #        status_code=status.HTTP_403_FORBIDDEN,
-        #        detail="No session provided or invalid format"
-        #    )
-
         token = authorization.split(" ")[1]
-        #cookie_token = session
+
+        ban_token = storage.get("ban-token")
+
+        if token == ban_token:
+            raise HTTPException(status_code=403, detail="Token banned")
+
         try:
             payload = decode_token(token)
-            #cookie_payload = decode_token(cookie_token)
             user_id = payload.get("sub")
-            #cookie_user_id = cookie_payload.get("sub")
-            #if (user_id is None or cookie_user_id is None) or (user_id != cookie_user_id):
             if user_id is None:
                 raise HTTPException(status_code=401, detail="Invalid token payload")
 
