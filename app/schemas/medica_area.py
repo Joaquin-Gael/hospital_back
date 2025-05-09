@@ -150,6 +150,7 @@ class DoctorBase(BaseModel):
     telephone: Optional[str] = None
     speciality_id: UUID
     address: Optional[str] = None
+    blood_type: Optional[str] = None
 
 class DoctorCreate(DoctorBase):
     password: str
@@ -234,7 +235,7 @@ class MedicalScheduleUpdate(BaseModel):
 
 class MedicalScheduleResponse(MedicalScheduleBase):
     id: UUID
-    doctors: Optional[List[DoctorResponse]] = []
+    doctors: Optional[List[DoctorResponse]] = None
 
     #class Config:
     #    orm_mode = True

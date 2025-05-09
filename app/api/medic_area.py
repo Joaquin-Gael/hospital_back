@@ -465,7 +465,8 @@ async def get_doctors(request: Request, session: SessionDep):
                 last_name=doc.last_name,
                 dni=doc.dni,
                 telephone=doc.telephone,
-                speciality_id=doc.speciality_id
+                speciality_id=doc.speciality_id,
+                blood_type=doc.blood_type,
             ).model_dump()
         )
 
@@ -493,8 +494,9 @@ async def get_doctor_by_id(request: Request, dotor_id: str, session: SessionDep)
             last_name=doc.last_name,
             dni=doc.dni,
             telephone=doc.telephone,
-            speciality_id=doc.speciality_id
-        )
+            speciality_id=doc.speciality_id,
+            blood_type=doc.blood_type,
+        ).model_dump()
     )
 
 @doctors.get("/me/", response_model=DoctorResponse)
@@ -511,6 +513,9 @@ async def me_doctor(request: Request):
                 id=schedule.id,
                 time_medic=schedule.time_medic,
                 day=schedule.day,
+                start_time=schedule.start_time,
+                end_time=schedule.end_time,
+                doctors=schedule.doctors,
             )
         )
 
@@ -528,7 +533,8 @@ async def me_doctor(request: Request):
             last_name=doc.last_name,
             dni=doc.dni,
             telephone=doc.telephone,
-            speciality_id=doc.speciality_id
+            speciality_id=doc.speciality_id,
+            blood_type=doc.blood_type,
         ),
         "schedules":schedules
     })
@@ -551,6 +557,7 @@ async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep
             speciality_id=doctor.speciality_id,
             password=doctor.password,
             address=doctor.address,
+            blood_type=doctor.blood_type,
         )
 
         new_doctor.set_password(doctor.password)
@@ -574,7 +581,8 @@ async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep
                 dni=new_doctor.dni,
                 telephone=new_doctor.telephone,
                 speciality_id=new_doctor.speciality_id,
-                address=new_doctor.address
+                address=new_doctor.address,
+                blood_type=new_doctor.blood_type,
             ).model_dump(),
             status_code=status.HTTP_201_CREATED
         )
@@ -1406,6 +1414,36 @@ async def get_turns(request: Request, session: SessionDep):
 
     return ORJSONResponse(turns_serialized)
 
+@turns.get("/{turn_id}", response_model=TurnsResponse)
+async def get_turn(request: Request, session: SessionDep, turn_id: int):
+    user = request.state.user
+
+    try:
+        secure_turn: Turns = session.execute(
+            select(Turns)
+                .where(Turns.id == turn_id)
+        ).scalars().first()
+
+        if secure_turn is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Turn not found")
+
+        if secure_turn.user_id != user.id or secure_turn.doctor_id != user.id:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+        return ORJSONResponse(
+            TurnsResponse(
+                id=secure_turn.id,
+                reason=secure_turn.reason,
+                state=secure_turn.state,
+                date=secure_turn.date,
+                date_limit=secure_turn.date_limit,
+                date_created=secure_turn.date_created,
+                user_id=secure_turn.user_id,
+            ).model_dump()
+        )
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
 @turns.post("/add/", response_model=TurnsResponse)
 async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
     if "doc" in request.state.scopes and turn.doctor_id == request.user.id:
@@ -1475,7 +1513,7 @@ async def delete_turn(request: Request, session: SessionDep, turn_id: int):
     session_user = request.state.user
     try:
         turn = session.execute(select(Turns).where(Turns.id == turn_id)).scalars().first()
-        if not session_user.id != turn.user_id or session_user.id != turn.doctor_id:
+        if session_user.id != turn.user_id or session_user.id != turn.doctor_id:
             raise HTTPException(status_code=403, detail="You are not authorized")
         session.delete(turn)
         session.commit()
@@ -1501,3 +1539,4 @@ router.include_router(services)
 router.include_router(specialities)
 router.include_router(chat)
 router.include_router(departments)
+router.include_router(turns)

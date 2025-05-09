@@ -14,6 +14,7 @@ class UserBase(BaseModel):
     dni: str
     telephone: Optional[str] = None
     address: Optional[str] = None
+    blood_type: Optional[str] = None
 
 class UserCreate(UserBase):
     password: constr(min_length=8)

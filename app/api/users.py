@@ -89,6 +89,7 @@ async def get_user_by_id(session: SessionDep, user_id: UUID):
             first_name=user.first_name,
             last_name=user.last_name,
             dni=user.dni,
+            blood_type=user.blood_type
         ).model_dump()
     )
 
@@ -114,6 +115,7 @@ async def me_user(request: Request):
             last_name=user.last_name,
             dni=user.dni,
             telephone=user.telephone,
+            blood_type=user.blood_type
         ).model_dump(),
     })
 
@@ -147,6 +149,7 @@ async def add_user(session: SessionDep, user: UserCreate):
                 dni=user_db.dni,
                 address=user_db.addres,
                 telephone=user_db.telephone,
+                blood_type=user_db.blood_type
             ).model_dump()
         )
     except Exception as e:
@@ -162,7 +165,6 @@ async def delete_user(request: Request, user_id: str, session: SessionDep):
         user: User = session.execute(statement).scalars().first()
         session.delete(user)
         session.commit()
-        #session.refresh(user)
         user_deleted = UserDelete(
             id=user.id,
             username=user.name,
@@ -209,6 +211,7 @@ async def update_user(user_id: str, session: SessionDep, user_form: UserUpdate):
             first_name=user.first_name,
             last_name=user.last_name,
             dni=user.dni,
+            blood_type=user.blood_type
         )
     )
 
@@ -237,6 +240,7 @@ async def ban_user(request: Request, user_id: str, session: SessionDep):
             first_name=user.first_name,
             last_name=user.last_name,
             dni=user.dni,
+            blood_type=user.blood_type,
         ),
         "message":f"User {user.name} has been banned."
     })
@@ -266,6 +270,7 @@ async def unban_user(request: Request, user_id: str, session: SessionDep):
             first_name=user.first_name,
             last_name=user.last_name,
             dni=user.dni,
+            blood_type=user.blood_type,
         ),
         "message":f"User {user.name} has been unbanned."
     })
