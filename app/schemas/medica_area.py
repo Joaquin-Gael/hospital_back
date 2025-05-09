@@ -118,7 +118,7 @@ class ServiceBase(BaseModel):
     name: str
     description: str
     price: float
-    specialty_id: str
+    specialty_id: UUID
 
 class ServiceCreate(ServiceBase):
     pass
@@ -127,7 +127,7 @@ class ServiceUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     price: Optional[float] = None
-    specialty_id: Optional[str] = None
+    specialty_id: Optional[UUID] = None
 
 class ServiceResponse(ServiceBase):
     id: UUID

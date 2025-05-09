@@ -829,7 +829,7 @@ async def get_locations(request: Request, session: SessionDep):
                             name=service.name,
                             description=service.description,
                             price=service.price,
-                            specialty_id=service.specialty_id
+                            specialty_id=service.specialty_id,
                         )
                     )
                 statement = select(Doctors).where(Doctors.service_id == specialty.id)
@@ -850,7 +850,8 @@ async def get_locations(request: Request, session: SessionDep):
                             last_name=doc.last_name,
                             dni=doc.dni,
                             telephone=doc.telephone,
-                            speciality_id=doc.speciality_id
+                            speciality_id=doc.speciality_id,
+                            blood_type=doc.blood_type
                         )
                     )
                 specialties.append(
@@ -900,7 +901,8 @@ async def set_location(request: Request, session: SessionDep, location: Location
         return ORJSONResponse(
             LocationResponse(
                 id=new_location.id,
-                name=new_location.name
+                name=new_location.name,
+                description=new_location.description,
             ).model_dump(),
             status_code=status.HTTP_201_CREATED
         )
@@ -976,7 +978,7 @@ async def get_services(request: Request, session: SessionDep):
                 name=service.name,
                 description=service.description,
                 price=service.price,
-                specialty_id=service.specialty_id
+                specialty_id=service.specialty_id,
             )
         )
 
@@ -1380,7 +1382,6 @@ async def websocket_chat(request: Request, websocket: WebSocket, session: Sessio
         manager.disconnect(doc.id)
         await manager.broadcast({"type":"presence","user":doc.id,"status":"offline"})
 
-# TODO: hacer los endpoints de los turnos
 
 turns = APIRouter(
     prefix="/turns",
@@ -1526,6 +1527,8 @@ async def delete_turn(request: Request, session: SessionDep, turn_id: int):
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+# TODO: hacer los puts
 
 router = APIRouter(
     prefix="/medic",
