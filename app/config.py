@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-from app.models import User
+from app.models import User, PasswordError
 
 load_dotenv()
 

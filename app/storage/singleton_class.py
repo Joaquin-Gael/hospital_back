@@ -12,9 +12,13 @@ from time import time
 
 from pathlib import Path
 
+from rich.console import Console
+
 import json
 
 import os
+
+console = Console()
 
 STORAGE_PATH: Path = (Path(__file__).parent / "storage.json").resolve()
 
@@ -30,8 +34,9 @@ def timeit(func):
 
 class PurgeMeta(type):
     def __new__(mcs, name, bases, namespace):
+        ignore_methods = ["__init__", "__new__", "create_table"]
         for attr, val in namespace.items():
-            if callable(val) and not attr.startswith('_'):
+            if callable(val) and not attr.startswith('_') and attr not in ignore_methods:
                 namespace[attr] = mcs.wrap_with_purge(val)
         return super().__new__(mcs, name, bases, namespace)
 
@@ -40,13 +45,14 @@ class PurgeMeta(type):
         @wraps(method)
         @timeit
         def wrapper(self, *args, **kwargs):
+            table_name = kwargs.get("table_name")
             keys_to_delete = []
-            for key in self.data.items.keys():
-                if self.data.items.get(key).expired <= datetime.now():
+            for key in self.data.tables[table_name].items.keys():
+                if self.data.tables[table_name].items.get(key).expired <= datetime.now():
                     keys_to_delete.append(key)
 
             for key in keys_to_delete:
-                del self.data.items[key]
+                del self.data.tables[table_name].items[key]
 
             return method(self, *args, **kwargs)
         return wrapper
@@ -59,6 +65,7 @@ class FechaEncoder(json.JSONEncoder):
             return str(o)
         return super().default(o)
 
+# NOTE: Posible deprecacion
 @singledispatch
 def parse_value(value):
     """Por defecto, no hacemos nada."""
@@ -107,8 +114,12 @@ class GetItem(BaseModel):
 class SetItem(Response):
     key: Optional[str] = None
 
+class Table(BaseModel):
+    name: str
+    items: Optional[Dict[str, Item | SetItem]]
+
 class Storage(BaseModel):
-    items: Dict[str, Item | SetItem]
+    tables: Dict[str, Table]
 
 
 class Singleton(metaclass=PurgeMeta):
@@ -120,25 +131,43 @@ class Singleton(metaclass=PurgeMeta):
             if not os.path.exists(STORAGE_PATH):
                 STORAGE_PATH.touch()
                 with open(STORAGE_PATH, "w", encoding="utf-8") as f:
-                    json.dump({"items": {}}, f, indent=4)
+                    json.dump({"tables": {}}, f, indent=4)
             cls._instance.data = Storage.parse_file(STORAGE_PATH, content_type="text/json", encoding="utf-8")
         else:
             pass
 
         return cls._instance
 
+    def create_table(self, table_name: str):
+        with open(STORAGE_PATH, "w", encoding="utf-8") as f:
+            new_table = Table(name=table_name, items={})
+            self.data.tables[table_name] = new_table
+            json.dump(self.data.model_dump(), f, cls=FechaEncoder, indent=4)
+
+        return self.data.tables[table_name]
+
     @cached(_cache)
-    def get(self, key) -> GetItem:
+    def get_all(self, table_name: str = None) -> Dict[Any, Any]:
         with open(STORAGE_PATH, "r", encoding="utf-8") as f:
-            self.data.items = Storage.model_validate_json(f.read()).items
-        response = GetItem(
-            key=key,
-            value=self.data.items.get(key, None)
-        )
-        return response
+            self.data.tables = Storage.model_validate_json(f.read()).tables
+        return self.data.tables.get(table_name, {}).items
+
+    @cached(_cache)
+    def get(self, key: str, table_name: str) -> GetItem | None:
+        try:
+            with open(STORAGE_PATH, "r", encoding="utf-8") as f:
+                self.data.tables = Storage.model_validate_json(f.read()).tables
+            response = GetItem(
+                key=key,
+                value=self.data.tables.get(table_name, {}).items.get(key, None)
+            )
+            return response
+        except Exception:
+            console.print_exception(show_locals=True)
+            return None
 
 
-    def set(self, key = None, value = None) -> SetItem:
+    def set(self, key = None, value = None, table_name: str = "") -> SetItem:
         if value is None:
             raise Exception("value cannot be None.")
 
@@ -151,19 +180,25 @@ class Singleton(metaclass=PurgeMeta):
             updated=datetime.now()
         )
 
-        self.data.items[key] = data
+        self.data.tables[table_name].items[key] = data
 
         with open(STORAGE_PATH, "w", encoding="utf-8") as f:
             json.dump(self.data.model_dump(), f, cls=FechaEncoder, indent=4)
 
         return data
 
-    def delete(self, key):
-        del self.data.items[key]
+    def delete(self, key, table_name: str):
+        del self.data.tables[table_name].items[key]
+        with open(STORAGE_PATH, "w", encoding="utf-8") as f:
+            json.dump(self.data.model_dump(), f, cls=FechaEncoder, indent=4)
 
-    def clear(self):
-        self.data.items.clear()
+    def clear(self, table_name: str = None):
+        self.data.tables[table_name].clear()
+        with open(STORAGE_PATH, "w", encoding="utf-8") as f:
+            json.dump(self.data.model_dump(), f, cls=FechaEncoder, indent=4)
 
-    def update(self, key, value):
-        self.data.items[key].value = value
-        self.data.items[key].updated = datetime.now()
+    def update(self, key, value, table_name):
+        self.data.tables[table_name].items[key].value = value
+        self.data.tables[table_name].items[key].updated = datetime.now()
+        with open(STORAGE_PATH, "w", encoding="utf-8") as f:
+            json.dump(self.data.model_dump(), f, cls=FechaEncoder, indent=4)

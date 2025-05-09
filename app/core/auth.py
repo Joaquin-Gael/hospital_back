@@ -162,16 +162,11 @@ def decode_token(token: str):
         raise ValueError("Value Not Found") from e
 
 class JWTBearer:
-    def __init__(self, auto_error: bool = True):
-        self.auto_error = auto_error
+    def __init__(self, as_admin: bool = True):
+        self.as_admin = as_admin
 
-    async def __call__(self, request: Request, authorization: Optional[str] = Header(None)) -> User | Doctors | None: #, session: Optional[str] = Cookie(None)
+    async def __call__(self, request: Request, authorization: Optional[str] = Header(None)) -> User | Doctors | None:
         if authorization is None or not authorization.startswith("Bearer "):
-            if self.auto_error:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="No credentials provided or invalid format"
-                )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="No credentials provided or invalid format"
@@ -179,16 +174,20 @@ class JWTBearer:
 
         token = authorization.split(" ")[1]
 
-        ban_token = storage.get("ban-token")
+        payload = decode_token(token)
+        user_id = payload.get("sub")
+
+        ban_token = storage.get(key=payload.get("sub"), table_name="ban_token")
 
         if token == ban_token:
             raise HTTPException(status_code=403, detail="Token banned")
 
         try:
-            payload = decode_token(token)
-            user_id = payload.get("sub")
             if user_id is None:
                 raise HTTPException(status_code=401, detail="Invalid token payload")
+
+            if not "admin" in payload.get("scopes") and self.as_admin:
+                raise HTTPException(status_code=403, detail="Not authorized")
 
             if "doc" in payload.get("scopes"):
                 statement = select(Doctors).where(Doctors.id == user_id)

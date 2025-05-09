@@ -94,7 +94,7 @@ from app.schemas.medica_area import (
 from app.db.main import SessionDep
 from app.core.auth import JWTBearer, JWTWebSocket
 
-auth = JWTBearer(auto_error=False)
+auth = JWTBearer(as_admin=False)
 ws_auth = JWTWebSocket()
 
 console = Console()
@@ -404,7 +404,7 @@ async def update_schedule(schedule: MedicalScheduleUpdate, session: SessionDep):
             try:
                 selected_day = DayOfWeek(day)
             except ValueError:
-                raise ValueError(f"Invalid day: {day}. Must be one of {list(DayOfWeek)}")
+                raise ValueError(f "Invalid day: {day}. Must be one of {list(DayOfWeek)}")
             # proceed with selected_day
         ```
     """
@@ -550,6 +550,7 @@ async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep
             dni=doctor.dni,
             speciality_id=doctor.speciality_id,
             password=doctor.password,
+            address=doctor.address,
         )
 
         new_doctor.set_password(doctor.password)
@@ -572,7 +573,8 @@ async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep
                 last_name=new_doctor.last_name,
                 dni=new_doctor.dni,
                 telephone=new_doctor.telephone,
-                speciality_id=new_doctor.speciality_id
+                speciality_id=new_doctor.speciality_id,
+                address=new_doctor.address
             ).model_dump(),
             status_code=status.HTTP_201_CREATED
         )
@@ -1069,8 +1071,8 @@ async def get_specialities(request: Request, session: SessionDep):
     result: List["Specialties"] = session.execute(statement).scalars().all()
 
     specialities: List[SpecialtyResponse] = []
-    for specialiti in result:
-        statement = select(Services).where(Services.specialty_id == specialiti.id)
+    for speciality in result:
+        statement = select(Services).where(Services.specialty_id == speciality.id)
         result: List["Services"] = session.execute(statement).scalars().all()
 
         services: List[ServiceResponse] = []
@@ -1085,7 +1087,7 @@ async def get_specialities(request: Request, session: SessionDep):
                 )
             )
 
-        statement = select(Doctors).where(Doctors.speciality_id == specialiti.id)
+        statement = select(Doctors).where(Doctors.speciality_id == speciality.id)
         result: List["Doctors"] = session.execute(statement).scalars().all()
 
         doctors: List[DoctorResponse] = []
@@ -1110,10 +1112,10 @@ async def get_specialities(request: Request, session: SessionDep):
 
         specialities.append(
             SpecialtyResponse(
-                id=specialiti.id,
-                name=specialiti.name,
-                description=specialiti.description,
-                department_id=specialiti.department_id,
+                id=speciality.id,
+                name=speciality.name,
+                description=speciality.description,
+                department_id=speciality.department_id,
                 doctors=doctors,
                 services=services
             )
@@ -1215,7 +1217,7 @@ class ConnectionManager:
         self.active_connections: dict[UUID, WebSocket] = {}  # user_id → WebSocket
 
     async def connect(self, user_id: UUID, websocket: WebSocket):
-        await websocket.accept()  # Handshake HTTP→WS :contentReference[oaicite:4]{index=4}
+        await websocket.accept()  # Handshake HTTP→WS :contentReference[officiate:4]{index=4}
         self.active_connections[user_id] = websocket
 
     def disconnect(self, user_id: UUID):
@@ -1224,7 +1226,7 @@ class ConnectionManager:
     async def send_personal_message(self, message: dict, user_id: UUID):
         ws = self.active_connections.get(user_id)
         if ws:
-            await ws.send_json(message)  # envía JSON → cliente :contentReference[oaicite:5]{index=5}
+            await ws.send_json(message)  # envía JSON → cliente :contentReference[officiate:5]{index=5}
 
     async def broadcast(self, message: dict):
         for ws in self.active_connections.values():
@@ -1324,9 +1326,9 @@ async def websocket_chat(request: Request, websocket: WebSocket, session: Sessio
     if not "doc" in request.state.scopes:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    try:
-        doc: Doctors = request.state.user
+    doc: Doctors = request.state.user
 
+    try:
         if isinstance(doc, User):
             raise HTTPException(status_code=403, detail="You are not authorized")
 
@@ -1370,7 +1372,122 @@ async def websocket_chat(request: Request, websocket: WebSocket, session: Sessio
         manager.disconnect(doc.id)
         await manager.broadcast({"type":"presence","user":doc.id,"status":"offline"})
 
+# TODO: hacer los endpoints de los turnos
 
+turns = APIRouter(
+    prefix="/turns",
+    tags=["turns"],
+    dependencies=[
+        Depends(auth)
+    ]
+)
+
+@turns.get("/", response_model=List[TurnsResponse])
+async def get_turns(request: Request, session: SessionDep):
+    statement = select(Turns)
+    result: List["Turns"] = session.execute(statement).scalars().all()
+
+    turns_serialized: List[TurnsResponse] = []
+    for turn in result:
+        turns_serialized.append(
+            TurnsResponse(
+                id=turn.id,
+                reason=turn.reason,
+                state=turn.state,
+                date=turn.date,
+                date_limit=turn.date_limit,
+                date_created=turn.date_created,
+                user_id=turn.user_id,
+                doctor_id=turn.doctor_id,
+                appointment_id=turn.appointment_id,
+                service_id=turn.service_id
+            )
+        )
+
+    return ORJSONResponse(turns_serialized)
+
+@turns.post("/add/", response_model=TurnsResponse)
+async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
+    if "doc" in request.state.scopes and turn.doctor_id == request.user.id:
+        if turn.user_id is None:
+            raise HTTPException(status_code=400, detail="user_id is required")
+
+        try:
+            new_turn = Turns(
+                reason=turn.reason,
+                state=turn.state,
+                date=turn.date,
+                date_limit=turn.date_limit,
+                user_id=turn.id,
+                doctor_id=turn.doctor_id,
+                appointment_id=turn.appointment_id,
+                service_id=turn.service_id
+            )
+            session.add(new_turn)
+            session.commit()
+            session.refresh(new_turn)
+            return ORJSONResponse(
+                TurnsResponse(
+                    id=new_turn.id,
+                    reason=turn.reason,
+                    state=turn.state,
+                    date=turn.date,
+                    date_limit=turn.date_limit,
+                    date_created=new_turn.date_created,
+                    user_id=new_turn.user_id,
+                ).model_dump()
+            )
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    session_user = request.state.user
+    try:
+        new_turn = Turns(
+            reason=turn.reason,
+            state=turn.state,
+            date=turn.date,
+            date_limit=turn.date_limit,
+            user_id=session_user.id,
+            doctor_id=turn.doctor_id,
+            appointment_id=turn.appointment_id,
+            service_id=turn.service_id
+        )
+        new_turn.user = session_user
+        session.add(new_turn)
+        session.commit()
+        session.refresh(new_turn)
+        return ORJSONResponse(
+            TurnsResponse(
+                id=new_turn.id,
+                reason=turn.reason,
+                state=turn.state,
+                date=turn.date,
+                date_limit=turn.date_limit,
+                date_created=new_turn.date_created,
+                user_id=new_turn.user_id,
+            ).model_dump()
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@turns.delete("/delete/{turn_id}", response_model=TurnsDelete)
+async def delete_turn(request: Request, session: SessionDep, turn_id: int):
+    session_user = request.state.user
+    try:
+        turn = session.execute(select(Turns).where(Turns.id == turn_id)).scalars().first()
+        if not session_user.id != turn.user_id or session_user.id != turn.doctor_id:
+            raise HTTPException(status_code=403, detail="You are not authorized")
+        session.delete(turn)
+        session.commit()
+        return ORJSONResponse(
+            TurnsDelete(
+                id=turn.id,
+                message=f"Turn {turn.id} has been deleted"
+            ),
+            status_code=status.HTTP_200_OK
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 router = APIRouter(
     prefix="/medic",

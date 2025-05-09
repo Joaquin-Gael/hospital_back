@@ -1,5 +1,7 @@
 from sqlmodel import create_engine, Session, SQLModel, select
 
+from sqlalchemy.exc import IntegrityError
+
 from typing import Annotated
 
 from fastapi import Depends
@@ -15,11 +17,9 @@ from typing import List, Tuple
 
 from app.config import debug, admin_user, User
 
-#from mako.testing.helpers import result_lines #TODO: testear
+DB_URL_TEST = f"postgresql://neondb_owner:npg_5VeahKofDF6p@ep-still-pond-acx4cyvn-pooler.sa-east-1.aws.neon.tech/neondb"
 
-DB_URL_TEST = f"postgresql+psycopg2://postgres:4321@localhost:5433/dev"
-
-engine = create_engine(DB_URL_TEST, echo=debug)
+engine = create_engine(DB_URL_TEST, echo=debug, future=True, pool_pre_ping=True)
 
 console = Console()
 
@@ -52,9 +52,13 @@ def set_admin():
             session.commit()
             session.refresh(admin_user)
         print("Admin created")
-    except Exception:
+    except IntegrityError:
         console.print_exception(show_locals=True) if debug else None
         print("Admin already created")
+
+    except Exception(BaseException):
+        console.print_exception(show_locals=True) if debug else None
+        print("Admin not created")
 
 
 def test_db() -> Tuple[float, bool]:

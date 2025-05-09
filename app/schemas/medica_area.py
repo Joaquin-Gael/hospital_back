@@ -149,6 +149,7 @@ class DoctorBase(BaseModel):
     dni: str
     telephone: Optional[str] = None
     speciality_id: UUID
+    address: Optional[str] = None
 
 class DoctorCreate(DoctorBase):
     password: str

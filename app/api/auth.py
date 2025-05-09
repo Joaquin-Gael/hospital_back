@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Request, Depends, HTTPException, Header, status
 from fastapi.responses import ORJSONResponse
 
-#from rich import print #TODO: sacar al terminar
 from rich.console import Console
 
-from typing import List, Optional
+from typing import Optional, Dict, List
 
 from sqlmodel import select
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from app.models import Doctors, User
 from app.db.main import SessionDep
@@ -20,12 +19,19 @@ from app.storage import storage
 
 console = Console()
 
-auth = JWTBearer(auto_error=False)
+auth = JWTBearer(as_admin=False)
 
 router = APIRouter(
     prefix="/auth",
     tags=["auth"],
 )
+
+@router.get("/scopes", response_model=Dict[str, List[str]])
+async def get_scopes(request: Request, _=Depends(auth)):
+    scopes = request.state.scopes
+    return ORJSONResponse({
+        "scopes":scopes,
+    })
 
 @router.post("/doc/login", response_model=TokenDoctorsResponse)
 async def doc_login(session: SessionDep, credentials: DoctorAuth):
@@ -42,6 +48,9 @@ async def doc_login(session: SessionDep, credentials: DoctorAuth):
         "sub":doc.id,
         "scopes":["doc"]
     }
+
+    if doc.is_active:
+        doc_data["scopes"].append("active")
 
     token = gen_token(doc_data)
     refresh_token = gen_token(doc_data)
@@ -202,18 +211,20 @@ async def refresh(user: User = Depends(auth)):
     )
 
 @router.delete("/logout")
-async def logout(authorization: Optional[str] = Header(None)):
+async def logout(request: Request, authorization: Optional[str] = Header(None), _=Depends(auth)):
     if authorization is None or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No credentials provided or invalid format"
         )
 
+    session_user = request.state.user
+
     token = authorization.split(" ")[1]
 
-    if storage.get("ban-token"):
-        storage.update("ban-token", token)
+    if not storage.get(key=str(session_user.id), table_name="ban-token").value is None or storage.get(key=str(session_user.id), table_name="ban-token") is None:
+        storage.update(key=str(session_user.id), value=token, table_name="ban-token")
 
-    result = storage.set("ban-token", token)
+    result = storage.set(key=str(session_user.id), value=token, table_name="ban-token")
 
-    print(result)
+    return result.model_dump()

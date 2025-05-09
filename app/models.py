@@ -1,10 +1,10 @@
 from sqlmodel import SQLModel, Field, Relationship
 
-from sqlalchemy import Column, UUID as SQLUUID, VARCHAR
+from sqlalchemy import Column, UUID as UUID_TYPE, VARCHAR
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import declarative_mixin
 
-from typing import Optional, List, Tuple
+from typing import Optional, List
 
 from passlib.context import CryptContext
 
@@ -45,6 +45,12 @@ class RenameTurnsStateMixin:
             if col.name == "state":
                 col.name = f"{cls.__table__.name}_state"
 
+class PasswordError(Exception):
+    """Exception raised for errors in password validation."""
+    def __init__(self, message: str = "Invalid password"):
+        super().__init__(message)
+        self.message = message
+
 class BaseUser(SQLModel, table=False):
     name: str = Field(
         sa_type=VARCHAR(length=32),
@@ -63,11 +69,12 @@ class BaseUser(SQLModel, table=False):
     dni: str = Field(max_length=8)
     telephone: Optional[str] = Field(max_length=50)
     address: Optional[str] = Field(nullable=True)
+    blood_type: Optional[str] = Field(nullable=True)
 
 
     def set_password(self, raw_password: str):
         """
-        Sets a password for the user after validating against a specific pattern for
+        sets a password for the user after validating against a specific pattern for
         security. The password must match the defined security requirements for
         complexity. Once validated, it hashes the password using a secure hashing
         algorithm and stores it.
@@ -75,14 +82,14 @@ class BaseUser(SQLModel, table=False):
         :param raw_password: The plain text password to be set. The password must
             meet the following criteria: at least one lowercase letter, one uppercase
             letter, one numeral, one special character, and a minimum length of 8 characters.
-        :type raw_password: str
+        :type raw_password: Str
         :return: None
         :raises ValueError: If the provided raw_password does not meet the required
             pattern for password complexity.
         """
         pattern = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$'
         if re.match(pattern, raw_password) is None:
-            raise Exception(f"value: {raw_password} does not match the required pattern")
+            raise PasswordError(message=f"value: {raw_password} does not match the required pattern")
 
         self.password = pwd_context.hash(raw_password)
 
@@ -118,7 +125,7 @@ class BaseUser(SQLModel, table=False):
         return True
 
 class BaseModelTurns(SQLModel, RenameTurnsStateMixin, table=False):
-    reason: str = Field(nullable=True)
+    reason: str = Field(nullable=True, default=None)
     state: TurnsState = Field(
         default=TurnsState.waiting,
         sa_type=SQLEnum(TurnsState),
@@ -128,17 +135,17 @@ class BaseModelTurns(SQLModel, RenameTurnsStateMixin, table=False):
     date_created: date_type = Field(default_factory=date_type.today)
     date_limit: date_type = Field(nullable=False)
     user_id: Optional[UUID] = Field(
-        sa_type=SQLUUID,
+        sa_type=UUID_TYPE,
         foreign_key="users.user_id",
         nullable=True,
     )
     doctor_id: Optional[UUID] = Field(
-        sa_type=SQLUUID,
+        sa_type=UUID_TYPE,
         foreign_key="doctors.doctor_id",
         nullable=True,
     )
     service_id: Optional[UUID] = Field(
-        sa_type=SQLUUID,
+        sa_type=UUID_TYPE,
         foreign_key="services.service_id",
         nullable=True,
     )
@@ -147,7 +154,7 @@ class Turns(BaseModelTurns, table=True):
     id: UUID = Field(
         sa_column=Column(
             name="turn_id",
-            type_=SQLUUID,
+            type_=UUID_TYPE,
             primary_key=True,
             unique=True
         ),
@@ -164,7 +171,7 @@ class Appointments(BaseModelTurns, table=True):
     id: UUID = Field(
         sa_column=Column(
             name="appointment_id",
-            type_=SQLUUID,
+            type_=UUID_TYPE,
             primary_key=True,
             unique=True
         ),
@@ -183,7 +190,7 @@ class Cashes(SQLModel, table=True):
     id: UUID = Field(
         sa_column=Column(
             name="cash_id",
-            type_=SQLUUID,
+            type_=UUID_TYPE,
             primary_key=True,
             unique=True
         ),
@@ -205,7 +212,7 @@ class CashesDetails(SQLModel, table=True):
     id: UUID = Field(
         sa_column=Column(
             name="cash_details_id",
-            type_=SQLUUID,
+            type_=UUID_TYPE,
             primary_key=True,
             unique=True
         ),
@@ -226,7 +233,7 @@ class Locations(SQLModel, table=True):
     id: UUID = Field(
         sa_column=Column(
             name="location_id",
-            type_=SQLUUID,
+            type_=UUID_TYPE,
             primary_key=True,
             unique=True
         ),
@@ -241,7 +248,7 @@ class Departments(SQLModel, table=True):
     id: UUID = Field(
         sa_column=Column(
             name="department_id",
-            type_=SQLUUID,
+            type_=UUID_TYPE,
             primary_key=True,
             unique=True
         ),
@@ -258,7 +265,7 @@ class Specialties(SQLModel, table=True):
     id: UUID = Field(
         sa_column=Column(
             name="specialty_id",
-            type_=SQLUUID,
+            type_=UUID_TYPE,
             primary_key=True,
             unique=True
         ),
@@ -275,7 +282,7 @@ class Services(SQLModel, table=True):
     id: UUID = Field(
         sa_column=Column(
             name="service_id",
-            type_=SQLUUID,
+            type_=UUID_TYPE,
             primary_key=True,
             unique=True
         ),
@@ -309,7 +316,7 @@ class MedicalSchedules(SQLModel, table=True):
     id: UUID = Field(
         sa_column=Column(
             name="medical_schedule_id",
-            type_=SQLUUID,
+            type_=UUID_TYPE,
             primary_key=True
         ),
         default_factory=uuid.uuid4,
@@ -335,7 +342,7 @@ class User(BaseUser, table=True):
     id: Optional[UUID] = Field(
         sa_column=Column(
             name="user_id",
-            type_=SQLUUID,
+            type_=UUID_TYPE,
             primary_key=True,
             unique=True,
         ),
@@ -349,7 +356,7 @@ class Doctors(BaseUser, table=True):
     id: UUID = Field(
         sa_column=Column(
             name="doctor_id",
-            type_=SQLUUID,
+            type_=UUID_TYPE,
             primary_key=True,
             unique=True
         ),
@@ -373,7 +380,7 @@ class Chat(SQLModel, table=True):
     id: UUID = Field(
         sa_column=Column(
             name="chat_id",
-            type_=SQLUUID,
+            type_=UUID_TYPE,
             primary_key=True,
             unique=True
         ),
@@ -390,7 +397,7 @@ class ChatMessages(SQLModel, table=True):
     id: UUID = Field(
         sa_column=Column(
             name="message_id",
-            type_=SQLUUID,
+            type_=UUID_TYPE,
             primary_key=True,
             unique=True
         ),

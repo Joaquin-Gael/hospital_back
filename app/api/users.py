@@ -3,10 +3,11 @@ from fastapi.responses import ORJSONResponse
 
 from sqlalchemy import select
 
-from typing import List, Dict
+from typing import List
 
-#from rich import print
 from rich.console import Console
+
+from uuid import UUID
 
 import logging
 
@@ -30,7 +31,7 @@ logger.addHandler(handler)
 
 console = Console()
 
-auth = JWTBearer(auto_error=False)
+auth = JWTBearer(as_admin=False)
 
 private_router = APIRouter(
     dependencies=[
@@ -69,7 +70,7 @@ async def get_users(session: SessionDep):
     return ORJSONResponse(users)
 
 @private_router.get("/{user_id}/")
-async def get_user_by_id(session: SessionDep, user_id: str):
+async def get_user_by_id(session: SessionDep, user_id: UUID):
     statement = select(User).where(User.id == user_id)
     user: User = session.execute(statement).scalars().first()
     if not user:
@@ -116,13 +117,6 @@ async def me_user(request: Request):
         ).model_dump(),
     })
 
-@private_router.get("/scopes", response_model=Dict[str, List[str]])
-async def get_scopes(request: Request):
-    scopes = request.state.scopes
-    return ORJSONResponse({
-        "scopes":scopes,
-    })
-
 @public_router.post("/add/", response_model=UserRead)
 async def add_user(session: SessionDep, user: UserCreate):
     try:
@@ -131,7 +125,8 @@ async def add_user(session: SessionDep, user: UserCreate):
             name=user.username,
             first_name=user.first_name,
             last_name=user.last_name,
-            dni=user.dni
+            dni=user.dni,
+            addres=user.addres,
         )
         user_db.set_password(user.password)
         session.add(user_db)
@@ -150,6 +145,8 @@ async def add_user(session: SessionDep, user: UserCreate):
                 first_name=user_db.first_name,
                 last_name=user_db.last_name,
                 dni=user_db.dni,
+                address=user_db.addres,
+                telephone=user_db.telephone,
             ).model_dump()
         )
     except Exception as e:

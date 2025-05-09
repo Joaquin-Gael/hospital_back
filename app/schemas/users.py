@@ -13,6 +13,7 @@ class UserBase(BaseModel):
     last_name: Optional[str] = None
     dni: str
     telephone: Optional[str] = None
+    address: Optional[str] = None
 
 class UserCreate(UserBase):
     password: constr(min_length=8)
