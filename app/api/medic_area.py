@@ -1462,9 +1462,16 @@ async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
                 appointment_id=turn.appointment_id,
                 service_id=turn.service_id
             )
+            new_appointment = Appointments(
+                user_id = new_turn.id,
+                doctor_id = new_turn.doctor_id,
+                turn_id = new_turn.id,
+            )
             session.add(new_turn)
+            session.add(new_appointment)
             session.commit()
             session.refresh(new_turn)
+            session.refresh(new_appointment)
             return ORJSONResponse(
                 TurnsResponse(
                     id=new_turn.id,
@@ -1492,9 +1499,16 @@ async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
             service_id=turn.service_id
         )
         new_turn.user = session_user
+        new_appointment = Appointments(
+            user_id = new_turn.user_id,
+            doctor_id = new_turn.doctor_id,
+            turn_id = new_turn.id,
+        )
         session.add(new_turn)
+        session.add(new_appointment)
         session.commit()
         session.refresh(new_turn)
+        session.refresh(new_appointment)
         return ORJSONResponse(
             TurnsResponse(
                 id=new_turn.id,

@@ -21,6 +21,7 @@ from pathlib import Path
 from app.db.main import init_db, set_admin, migrate, test_db, DB_URL_TEST
 from app.api import users, medic_area, auth
 from app.config import api_name, version, debug, cors_host
+from app.storage.main import storage
 
 install(show_locals=True)
 
@@ -34,9 +35,10 @@ main_router = APIRouter(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db() # NOTE: Es solo para testeo las migraciones son las que importan
+    init_db()
     migrate()
     set_admin()
+    storage.create_table("ban-token")
     console.rule("[green]Server Opened[/green]")
     if debug:
         # Línea destacada con título

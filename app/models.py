@@ -164,7 +164,7 @@ class Turns(BaseModelTurns, table=True):
     doctor: Optional["Doctors"] = Relationship(back_populates="turns")
     service: Optional["Services"] = Relationship(back_populates="turns")
 
-    appointment_id: UUID = Field(foreign_key="appointments.appointment_id")
+    #appointment_id: UUID = Field(foreign_key="appointments.appointment_id")
     appointment: Optional["Appointments"] = Relationship(back_populates="turn")
 
 class Appointments(SQLModel, table=True):
@@ -190,7 +190,12 @@ class Appointments(SQLModel, table=True):
     user: Optional["User"] = Relationship(back_populates="appointments")
     doctor: Optional["Doctors"] = Relationship(back_populates="appointments")
 
-    turn: Optional[Turns] = Relationship(back_populates="appointment")
+    turn_id: Optional[UUID] = Field(
+        sa_type=UUID_TYPE,
+        foreign_key="turns.turn_id",
+        nullable=True,
+    )
+    turn: Optional["Turns"] = Relationship(back_populates="appointment")
 
     cash: Optional["Cashes"] = Relationship(back_populates="appointments")
 

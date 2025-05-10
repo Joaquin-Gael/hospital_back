@@ -4,17 +4,21 @@ from typing import Optional, Any, Dict
 from uuid import UUID, uuid4
 
 from cachetools import cached, TTLCache
-from functools import wraps, singledispatch
+from functools import wraps
 
 from datetime import datetime, timedelta
 
-from time import time
+from time import time, sleep
 
 from pathlib import Path
 
 from rich.console import Console
 
-import json
+import orjson
+
+import mmap
+
+import threading
 
 import os
 
@@ -33,68 +37,33 @@ def timeit(func):
     return wrapper
 
 class PurgeMeta(type):
+    ignore_methods = {"__init__", "__new__", "create_table", "purge_expired"}
+
     def __new__(mcs, name, bases, namespace):
-        ignore_methods = ["__init__", "__new__", "create_table"]
         for attr, val in namespace.items():
-            if callable(val) and not attr.startswith('_') and attr not in ignore_methods:
+            if callable(val) and not attr.startswith('_') and attr not in mcs.ignore_methods:
                 namespace[attr] = mcs.wrap_with_purge(val)
         return super().__new__(mcs, name, bases, namespace)
 
     @staticmethod
     def wrap_with_purge(method):
+        from functools import wraps
         @wraps(method)
-        @timeit
+        @timeit  # mantiene tu medición de tiempos
         def wrapper(self, *args, **kwargs):
             table_name = kwargs.get("table_name")
-            keys_to_delete = []
-            for key in self.data.tables[table_name].items.keys():
-                if self.data.tables[table_name].items.get(key).expired <= datetime.now():
-                    keys_to_delete.append(key)
-
-            for key in keys_to_delete:
-                del self.data.tables[table_name].items[key]
-
+            if table_name:
+                # Purga centralizada
+                self.purge_expired(table_name)
             return method(self, *args, **kwargs)
         return wrapper
 
-class FechaEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, datetime):
-            return o.isoformat()
-        if isinstance(o, UUID):
-            return str(o)
-        return super().default(o)
-
-# NOTE: Posible deprecacion
-@singledispatch
-def parse_value(value):
-    """Por defecto, no hacemos nada."""
-    return value
-
-@parse_value.register
-def _(value: str):
-    """Intentamos convertir cadenas a datetime o UUID."""
-    try:
-        return datetime.fromisoformat(value)
-    except ValueError:
-        pass
-    try:
-        return UUID(value)
-    except (ValueError, AttributeError):
-        pass
-    return value
-
-def response_hook(dct: Dict[str, Any]) -> Any:
-    converted = {
-        key: parse_value(val)
-        for key, val in dct.items()
-    }
-
-    expected = {"key", "value", "expired", "created", "updated"}
-    if expected.issubset(converted):
-        return Response(**converted)
-
-    return converted
+def fecha_encoder(o):
+    if isinstance(o, datetime):
+        return o.isoformat()
+    if isinstance(o, UUID):
+        return str(o)
+    return o
 
 class Response(BaseModel):
     key: str
@@ -128,77 +97,107 @@ class Singleton(metaclass=PurgeMeta):
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            if not os.path.exists(STORAGE_PATH):
-                STORAGE_PATH.touch()
-                with open(STORAGE_PATH, "w", encoding="utf-8") as f:
-                    json.dump({"tables": {}}, f, indent=4)
-            cls._instance.data = Storage.parse_file(STORAGE_PATH, content_type="text/json", encoding="utf-8")
+            cls._instance.__init_storage()
         else:
             pass
 
         return cls._instance
 
-    def create_table(self, table_name: str):
-        with open(STORAGE_PATH, "w", encoding="utf-8") as f:
-            new_table = Table(name=table_name, items={})
-            self.data.tables[table_name] = new_table
-            json.dump(self.data.model_dump(), f, cls=FechaEncoder, indent=4)
+    def purge_expired(self, table_name: str) -> None:
+        """
+        Elimina en bloque las claves expiradas de self.data.tables[table_name].items.
+        """
+        items = self.data.tables[table_name].items
+        now = datetime.now()
+        # Filtramos sólo los no-expirados
+        self.data.tables[table_name].items = {
+            k: v for k, v in items.items()
+            if v.expired > now
+        }
 
-        return self.data.tables[table_name]
+    def __init_storage(self):
+        self._lock = threading.Lock()
+        self._flush_event = threading.Event()
+        self.data = None
+        self._dirty = False
+        if not STORAGE_PATH.exists():
+            STORAGE_PATH.touch()
+            STORAGE_PATH.write_bytes(orjson.dumps({"tables": {}}, default=str))
+        self._load()
+
+        t = threading.Thread(target=self._auto_flush, daemon=True)
+        t.start()
+
+
+    def _load(self):
+        raw = STORAGE_PATH.read_bytes()
+        self.data = Storage.model_validate_json(raw)
+
+
+    def _auto_flush(self):
+        while True:
+            # Bloquea hasta que haya trabajo o tras 1 segundo despierta de todas formas
+            self._flush_event.wait(timeout=1)
+            with self._lock:
+                if self._dirty:
+                    # Serializa TODO el estado actual
+                    data_bytes = orjson.dumps(self.data.model_dump(), default=fecha_encoder)
+                    STORAGE_PATH.write_bytes(data_bytes)
+                    self._dirty = False
+                # Resetea el evento
+                self._flush_event.clear()
+
+    def _mark_dirty(self):
+        with self._lock:
+            self._dirty = True
+            self._flush_event.set()
+
+    def create_table(self, table_name: str):
+        self._load()
+        if table_name in self.data.tables:
+            return None
+        table = Table(
+            name=table_name,
+            items={}
+        )
+        self.data.tables[table_name] = table
+        print(self.data)
+        self._mark_dirty()
+        return table
 
     @cached(_cache)
     def get_all(self, table_name: str = None) -> Dict[Any, Any]:
-        with open(STORAGE_PATH, "r", encoding="utf-8") as f:
-            self.data.tables = Storage.model_validate_json(f.read()).tables
+        self._load()
         return self.data.tables.get(table_name, {}).items
 
     @cached(_cache)
     def get(self, key: str, table_name: str) -> GetItem | None:
-        try:
-            with open(STORAGE_PATH, "r", encoding="utf-8") as f:
-                self.data.tables = Storage.model_validate_json(f.read()).tables
-            response = GetItem(
-                key=key,
-                value=self.data.tables.get(table_name, {}).items.get(key, None)
-            )
-            return response
-        except Exception:
-            console.print_exception(show_locals=True)
-            return None
+        self._load()
+        return self.data.tables[table_name].items.get(key, None)
 
 
     def set(self, key = None, value = None, table_name: str = "") -> SetItem:
-        if value is None:
-            raise Exception("value cannot be None.")
-
-        data = SetItem(
-            id=uuid4(),
+        item = SetItem(
             key=key,
             value=value,
-            expired=datetime.now() + timedelta(seconds=300),
-                created=datetime.now(),
-            updated=datetime.now()
+            created=datetime.now(),
+            updated=datetime.now(),
+            id=uuid4(),
+            expired=datetime.now() + timedelta(minutes=15)
         )
-
-        self.data.tables[table_name].items[key] = data
-
-        with open(STORAGE_PATH, "w", encoding="utf-8") as f:
-            json.dump(self.data.model_dump(), f, cls=FechaEncoder, indent=4)
-
-        return data
+        self.data.tables[table_name].items[key] = item
+        self._mark_dirty()
+        return item
 
     def delete(self, key, table_name: str):
         del self.data.tables[table_name].items[key]
-        with open(STORAGE_PATH, "w", encoding="utf-8") as f:
-            json.dump(self.data.model_dump(), f, cls=FechaEncoder, indent=4)
+        self._mark_dirty()
 
     def clear(self, table_name: str = None):
         self.data.tables[table_name].clear()
-        with open(STORAGE_PATH, "w", encoding="utf-8") as f:
-            json.dump(self.data.model_dump(), f, cls=FechaEncoder, indent=4)
+        self._mark_dirty()
 
     def update(self, key, value, table_name):
         self.data.tables[table_name].items[key].value = value
         self.data.tables[table_name].items[key].updated = datetime.now()
-        with open(STORAGE_PATH, "w", encoding="utf-8") as f:
-            json.dump(self.data.model_dump(), f, cls=FechaEncoder, indent=4)
+        self._mark_dirty()
