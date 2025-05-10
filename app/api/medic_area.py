@@ -1393,6 +1393,9 @@ turns = APIRouter(
 
 @turns.get("/", response_model=List[TurnsResponse])
 async def get_turns(request: Request, session: SessionDep):
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=401, detail="You are not authorized")
+
     statement = select(Turns)
     result: List["Turns"] = session.execute(statement).scalars().all()
 
@@ -1544,6 +1547,39 @@ async def delete_turn(request: Request, session: SessionDep, turn_id: int):
 
 # TODO: hacer los puts
 
+appointments = APIRouter(
+    prefix="appointments",
+    tags=["appointments"],
+    dependencies=[
+        Depends(auth)
+    ]
+)
+
+@appointments.get("/", response_model=List[AppointmentResponse])
+async def get_appointments(request: Request, session: SessionDep, user_id: int):
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=401, detail="You are not authorized")
+
+    statement = select(Appointments)
+    result: List["Appointments"] = session.execute(statement).scalars().all()
+    serialized_appointments: List[AppointmentResponse] = []
+    for appointment in result:
+        serialized_appointments.append(
+            AppointmentResponse(
+                id=appointment.id,
+                user_id=appointment.user_id,
+                doctor_id=appointment.doctor_id,
+                turn_id=appointment.turn_id,
+                service_id=appointment.turn.service_id,
+                date=appointment.turn.date,
+                date_created=appointment.turn.date_created,
+                date_limit=appointment.turn.date_limit,
+                state=appointment.turn.state,
+            ).model_dump()
+        )
+
+    return ORJSONResponse(serialized_appointments)
+
 router = APIRouter(
     prefix="/medic",
     default_response_class=ORJSONResponse,
@@ -1557,3 +1593,4 @@ router.include_router(specialities)
 router.include_router(chat)
 router.include_router(departments)
 router.include_router(turns)
+router.include_router(appointments)
