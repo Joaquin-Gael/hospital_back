@@ -167,7 +167,7 @@ class Turns(BaseModelTurns, table=True):
     appointment_id: UUID = Field(foreign_key="appointments.appointment_id")
     appointment: Optional["Appointments"] = Relationship(back_populates="turn")
 
-class Appointments(BaseModelTurns, table=True):
+class Appointments(SQLModel, table=True):
     id: UUID = Field(
         sa_column=Column(
             name="appointment_id",
@@ -177,9 +177,18 @@ class Appointments(BaseModelTurns, table=True):
         ),
         default_factory=uuid4,
     )
+    user_id: Optional[UUID] = Field(
+        sa_type=UUID_TYPE,
+        foreign_key="users.user_id",
+        nullable=True,
+    )
+    doctor_id: Optional[UUID] = Field(
+        sa_type=UUID_TYPE,
+        foreign_key="doctors.doctor_id",
+        nullable=True,
+    )
     user: Optional["User"] = Relationship(back_populates="appointments")
     doctor: Optional["Doctors"] = Relationship(back_populates="appointments")
-    service: Optional["Services"] = Relationship(back_populates="appointments")
 
     turn: Optional[Turns] = Relationship(back_populates="appointment")
 
@@ -295,7 +304,7 @@ class Services(SQLModel, table=True):
     specialty_id: UUID = Field(foreign_key="specialties.specialty_id", ondelete="CASCADE")
 
     turns: List["Turns"] = Relationship(back_populates="service")
-    appointments: List["Appointments"] = Relationship(back_populates="service")
+    #appointments: List["Appointments"] = Relationship(back_populates="service")
     details: List["CashesDetails"] = Relationship(back_populates="service")
 
 class DoctorMedicalScheduleLink(SQLModel, table=True):
