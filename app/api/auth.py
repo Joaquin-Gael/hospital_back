@@ -222,9 +222,11 @@ async def logout(request: Request, authorization: Optional[str] = Header(None), 
 
     token = authorization.split(" ")[1]
 
-    if not storage.get(key=str(session_user.id), table_name="ban-token").value is None or storage.get(key=str(session_user.id), table_name="ban-token") is None:
-        storage.update(key=str(session_user.id), value=token, table_name="ban-token")
+    table_name = "ban-token"
 
-    result = storage.set(key=str(session_user.id), value=token, table_name="ban-token")
+    if not storage.get(key=str(session_user.id), table_name="ban-token") is None:
+        storage.update(key=str(session_user.id), value=token, table_name=table_name)
+
+    result = storage.set(key=str(session_user.id), value=token, table_name=table_name)
 
     return result.model_dump()

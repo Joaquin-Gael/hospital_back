@@ -32,6 +32,7 @@ from app.models import (
     User,
     Turns,
     Appointments,
+    DoctorMedicalScheduleLink
 )
 from app.schemas.medica_area import (
     MedicalScheduleCreate,
@@ -1136,6 +1137,38 @@ async def get_specialities(request: Request, session: SessionDep):
         status_code=status.HTTP_200_OK
     )
 
+@specialities.get("/{speciality_id}/schedules/available")
+async def get_available_schedules(request: Request, session: SessionDep, speciality_id: str):
+    statement = select(Specialties)\
+        .join(Doctors, Doctors.speciality_id == Specialties.id)\
+        .join(DoctorMedicalScheduleLink, DoctorMedicalScheduleLink.doctor_id == Doctors.id)\
+        .join(MedicalSchedules, MedicalSchedules.id == DoctorMedicalScheduleLink.medical_schedule_id)\
+        .where(Specialties.id == speciality_id,
+               MedicalSchedules.available == True,
+               speciality_id == Specialties.id,
+               Doctors.is_available == True)
+
+    result: List["Specialties"] = session.execute(statement).scalars().all()
+
+    serialized_schedules: List = []
+
+    for speciality in result:
+        for doctor in speciality.doctors:
+            for schedule in doctor.medical_schedules:
+                serialized_schedules.append(
+                    {
+                        "id": schedule.id,
+                        "doctor_id": doctor.id,
+                        "doctor_name": doctor.name,
+                        "doctor_speciality": doctor.speciality.name,
+                        "doctor_speciality_id": doctor.speciality.id,
+                        "doctor_department": doctor.speciality.department.name,
+                    }
+                )
+
+    return serialized_schedules
+
+
 @specialities.post("/add/", response_model=SpecialtyResponse)
 async def add_speciality(request: Request, session: SessionDep, specialty: SpecialtyCreate):
 
@@ -1548,7 +1581,7 @@ async def delete_turn(request: Request, session: SessionDep, turn_id: int):
 # TODO: hacer los puts
 
 appointments = APIRouter(
-    prefix="appointments",
+    prefix="/appointments",
     tags=["appointments"],
     dependencies=[
         Depends(auth)

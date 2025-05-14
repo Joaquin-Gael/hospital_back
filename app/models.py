@@ -344,6 +344,7 @@ class MedicalSchedules(SQLModel, table=True):
     )
     start_time: time = Field(nullable=False)
     end_time: time = Field(nullable=False)
+    available: bool = Field(default=True)
 
 
     doctors: List["Doctors"] = Relationship(
@@ -376,6 +377,8 @@ class Doctors(BaseUser, table=True):
         ),
         default_factory=uuid.uuid4,
     )
+
+    is_available: bool = Field(default=True)
 
     # Asumiendo que la relación con Specialties sigue siendo uno a muchos o muchos a uno:
     speciality: Optional["Specialties"] = Relationship(back_populates="doctors")

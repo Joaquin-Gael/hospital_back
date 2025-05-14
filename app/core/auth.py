@@ -177,7 +177,7 @@ class JWTBearer:
         payload = decode_token(token)
         user_id = payload.get("sub")
 
-        ban_token = storage.get(key=payload.get("sub"), table_name="ban_token")
+        ban_token = storage.get(key=payload.get("sub"), table_name="ban-token")
 
         if token == ban_token:
             raise HTTPException(status_code=403, detail="Token banned")

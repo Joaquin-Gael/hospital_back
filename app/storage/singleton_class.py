@@ -8,7 +8,7 @@ from functools import wraps
 
 from datetime import datetime, timedelta
 
-from time import time, sleep
+from time import time
 
 from pathlib import Path
 
@@ -16,11 +16,9 @@ from rich.console import Console
 
 import orjson
 
-import mmap
+#import mmap TODO implementar
 
 import threading
-
-import os
 
 console = Console()
 
@@ -49,11 +47,10 @@ class PurgeMeta(type):
     def wrap_with_purge(method):
         from functools import wraps
         @wraps(method)
-        @timeit  # mantiene tu medición de tiempos
+        @timeit
         def wrapper(self, *args, **kwargs):
             table_name = kwargs.get("table_name")
             if table_name:
-                # Purga centralizada
                 self.purge_expired(table_name)
             return method(self, *args, **kwargs)
         return wrapper
@@ -104,12 +101,8 @@ class Singleton(metaclass=PurgeMeta):
         return cls._instance
 
     def purge_expired(self, table_name: str) -> None:
-        """
-        Elimina en bloque las claves expiradas de self.data.tables[table_name].items.
-        """
         items = self.data.tables[table_name].items
         now = datetime.now()
-        # Filtramos sólo los no-expirados
         self.data.tables[table_name].items = {
             k: v for k, v in items.items()
             if v.expired > now
@@ -136,11 +129,9 @@ class Singleton(metaclass=PurgeMeta):
 
     def _auto_flush(self):
         while True:
-            # Bloquea hasta que haya trabajo o tras 1 segundo despierta de todas formas
             self._flush_event.wait(timeout=1)
             with self._lock:
                 if self._dirty:
-                    # Serializa TODO el estado actual
                     data_bytes = orjson.dumps(self.data.model_dump(), default=fecha_encoder)
                     STORAGE_PATH.write_bytes(data_bytes)
                     self._dirty = False
