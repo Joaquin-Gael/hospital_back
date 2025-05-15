@@ -48,7 +48,8 @@ from app.schemas.medica_area import (
     DoctorResponse,
     DoctorCreate,
     DoctorDelete,
-    DoctorUpdate
+    DoctorUpdate,
+    DoctorPasswordUpdate
 )
 from app.schemas.medica_area import (
     LocationResponse,
@@ -113,7 +114,7 @@ departments = APIRouter(
 async def get_departments(request: Request, session: SessionDep):
     result = session.execute(
         select(Departments)
-    )
+    ).scalars().all()
 
     departments_list: List[DepartmentResponse] = []
     for department in result:
@@ -126,7 +127,7 @@ async def get_departments(request: Request, session: SessionDep):
             ).model_dump()
         )
 
-    return departments_list
+    return ORJSONResponse(departments_list)
 
 @departments.get("/{department_id}/", response_model=DepartmentResponse)
 async def get_department_by_id(request: Request, department_id: int, session: SessionDep):
@@ -244,13 +245,16 @@ async def get_medical_schedules(request: Request, session: SessionDep):
                 last_name=doc.last_name,
                 dni=doc.dni,
                 telephone=doc.telephone,
-                speciality_id=doc.speciality_id
+                speciality_id=doc.speciality_id,
+                address=doc.address,
+                blood_type=doc.blood_type,
             )
             doctors.append(doctor)
         schedule = MedicalScheduleResponse(
             id=schedule_i.id,
             day=schedule_i.day,
-            time_medic=schedule_i.time_medic,
+            start_time=schedule_i.start_time,
+            end_time=schedule_i.end_time,
             doctors=doctors
         )
         schedules.append(schedule.model_dump())
@@ -449,7 +453,7 @@ doctors = APIRouter(
 @doctors.get("/", response_model=List[DoctorResponse])
 async def get_doctors(request: Request, session: SessionDep):
     statement = select(Doctors)
-    result: List[Doctors] = session.execute(statement).scalars().all()
+    result: List[Doctors] = session.exec(statement).all()
     doctors = []
     for doc in result:
         doctors.append(
@@ -468,6 +472,7 @@ async def get_doctors(request: Request, session: SessionDep):
                 telephone=doc.telephone,
                 speciality_id=doc.speciality_id,
                 blood_type=doc.blood_type,
+                address=doc.address,
             ).model_dump()
         )
 
@@ -549,11 +554,10 @@ async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
 
         new_doctor: Doctors = Doctors(
-            id=doctor.id,
             email=doctor.email,
-            name=doctor.name,
+            name=doctor.username,
             telephone=doctor.telephone,
-            lastname=doctor.lastname,
+            last_name=doctor.last_name,
             dni=doctor.dni,
             speciality_id=doctor.speciality_id,
             password=doctor.password,
@@ -618,10 +622,10 @@ async def delete_doctor_schedule_by_id(request: Request, schedule_id: str, docto
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
 
-    doc: Doctors = session.execute(
+    doc: Doctors = session.exec(
         select(Doctors)
             .where(Doctors.id == doctor_id)
-    ).scalars().first()
+    ).first()
 
     doc.medical_schedules = [i for i in doc.medical_schedules if i.id != schedule_id]
 
@@ -647,11 +651,14 @@ async def delete_doctor_schedule_by_id(request: Request, schedule_id: str, docto
         )
     )
 
-@doctors.put("/update/{doctor_id}/", response_model=DoctorUpdate)
+@doctors.patch("/update/{doctor_id}/", response_model=DoctorUpdate)
 async def update_doctor(request: Request, doctor_id: str, session: SessionDep, doctor: DoctorUpdate):
 
-    if not request.state.user.is_superuser:
+    if not "doc" in request.state.scopes and not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
+
+    if not request.state.user.id == doctor_id and not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un unauthorized")
 
     try:
         doc = session.excecute(
@@ -666,10 +673,42 @@ async def update_doctor(request: Request, doctor_id: str, session: SessionDep, d
             value = getattr(doctor, field, None)
             if value is not None and field != "username":
                 setattr(doc, field, value)
-            elif field == "username":
-                doc.name = getattr(doctor, field)
-            elif field == "password":
-                doc.set_password(doctor.password)
+            elif value is not None and field == "username":
+                doc.name = value
+
+        session.add(doc)
+        session.commit()
+        session.refresh(doc)
+
+        return ORJSONResponse(
+            DoctorUpdate(
+                username=doc.name,
+                last_name=doc.last_name,
+                telephone=doc.telephone,
+                email=doc.email,
+                speciality_id=doc.speciality_id
+            )
+        )
+
+    except Exception:
+        console.print_exception(show_locals=True)
+        raise HTTPException(status_code=404, detail=f"Doctor {doctor_id} not found")
+
+@doctors.patch("/update/{doctor_id}/password")
+async def update_doctor_password(request: Request, doctor_id: str, session: SessionDep, password: DoctorPasswordUpdate):
+    if not "doc" in request.state.scopes or not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
+
+    if not request.state.user.id == doctor_id or not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un unauthorized")
+
+    try:
+        doc = session.excecute(
+            select(Doctors)
+            .where(Doctors.id == doctor_id)
+        ).scalars().first()
+
+        doc.set_password(password.password)
 
         session.add(doc)
         session.commit()
@@ -833,7 +872,7 @@ async def get_locations(request: Request, session: SessionDep):
                             specialty_id=service.specialty_id,
                         )
                     )
-                statement = select(Doctors).where(Doctors.service_id == specialty.id)
+                statement = select(Doctors).where(Doctors.speciality_id == specialty.id)
                 result: List["Doctors"] = session.execute(statement).scalars().all()
                 doctors = []
                 for doc in result:
@@ -880,8 +919,10 @@ async def get_locations(request: Request, session: SessionDep):
                 name=location.name,
                 description=location.description,
                 departments=departments
-            )
+            ).model_dump()
         )
+
+    return ORJSONResponse({"locations":locations})
 
 @locations.post("/add/", response_model=LocationResponse)
 async def set_location(request: Request, session: SessionDep, location: LocationCreate):
@@ -1129,7 +1170,7 @@ async def get_specialities(request: Request, session: SessionDep):
                 department_id=speciality.department_id,
                 doctors=doctors,
                 services=services
-            )
+            ).model_dump()
         )
 
     return ORJSONResponse(

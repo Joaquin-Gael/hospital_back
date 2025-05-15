@@ -160,13 +160,15 @@ class DoctorUpdate(BaseModel):
     username: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    password: Optional[constr(min_length=8)] = None
     is_active: Optional[bool] = None
     is_admin: Optional[bool] = None
     is_superuser: Optional[bool] = None
     telephone: Optional[str] = None
     speciality_id: Optional[str] = None
     email: Optional[str] = None
+
+class DoctorPasswordUpdate(BaseModel):
+    password: constr(min_length=8)
 
 class DoctorResponse(DoctorBase):
     id: UUID

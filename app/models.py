@@ -427,3 +427,4 @@ class ChatMessages(SQLModel, table=True):
     created_at: datetime = Field(nullable=False, default=datetime.now)
     deleted_at: datetime = Field(nullable=False, default=(datetime.now() + timedelta(days=1)).timestamp())
 
+#TODO: hacer la class HealthInsurance
