@@ -87,7 +87,7 @@ class BaseUser(SQLModel, table=False):
         :raises ValueError: If the provided raw_password does not meet the required
             pattern for password complexity.
         """
-        pattern = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$'
+        pattern = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$'
         if re.match(pattern, raw_password) is None:
             raise PasswordError(message=f"value: {raw_password} does not match the required pattern")
 
