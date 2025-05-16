@@ -1022,7 +1022,7 @@ async def get_services(request: Request, session: SessionDep):
                 description=service.description,
                 price=service.price,
                 specialty_id=service.specialty_id,
-            )
+            ).model_dump()
         )
 
     return ORJSONResponse(services)
