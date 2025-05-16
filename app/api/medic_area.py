@@ -311,9 +311,8 @@ async def delete_schedule(session: SessionDep, schedule_id: str):
     result: MedicalSchedules = session.execute(statement).scalars().first()
 
     if result:
-        session.delete(result)
+        session.add(result)
         session.commit()
-        session.refresh(result)
 
         return ORJSONResponse(
             MedicalScheduleDelete(
@@ -631,7 +630,6 @@ async def delete_doctor_schedule_by_id(request: Request, schedule_id: str, docto
 
     session.add(doc)
     session.commit()
-    session.refresh(doc)
 
     return ORJSONResponse(
         DoctorResponse(
@@ -648,7 +646,7 @@ async def delete_doctor_schedule_by_id(request: Request, schedule_id: str, docto
             dni=doc.dni,
             telephone=doc.telephone,
             speciality_id=doc.speciality_id
-        )
+        ).model_dump()
     )
 
 @doctors.patch("/update/{doctor_id}/", response_model=DoctorUpdate)
