@@ -661,16 +661,17 @@ async def update_doctor(request: Request, doctor_id: str, session: SessionDep, d
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un unauthorized")
 
     try:
-        doc = session.excecute(
+        doc = session.exec(
             select(Doctors)
                 .where(Doctors.id == doctor_id)
-        ).scalars().first()
+        ).first()
 
         form_fields: List[str] = list(DoctorUpdate.__fields__.keys())
 
 
         for field in form_fields:
             value = getattr(doctor, field, None)
+            print(value)
             if value is not None and field != "username":
                 setattr(doc, field, value)
             elif value is not None and field == "username":
@@ -696,10 +697,10 @@ async def update_doctor(request: Request, doctor_id: str, session: SessionDep, d
 
 @doctors.patch("/update/{doctor_id}/password")
 async def update_doctor_password(request: Request, doctor_id: str, session: SessionDep, password: DoctorPasswordUpdate):
-    if not "doc" in request.state.scopes or not request.state.user.is_superuser:
+    if not "doc" in request.state.scopes and not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
 
-    if not request.state.user.id == doctor_id or not request.state.user.is_superuser:
+    if not request.state.user.id == doctor_id and not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un unauthorized")
 
     try:

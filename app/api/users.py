@@ -13,7 +13,7 @@ import logging
 
 import sys
 
-from app.schemas.users import UserRead, UserCreate, UserDelete, UserUpdate
+from app.schemas.users import UserRead, UserCreate, UserDelete, UserUpdate, UserPasswordUpdate
 from app.models import User
 from app.core.auth import JWTBearer
 from app.db.main import SessionDep
@@ -178,8 +178,12 @@ async def delete_user(request: Request, user_id: str, session: SessionDep):
         console.print_exception(show_locals=True)
         return ORJSONResponse({"error": "User not found"}, status_code=404)
 
-@private_router.put("/update/{user_id}/", response_model=UserRead)
-async def update_user(user_id: str, session: SessionDep, user_form: UserUpdate):
+@private_router.patch("/update/{user_id}/", response_model=UserRead)
+async def update_user(request: Request, user_id: str, session: SessionDep, user_form: UserUpdate):
+
+    if not request.state.user.id == user_id and not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un unauthorized")
+
     statement = select(User).where(User.id == user_id)
     user: User = session.execute(statement).scalars().first()
 
@@ -212,10 +216,47 @@ async def update_user(user_id: str, session: SessionDep, user_form: UserUpdate):
             last_name=user.last_name,
             dni=user.dni,
             blood_type=user.blood_type
-        )
+        ).model_dump()
     )
 
-@private_router.put("/ban/{user_id}/", response_model=UserRead)
+@private_router.patch("/update/{user_id}/password", response_model=UserRead)
+async def update_user_password(request: Request, user_id: str, session: SessionDep, user_form: UserPasswordUpdate):
+
+    if not request.state.user.id == user_id and not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un unauthorized")
+
+    result = session.exec(
+        select(User).where(User.id == user_id)
+    )
+
+    user: User = result.first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.set_password(user_form.password)
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+    return ORJSONResponse(
+        UserRead(
+            id=user.id,
+            is_active=user.is_active,
+            is_admin=user.is_admin,
+            is_superuser=user.is_superuser,
+            last_login=user.last_login,
+            date_joined=user.date_joined,
+            username=user.name,
+            email=user.email,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            dni=user.dni,
+            blood_type=user.blood_type,
+        ).model_dump()
+    )
+
+@private_router.patch("/ban/{user_id}/", response_model=UserRead)
 async def ban_user(request: Request, user_id: str, session: SessionDep):
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=403, detail="Not authorized")
@@ -245,7 +286,7 @@ async def ban_user(request: Request, user_id: str, session: SessionDep):
         "message":f"User {user.name} has been banned."
     })
 
-@private_router.put("/unban/{user_id}/", response_model=UserRead)
+@private_router.patch("/unban/{user_id}/", response_model=UserRead)
 async def unban_user(request: Request, user_id: str, session: SessionDep):
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=403, detail="Not authorized")
