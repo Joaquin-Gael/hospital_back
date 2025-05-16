@@ -1047,7 +1047,7 @@ async def set_service(request: Request, session: SessionDep, service: ServiceCre
 
         return ORJSONResponse(
             ServiceResponse(
-                id=service.id,
+                id=new_service.id,
                 name=service.name,
                 description=service.description,
                 price=service.price,
