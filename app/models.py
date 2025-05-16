@@ -427,7 +427,7 @@ class ChatMessages(SQLModel, table=True):
     created_at: datetime = Field(nullable=False, default=datetime.now)
     deleted_at: datetime = Field(nullable=False, default=(datetime.now() + timedelta(days=1)).timestamp())
 
-#TODO: hacer la class HealthInsurance
+#TODO: completar este tabla con datos importantes
 class HealthInsurance(SQLModel, table=True):
     id: UUID = Field(
         sa_column=Column(
@@ -440,6 +440,6 @@ class HealthInsurance(SQLModel, table=True):
     )
     name: str = Field(max_length=50)
     description: str = Field(max_length=500)
-    discount: float = Field(default=0, nullable=False)
-    #TODO: en porsentaje es este valor por lo que no puede ser mayor a 100
-    # hacer las verificaciones para setear un descuento
+    discount: float = Field(default=0, nullable=False, ge=0, le=100)
+
+#TODO: hacer las class link con los usuarios y el seguro

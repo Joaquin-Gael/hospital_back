@@ -38,7 +38,7 @@ from app.schemas.medica_area import (
     MedicalScheduleCreate,
     MedicalScheduleDelete,
     MedicalScheduleUpdate,
-    MedicalScheduleResponse
+    MedicalScheduleResponse, DoctorSpecialityUpdate
 )
 from app.schemas.medica_area import (
     DayOfWeek,
@@ -49,7 +49,8 @@ from app.schemas.medica_area import (
     DoctorCreate,
     DoctorDelete,
     DoctorUpdate,
-    DoctorPasswordUpdate
+    DoctorPasswordUpdate,
+    DoctorSpecialityUpdate
 )
 from app.schemas.medica_area import (
     LocationResponse,
@@ -179,12 +180,11 @@ async def delete_department_by_id(request: Request, department_id: int, session:
 
         session.delete(department)
         session.commit()
-        session.refresh(department)
 
         return DepartmentDelete(
             id=department.id,
             message=f"Department {department.name} has been deleted"
-        )
+        ).model_dump()
 
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Department {department_id} not found")
@@ -450,7 +450,7 @@ doctors = APIRouter(
 )
 
 @doctors.get("/", response_model=List[DoctorResponse])
-async def get_doctors(request: Request, session: SessionDep):
+async def get_doctors(session: SessionDep):
     statement = select(Doctors)
     result: List[Doctors] = session.exec(statement).all()
     doctors = []
@@ -478,7 +478,7 @@ async def get_doctors(request: Request, session: SessionDep):
     return ORJSONResponse(doctors)
 
 @doctors.get("/{doctor_id}/", response_model=DoctorResponse)
-async def get_doctor_by_id(request: Request, dotor_id: str, session: SessionDep):
+async def get_doctor_by_id(dotor_id: str, session: SessionDep):
     statement = select(Doctors).where(Doctors.id == dotor_id)
     doc = session.execute(statement).scalars().first()
 
@@ -540,7 +540,7 @@ async def me_doctor(request: Request):
             telephone=doc.telephone,
             speciality_id=doc.speciality_id,
             blood_type=doc.blood_type,
-        ),
+        ).model_dump(),
         "schedules":schedules
     })
 
@@ -608,8 +608,13 @@ async def delete_doctor(request: Request, doctor_id: str, session: SessionDep):
     if result:
         session.delete(result)
         session.commit()
-        session.refresh(result)
-        return ORJSONResponse(DoctorDelete(id=result.id, message=f"Doctor {doctor_id} deleted"))
+
+        return ORJSONResponse(
+            DoctorDelete(
+                id=result.id,
+                message=f"Doctor {doctor_id} deleted"
+            ).model_dump()
+        )
     else:
         return ORJSONResponse({
             "error": "Doctor not found"
@@ -686,11 +691,55 @@ async def update_doctor(request: Request, doctor_id: str, session: SessionDep, d
                 telephone=doc.telephone,
                 email=doc.email,
                 speciality_id=doc.speciality_id
-            )
+            ).model_dump()
         )
 
     except Exception:
         console.print_exception(show_locals=True)
+        raise HTTPException(status_code=404, detail=f"Doctor {doctor_id} not found")
+
+@doctors.patch("/update/{doctor_id}/speciality", response_model=DoctorResponse)
+async def update_speciality(request: Request, doctor_id: str, session: SessionDep, doctor_form: DoctorSpecialityUpdate):
+    if not "doc" in request.state.scopes and not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un un unauthorized")
+
+    if not request.state.user.id == doctor_id and not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un un unauthorized")
+
+    try:
+        doc = session.exec(
+            select(Doctors)
+                .where(Doctors.id == doctor_id)
+        ).first()
+
+        doc.speciality_id = doctor_form.speciality_id
+
+        session.add(doc)
+        session.commit()
+        session.refresh(doc)
+
+        return ORJSONResponse(
+            DoctorResponse(
+                id=doc.id,
+                is_active=doc.is_active,
+                is_admin=doc.is_admin,
+                is_superuser=doc.is_superuser,
+                last_login=doc.last_login,
+                date_joined=doc.date_joined,
+                username=doc.name,
+                email=doc.email,
+                first_name=doc.first_name,
+                last_name=doc.last_name,
+                dni=doc.dni,
+                blood_type=doc.blood_type,
+                telephone=doc.telephone,
+                speciality_id=doc.speciality_id
+            ).model_dump()
+        )
+
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        print(e)
         raise HTTPException(status_code=404, detail=f"Doctor {doctor_id} not found")
 
 @doctors.patch("/update/{doctor_id}/password")
@@ -720,7 +769,7 @@ async def update_doctor_password(request: Request, doctor_id: str, session: Sess
                 telephone=doc.telephone,
                 email=doc.email,
                 speciality_id=doc.speciality_id
-            )
+            ).model_dump()
         )
 
     except Exception:
@@ -764,7 +813,7 @@ async def add_schedule_by_id(request: Request, session: SessionDep, schedule_id:
                 dni=doc.dni,
                 telephone=doc.telephone,
                 speciality_id=doc.speciality_id
-            )
+            ).model_dump()
         )
     except Exception as e:
         console.print_exception(show_locals=True)
@@ -1050,7 +1099,7 @@ async def set_service(request: Request, session: SessionDep, service: ServiceCre
                 description=service.description,
                 price=service.price,
                 specialty_id=service.specialty_id
-            )
+            ).model_dump()
         )
     except Exception as e:
         console.print_exception(show_locals=True)
@@ -1097,6 +1146,7 @@ async def update_service(request: Request, session: SessionDep, service_id: str,
 
     session.add(new_service)
     session.commit()
+    session.refresh()
 
     return ORJSONResponse(
         ServiceResponse(
@@ -1618,7 +1668,7 @@ async def delete_turn(request: Request, session: SessionDep, turn_id: int):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-# TODO: hacer los puts
+# TODO: hacer los patchs
 
 appointments = APIRouter(
     prefix="/appointments",
@@ -1629,8 +1679,8 @@ appointments = APIRouter(
 )
 
 @appointments.get("/", response_model=List[AppointmentResponse])
-async def get_appointments(request: Request, session: SessionDep, user_id: int):
-    if not request.state.user.is_superuser:
+async def get_appointments(request: Request, session: SessionDep):
+    if not request.state.user.is_superuser and not "doc" in request.state.user.scopes:
         raise HTTPException(status_code=401, detail="You are not authorized")
 
     statement = select(Appointments)
