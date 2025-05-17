@@ -64,6 +64,9 @@ async def get_users(session: SessionDep):
                 first_name=user.first_name,
                 last_name=user.last_name,
                 dni=user.dni,
+                address=user.address,
+                telephone=user.telephone,
+                blood_type=user.blood_type
             ).model_dump()
         )
 
