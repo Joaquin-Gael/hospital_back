@@ -562,6 +562,7 @@ async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep
             password=doctor.password,
             address=doctor.address,
             blood_type=doctor.blood_type,
+            first_name=doctor.first_name 
         )
 
         new_doctor.set_password(doctor.password)
