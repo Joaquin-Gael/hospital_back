@@ -128,7 +128,7 @@ async def add_user(session: SessionDep, user: UserCreate):
             first_name=user.first_name,
             last_name=user.last_name,
             dni=user.dni,
-            addres=user.addres,
+            addres=user.address,
         )
         user_db.set_password(user.password)
         session.add(user_db)
