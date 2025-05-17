@@ -203,7 +203,6 @@ async def update_user(request: Request, user_id: str, session: SessionDep, user_
             setattr(user, field, value)
         elif field == "username":
             user.name = user_form.username
-        elif field == "password":
             user.set_password(user_form.password)
 
     session.add(user)
