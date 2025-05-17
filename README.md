@@ -7,7 +7,7 @@ This is te backend web of the hospital-sdlg
 ## Feactures
 
 - [SPA Manager](https://github.com/Joaquin-Gael/hospital_back/tree/main/app)
-- [Test README](https://github.com/Joaquin-Gael/hospital_back/tree/main)
+- [Test README](https://github.com/Joaquin-Gael/hospital_back/tree/main/test)
 - [Local Storage](https://github.com/Joaquin-Gael/hospital_back/tree/main/app/storage)
 
 
