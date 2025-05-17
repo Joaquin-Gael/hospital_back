@@ -94,7 +94,8 @@ async def get_user_by_id(session: SessionDep, user_id: UUID):
             dni=user.dni,
             blood_type=user.blood_type,
             address=user.address,
-            telephone=user.telephone
+            telephone=user.telephone,
+            address=user.address
         ).model_dump()
     )
 
