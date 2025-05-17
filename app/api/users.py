@@ -129,6 +129,8 @@ async def add_user(session: SessionDep, user: UserCreate):
             last_name=user.last_name,
             dni=user.dni,
             address=user.address,
+            telephone=user.telephone
+            blood_type=user.blood_type
         )
         user_db.set_password(user.password)
         session.add(user_db)
@@ -147,7 +149,7 @@ async def add_user(session: SessionDep, user: UserCreate):
                 first_name=user_db.first_name,
                 last_name=user_db.last_name,
                 dni=user_db.dni,
-                address=user_db.addres,
+                address=user_db.address,
                 telephone=user_db.telephone,
                 blood_type=user_db.blood_type
             ).model_dump()
