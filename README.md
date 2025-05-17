@@ -44,7 +44,7 @@ This is te backend web of the hospital-sdlg
 
 <p align="left">
   <a href="https://skillicons.dev">
-    <img src="https://skillicons.dev/icons?i=python,fastapi,postgresql" />
+    <img src="https://skillicons.dev/icons?i=python,fastapi,postgresql,neon" />
   </a>
 </p>
 
