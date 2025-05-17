@@ -261,6 +261,8 @@ async def update_user_password(request: Request, user_id: str, session: SessionD
             last_name=user.last_name,
             dni=user.dni,
             blood_type=user.blood_type,
+            telephone=user.telephone,
+            address=user.address
         ).model_dump()
     )
 
