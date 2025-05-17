@@ -94,8 +94,7 @@ async def get_user_by_id(session: SessionDep, user_id: UUID):
             dni=user.dni,
             blood_type=user.blood_type,
             address=user.address,
-            telephone=user.telephone,
-            address=user.address
+            telephone=user.telephone
         ).model_dump()
     )
 
@@ -121,7 +120,8 @@ async def me_user(request: Request):
             last_name=user.last_name,
             dni=user.dni,
             telephone=user.telephone,
-            blood_type=user.blood_type
+            blood_type=user.blood_type,
+            address=user.address
         ).model_dump(),
     })
 
