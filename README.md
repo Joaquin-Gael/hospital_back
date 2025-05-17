@@ -6,7 +6,7 @@ This is te backend web of the hospital-sdlg
 
 ## Feactures
 
-- [SPA Manager](https://awesomeopensource.com/project/elangosundar/awesome-README-templates)
+- [SPA Manager](https://github.com/Joaquin-Gael/hospital_back/tree/main/app/storage)
 - [Test README](https://github.com/matiassingers/awesome-readme)
 - [Local Storage](https://bulldogjob.com/news/449-how-to-write-a-good-readme-for-your-github-project)
 
