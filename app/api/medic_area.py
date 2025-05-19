@@ -478,12 +478,12 @@ async def get_doctors(session: SessionDep):
     return ORJSONResponse(doctors)
 
 @doctors.get("/{doctor_id}/", response_model=DoctorResponse)
-async def get_doctor_by_id(dotor_id: str, session: SessionDep):
-    statement = select(Doctors).where(Doctors.id == dotor_id)
+async def get_doctor_by_id(doctor_id: str, session: SessionDep):
+    statement = select(Doctors).where(Doctors.id == doctor_id)
     doc = session.execute(statement).scalars().first()
 
     if not doc:
-        raise HTTPException(status_code=404, detail=f"Doctor {dotor_id} not found")
+        raise HTTPException(status_code=404, detail=f"Doctor {doctor_id} not found")
 
     return ORJSONResponse(
         DoctorResponse(
@@ -504,7 +504,7 @@ async def get_doctor_by_id(dotor_id: str, session: SessionDep):
         ).model_dump()
     )
 
-@doctors.get("/me/", response_model=DoctorResponse)
+@doctors.get("/me", response_model=DoctorResponse)
 async def me_doctor(request: Request):
     doc: Doctors | User = request.state.user
 
@@ -820,13 +820,6 @@ async def add_schedule_by_id(request: Request, session: SessionDep, schedule_id:
         console.print_exception(show_locals=True)
         raise HTTPException(status_code=404, detail=f"Doctor {doc_id} not found")
 
-locations = APIRouter(
-    prefix="/locations",
-    tags=["locations"],
-    dependencies=[
-        Depends(auth)
-    ]
-)
 
 @doctors.put("/ban/{doc_id}/", response_model=DoctorResponse)
 async def ban_doc(request: Request, doc_id: str, session: SessionDep):
@@ -893,6 +886,14 @@ async def unban_doc(request: Request, doc_id: str, session: SessionDep):
         ),
         "message":f"User {doc.name} has been unbanned."
     })
+
+locations = APIRouter(
+    prefix="/locations",
+    tags=["locations"],
+    dependencies=[
+        Depends(auth)
+    ]
+)
 
 @locations.get("/", response_model=List[LocationResponse])
 async def get_locations(request: Request, session: SessionDep):
