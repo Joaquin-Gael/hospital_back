@@ -508,7 +508,7 @@ async def get_doctor_by_id(doctor_id: str, session: SessionDep):
 async def me_doctor(request: Request):
     doc: Doctors | User = request.state.user
 
-    if isinstance(doc, User):
+    if isinstance(doc, User): 
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
 
     schedules: List["MedicalScheduleResponse"] = []
