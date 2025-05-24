@@ -511,18 +511,18 @@ async def me_doctor(request: Request):
     if isinstance(doc, User): 
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
 
-    schedules: List["MedicalScheduleResponse"] = []
-    for schedule in doc.medical_schedules:
-        schedules.append(
-            MedicalScheduleResponse(
-                id=schedule.id,
-                time_medic=schedule.time_medic,
-                day=schedule.day,
-                start_time=schedule.start_time,
-                end_time=schedule.end_time,
-                doctors=schedule.doctors,
-            )
-        )
+    #schedules: List["MedicalScheduleResponse"] = []
+    #for schedule in doc.medical_schedules:
+        #schedules.append(
+            #MedicalScheduleResponse(
+                #id=schedule.id,
+                #time_medic=schedule.time_medic,
+                #day=schedule.day,
+                #start_time=schedule.start_time,
+                #end_time=schedule.end_time,
+                #doctors=schedule.doctors,
+            #)
+        #)
 
     return ORJSONResponse({
         "doc":DoctorResponse(
@@ -541,7 +541,7 @@ async def me_doctor(request: Request):
             speciality_id=doc.speciality_id,
             blood_type=doc.blood_type,
         ).model_dump(),
-        "schedules":schedules
+        #"schedules":schedules
     })
 
 @doctors.post("/add/", response_model=DoctorResponse)
