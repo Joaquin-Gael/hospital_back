@@ -1382,12 +1382,12 @@ async def get_chats(request: Request, session: SessionDep):
 
         chats_list: List["ChatResponse"] = []
         for chat_i in chats:
-            doctor_1: Doctors = session.execute(
+            doctor_1: Doctors = session.exec(
                 select(Doctors).where(Doctors.id == chat_i.doc_1_id)
-            )
-            doctor_2: Doctors = session.execute(
+            ).first()
+            doctor_2: Doctors = session.exec(
                 select(Doctors).where(Doctors.id == chat_i.doc_2_id)
-            )
+            ).first()
 
             chats_list.append(
                 ChatResponse(
