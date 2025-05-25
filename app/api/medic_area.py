@@ -1376,9 +1376,9 @@ manager = ConnectionManager()
 @chat.get("/", response_model=List[ChatResponse])
 async def get_chats(request: Request, session: SessionDep):
     try:
-        chats: List[Chat] = session.excetute(
+        chats: List[Chat] = session.exec(
             select(Chat)
-        ).scalars().all()
+        ).all()
 
         chats_list: List["ChatResponse"] = []
         for chat_i in chats:
