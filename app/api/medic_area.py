@@ -511,6 +511,7 @@ async def me_doctor(request: Request):
     if isinstance(doc, User): 
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
 
+<<<<<<< HEAD
     schedules: List["MedicalScheduleResponse"] = []
 
     try:
@@ -527,6 +528,20 @@ async def me_doctor(request: Request):
             )
     except:
         pass
+=======
+    #schedules: List["MedicalScheduleResponse"] = []
+    #for schedule in doc.medical_schedules:
+        #schedules.append(
+            #MedicalScheduleResponse(
+                #id=schedule.id,
+                #time_medic=schedule.time_medic,
+                #day=schedule.day,
+                #start_time=schedule.start_time,
+                #end_time=schedule.end_time,
+                #doctors=schedule.doctors,
+            #)
+        #)
+>>>>>>> 5f0cd699e6a46e011e35a9c22883680abdc0097e
 
     return ORJSONResponse({
         "doc":DoctorResponse(
@@ -545,7 +560,7 @@ async def me_doctor(request: Request):
             speciality_id=doc.speciality_id,
             blood_type=doc.blood_type,
         ).model_dump(),
-        "schedules":schedules
+        #"schedules":schedules
     })
 
 @doctors.post("/add/", response_model=DoctorResponse)
@@ -1380,18 +1395,18 @@ manager = ConnectionManager()
 @chat.get("/", response_model=List[ChatResponse])
 async def get_chats(request: Request, session: SessionDep):
     try:
-        chats: List[Chat] = session.excetute(
+        chats: List[Chat] = session.exec(
             select(Chat)
-        ).scalars().all()
+        ).all()
 
         chats_list: List["ChatResponse"] = []
         for chat_i in chats:
-            doctor_1: Doctors = session.execute(
+            doctor_1: Doctors = session.exec(
                 select(Doctors).where(Doctors.id == chat_i.doc_1_id)
-            )
-            doctor_2: Doctors = session.execute(
+            ).first()
+            doctor_2: Doctors = session.exec(
                 select(Doctors).where(Doctors.id == chat_i.doc_2_id)
-            )
+            ).first()
 
             chats_list.append(
                 ChatResponse(
