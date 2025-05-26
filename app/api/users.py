@@ -195,7 +195,7 @@ async def update_user(request: Request, user_id: str, session: SessionDep, user_
     statement = select(User).where(User.id == user_id)
     user: User = session.execute(statement).scalars().first()
 
-    form_fields: List[str] = list(UserUpdate.__fields__.keys())
+    form_fields: List[str] = user_form.__fields__.keys()
 
     for field in form_fields:
         value = getattr(user_form, field, None)

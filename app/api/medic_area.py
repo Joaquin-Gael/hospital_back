@@ -511,24 +511,6 @@ async def me_doctor(request: Request):
     if isinstance(doc, User): 
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
 
-<<<<<<< HEAD
-    schedules: List["MedicalScheduleResponse"] = []
-
-    try:
-        for schedule in doc.medical_schedules:
-            schedules.append(
-                MedicalScheduleResponse(
-                    id=schedule.id,
-                    time_medic=schedule.time_medic,
-                    day=schedule.day,
-                    start_time=schedule.start_time,
-                    end_time=schedule.end_time,
-                    doctors=schedule.doctors,
-                )
-            )
-    except:
-        pass
-=======
     #schedules: List["MedicalScheduleResponse"] = []
     #for schedule in doc.medical_schedules:
         #schedules.append(
@@ -541,7 +523,6 @@ async def me_doctor(request: Request):
                 #doctors=schedule.doctors,
             #)
         #)
->>>>>>> 5f0cd699e6a46e011e35a9c22883680abdc0097e
 
     return ORJSONResponse({
         "doc":DoctorResponse(
@@ -689,8 +670,7 @@ async def update_doctor(request: Request, doctor_id: str, session: SessionDep, d
                 .where(Doctors.id == doctor_id)
         ).first()
 
-        form_fields: List[str] = list(DoctorUpdate.__fields__.keys())
-
+        form_fields: List[str] = doctor.__fields__.keys()
 
         for field in form_fields:
             value = getattr(doctor, field, None)
@@ -1027,10 +1007,10 @@ async def delete_location(request: Request, location_id: int, session: SessionDe
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
 
-    location: Locations = session.execute(
+    location: Locations = session.exec(
         select(Locations)
             .where(Locations.id == location_id)
-    ).scalars().first()
+    ).first()
 
     session.delete(location)
     session.commit()
@@ -1048,10 +1028,10 @@ async def update_location(request: Request, location_id: int, session: SessionDe
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
 
-    new_location = session.execute(
+    new_location = session.exec(
         select(Locations)
             .where(Locations.id == location_id)
-    ).scalars().first()
+    ).first()
 
     new_location.name = location.name
     new_location.description = location.description
@@ -1080,7 +1060,7 @@ services = APIRouter(
 @services.get("/", response_model=List[ServiceResponse])
 async def get_services(request: Request, session: SessionDep):
     statement = select(Services)
-    result: List["Services"] = session.execute(statement).scalars().all()
+    result: List["Services"] = session.exec(statement).all()
     services = []
     for service in result:
         services.append(
@@ -1131,7 +1111,7 @@ async def set_service(request: Request, session: SessionDep, service: ServiceCre
 @services.delete("/delete/{service_id}/", response_model=ServiceDelete)
 async def delete_service(request: Request, session: SessionDep, service_id :str):
     try:
-        service = session.execute(select(Services).where(Services.id == service_id)).scalars().first()
+        service = session.exec(select(Services).where(Services.id == service_id)).first()
 
         session.delete(service)
         session.commit()
@@ -1146,18 +1126,18 @@ async def delete_service(request: Request, session: SessionDep, service_id :str)
         console.print_exception(show_locals=True)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
-@services.put("/update/{service_id}/", response_model=ServiceResponse)
+@services.patch("/update/{service_id}/", response_model=ServiceResponse)
 async def update_service(request: Request, session: SessionDep, service_id: str, service: ServiceUpdate):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
 
-    new_service: Services = session.execute(
+    new_service: Services = session.exec(
         select(Services)
             .where(Services.id == service_id)
-    ).scalars().first()
+    ).first()
 
-    fields = service._fields_.keys()
+    fields = service.__fields__.keys()
 
     for field in fields:
         value = getattr(service, field)
@@ -1174,6 +1154,8 @@ async def update_service(request: Request, session: SessionDep, service_id: str,
             id=new_service.id,
             name=new_service.name,
             description=new_service.description,
+            price=new_service.price,
+            specialty_id=new_service.specialty_id
         ).model_dump()
     )
 
@@ -1332,7 +1314,7 @@ async def delete_speciality(request: Request, session: SessionDep, speciality_id
         ).model_dump()
     )
 
-@specialities.put("/update/{speciality_id}/", response_model=SpecialtyResponse)
+@specialities.patch("/update/{speciality_id}/", response_model=SpecialtyResponse)
 async def update_speciality(request: Request, session: SessionDep, speciality_id: str, speciality: SpecialtyUpdate):
 
     if not request.state.user.is_superuser:
@@ -1342,7 +1324,8 @@ async def update_speciality(request: Request, session: SessionDep, speciality_id
         select(Specialties).where(Specialties.id == speciality_id)
     ).scalers().first()
 
-    fields = speciality._fields_.keys()
+    fields = speciality.__fields__.keys()
+
     for field in fields:
         value = getattr(speciality, field)
         if value is not None:
@@ -1486,7 +1469,7 @@ async def websocket_chat(request: Request, websocket: WebSocket, session: Sessio
         if isinstance(doc, User):
             raise HTTPException(status_code=403, detail="You are not authorized")
 
-        chat_db: Chat = session.execute(select(Chat).where(Chat.id == chat_id))
+        chat_db: Chat = session.exec(select(Chat).where(Chat.id == chat_id)).first()
         print(chat_db)
         if chat_db.doc_1_id == doc.id or chat_db.doc_2_id == doc.id:
             await websocket.close(1008)
@@ -1503,7 +1486,7 @@ async def websocket_chat(request: Request, websocket: WebSocket, session: Sessio
             data = await websocket.receive_json()
             content = data["content"]
 
-            chat_db: Chat = session.execute(select(Chat).where(Chat.id == chat_id))
+            chat_db: Chat = session.exec(select(Chat).where(Chat.id == chat_id)).first()
 
             message = ChatMessages(
                 sender_id=doc.id,
@@ -1541,7 +1524,7 @@ async def get_turns(request: Request, session: SessionDep):
         raise HTTPException(status_code=401, detail="You are not authorized")
 
     statement = select(Turns)
-    result: List["Turns"] = session.execute(statement).scalars().all()
+    result: List["Turns"] = session.exec(statement).all()
 
     turns_serialized: List[TurnsResponse] = []
     for turn in result:
@@ -1567,10 +1550,10 @@ async def get_turn(request: Request, session: SessionDep, turn_id: int):
     user = request.state.user
 
     try:
-        secure_turn: Turns = session.execute(
+        secure_turn: Turns = session.exec(
             select(Turns)
                 .where(Turns.id == turn_id)
-        ).scalars().first()
+        ).first()
 
         if secure_turn is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Turn not found")
@@ -1674,7 +1657,7 @@ async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
 async def delete_turn(request: Request, session: SessionDep, turn_id: int):
     session_user = request.state.user
     try:
-        turn = session.execute(select(Turns).where(Turns.id == turn_id)).scalars().first()
+        turn = session.exec(select(Turns).where(Turns.id == turn_id)).first()
         if session_user.id != turn.user_id or session_user.id != turn.doctor_id:
             raise HTTPException(status_code=403, detail="You are not authorized")
         session.delete(turn)
