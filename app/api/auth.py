@@ -45,7 +45,7 @@ async def doc_login(session: SessionDep, credentials: DoctorAuth):
         raise HTTPException(status_code=404, detail="Invalid credentials")
 
     doc_data = {
-        "sub":doc.id,
+        "sub":str(doc.id),
         "scopes":["doc"]
     }
 

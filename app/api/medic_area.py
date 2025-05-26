@@ -512,17 +512,21 @@ async def me_doctor(request: Request):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
 
     schedules: List["MedicalScheduleResponse"] = []
-    for schedule in doc.medical_schedules:
-        schedules.append(
-            MedicalScheduleResponse(
-                id=schedule.id,
-                time_medic=schedule.time_medic,
-                day=schedule.day,
-                start_time=schedule.start_time,
-                end_time=schedule.end_time,
-                doctors=schedule.doctors,
+
+    try:
+        for schedule in doc.medical_schedules:
+            schedules.append(
+                MedicalScheduleResponse(
+                    id=schedule.id,
+                    time_medic=schedule.time_medic,
+                    day=schedule.day,
+                    start_time=schedule.start_time,
+                    end_time=schedule.end_time,
+                    doctors=schedule.doctors,
+                )
             )
-        )
+    except:
+        pass
 
     return ORJSONResponse({
         "doc":DoctorResponse(
@@ -1434,7 +1438,7 @@ async def get_chats(request: Request, session: SessionDep):
         raise HTTPException(status_code=500, detail=str(e))
 
 @chat.post("/add")
-async def create_chat(request: Request, session: SessionDep, doc_2_id = Query(...)):
+async def create_chat(request: Request, session: SessionDep, doc_2_id=Query(...), _=Depends(auth)):
     if not "doc" in request.state.scopes:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -1467,9 +1471,9 @@ async def websocket_chat(request: Request, websocket: WebSocket, session: Sessio
         if isinstance(doc, User):
             raise HTTPException(status_code=403, detail="You are not authorized")
 
-        chat: Chat = session.execute(select(Chat).where(Chat.id == chat_id))
-        print(chat)
-        if chat.doc_1_id == doc.id or chat.doc_2_id == doc.id:
+        chat_db: Chat = session.execute(select(Chat).where(Chat.id == chat_id))
+        print(chat_db)
+        if chat_db.doc_1_id == doc.id or chat_db.doc_2_id == doc.id:
             await websocket.close(1008)
     except Exception:
         console.print_exception(show_locals=True)
@@ -1484,13 +1488,13 @@ async def websocket_chat(request: Request, websocket: WebSocket, session: Sessio
             data = await websocket.receive_json()
             content = data["content"]
 
-            chat: Chat = session.execute(select(Chat).where(Chat.id == chat_id))
+            chat_db: Chat = session.execute(select(Chat).where(Chat.id == chat_id))
 
             message = ChatMessages(
                 sender_id=doc.id,
                 chat_id=chat_id,
                 content=content,
-                chat=chat,
+                chat=chat_db,
             )
 
             session.add(message)

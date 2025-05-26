@@ -2,7 +2,7 @@ from datetime import datetime
 
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, constr
+from pydantic import BaseModel, EmailStr, constr, field_validator
 
 from uuid import UUID
 
@@ -15,6 +15,13 @@ class UserBase(BaseModel):
     telephone: Optional[str] = None
     address: Optional[str] = None
     blood_type: Optional[str] = None
+
+    @classmethod
+    @field_validator("email", mode="before")
+    def email_validator(cls, v: EmailStr):
+        if "ñ" in v or "Ñ" in v:
+            raise ValueError("El valor de email no puede contener ñ.")
+        return v
 
 class UserCreate(UserBase):
     password: constr(min_length=8)

@@ -163,6 +163,13 @@ class DoctorUpdate(BaseModel):
     telephone: Optional[str] = None
     email: Optional[str] = None
 
+    @classmethod
+    @field_validator("email", mode="before")
+    def email_validator(cls, v: EmailStr):
+        if "ñ" in v or "Ñ" in v:
+            raise ValueError("El valor de email no puede contener ñ.")
+        return v
+
 class DoctorPasswordUpdate(BaseModel):
     password: constr(min_length=8)
 
