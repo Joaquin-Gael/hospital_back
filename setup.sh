@@ -1,5 +1,3 @@
-uv venv
-.venv/Scripts/activate
-uv sync
-cd app
+pip3 install -r ./requirements.txt
+pip3 list
 fastapi run main.py
