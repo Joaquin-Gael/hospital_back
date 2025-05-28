@@ -97,7 +97,7 @@ from app.schemas.medica_area import (
 from app.db.main import SessionDep
 from app.core.auth import JWTBearer, JWTWebSocket
 
-auth = JWTBearer(as_admin=False)
+auth = JWTBearer()
 ws_auth = JWTWebSocket()
 
 console = Console()
@@ -113,9 +113,9 @@ departments = APIRouter(
 
 @departments.get("/", response_model=DepartmentResponse)
 async def get_departments(request: Request, session: SessionDep):
-    result = session.execute(
+    result = session.exec(
         select(Departments)
-    ).scalars().all()
+    ).all()
 
     departments_list: List[DepartmentResponse] = []
     for department in result:
@@ -132,9 +132,9 @@ async def get_departments(request: Request, session: SessionDep):
 
 @departments.get("/{department_id}/", response_model=DepartmentResponse)
 async def get_department_by_id(request: Request, department_id: int, session: SessionDep):
-    department = session.execute(
+    department = session.exec(
         select(Departments).where(Departments.id == department_id)
-    ).scalars().first()
+    ).first()
 
     return DepartmentResponse(
         id=department.id,
@@ -174,9 +174,9 @@ async def delete_department_by_id(request: Request, department_id: int, session:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
 
     try:
-        department: Departments = session.execute(
+        department: Departments = session.exec(
             select(Departments).where(Departments.id == department_id)
-        ).scalars().first()
+        ).first()
 
         session.delete(department)
         session.commit()
@@ -196,9 +196,9 @@ async def update_department(request: Request, department_id: str , department: D
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
 
-    new_department: Departments = session.execute(
+    new_department: Departments = session.exec(
         select(Departments).where(Departments.id == department_id)
-    ).scalars().first()
+    ).first()
 
     new_department.name = department.name
     new_department.description = department.description
@@ -227,7 +227,7 @@ schedules = APIRouter(
 @schedules.get("/", response_model=List[MedicalScheduleResponse])
 async def get_medical_schedules(request: Request, session: SessionDep):
     statement = select(MedicalSchedules)
-    result: List[MedicalSchedules] = session.execute(statement).scalars().all()
+    result: List[MedicalSchedules] = session.exec(statement).all()
     schedules = []
     for schedule_i in result:
         doctors: List[DoctorResponse] = []
@@ -308,7 +308,7 @@ async def add_schedule(medical_schedule: MedicalScheduleCreate, session: Session
 @schedules.delete("/delete/{schedule_id}/", response_model=MedicalScheduleDelete)
 async def delete_schedule(session: SessionDep, schedule_id: str):
     statement = select(MedicalSchedules).where(MedicalSchedules.id == schedule_id)
-    result: MedicalSchedules = session.execute(statement).scalars().first()
+    result: MedicalSchedules = session.exec(statement).first()
 
     if result:
         session.add(result)
@@ -330,9 +330,9 @@ async def delete_schedule(session: SessionDep, schedule_id: str):
 async def add_doctor_by_id(session: SessionDep, doc_id: str = Query(...), schedule_id: str = Query(...)):
     try:
         statement = select(MedicalSchedules).where(MedicalSchedules.id == schedule_id)
-        schedule: MedicalSchedules = session.execute(statement).scalars().first()
+        schedule: MedicalSchedules = session.exec(statement).first()
         statement = select(Doctors).where(Doctors.id == doc_id)
-        doctor: Doctors = session.execute(statement).scalars().first()
+        doctor: Doctors = session.exec(statement).first()
 
         schedule.doctors.append(doctor)
 
@@ -414,7 +414,7 @@ async def update_schedule(schedule: MedicalScheduleUpdate, session: SessionDep):
     """
     try:
         statement = select(MedicalSchedules).where(MedicalSchedules.id == schedule.id)
-        result: MedicalSchedules = session.execute(statement).scalars().first()
+        result: MedicalSchedules = session.exec(statement).first()
 
         form_fields: List[str] = MedicalScheduleUpdate.__fields__.keys()
 
@@ -480,7 +480,7 @@ async def get_doctors(session: SessionDep):
 @doctors.get("/{doctor_id}/", response_model=DoctorResponse)
 async def get_doctor_by_id(doctor_id: str, session: SessionDep):
     statement = select(Doctors).where(Doctors.id == doctor_id)
-    doc = session.execute(statement).scalars().first()
+    doc = session.exec(statement).first()
 
     if not doc:
         raise HTTPException(status_code=404, detail=f"Doctor {doctor_id} not found")
@@ -508,21 +508,21 @@ async def get_doctor_by_id(doctor_id: str, session: SessionDep):
 async def me_doctor(request: Request):
     doc: Doctors | User = request.state.user
 
-    if isinstance(doc, User): 
+    if isinstance(doc, User):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
 
     #schedules: List["MedicalScheduleResponse"] = []
     #for schedule in doc.medical_schedules:
-        #schedules.append(
-            #MedicalScheduleResponse(
-                #id=schedule.id,
-                #time_medic=schedule.time_medic,
-                #day=schedule.day,
-                #start_time=schedule.start_time,
-                #end_time=schedule.end_time,
-                #doctors=schedule.doctors,
-            #)
-        #)
+    #schedules.append(
+    #MedicalScheduleResponse(
+    #id=schedule.id,
+    #time_medic=schedule.time_medic,
+    #day=schedule.day,
+    #start_time=schedule.start_time,
+    #end_time=schedule.end_time,
+    #doctors=schedule.doctors,
+    #)
+    #)
 
     return ORJSONResponse({
         "doc":DoctorResponse(
@@ -562,7 +562,7 @@ async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep
             password=doctor.password,
             address=doctor.address,
             blood_type=doctor.blood_type,
-            first_name=doctor.first_name 
+            first_name=doctor.first_name
         )
 
         new_doctor.set_password(doctor.password)
@@ -605,7 +605,7 @@ async def delete_doctor(request: Request, doctor_id: str, session: SessionDep):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
 
     statement = select(Doctors).where(Doctors.id == doctor_id)
-    result = session.execute(statement).scalars().first()
+    result = session.exec(statement).first()
     if result:
         session.delete(result)
         session.commit()
@@ -629,7 +629,7 @@ async def delete_doctor_schedule_by_id(request: Request, schedule_id: str, docto
 
     doc: Doctors = session.exec(
         select(Doctors)
-            .where(Doctors.id == doctor_id)
+        .where(Doctors.id == doctor_id)
     ).first()
 
     doc.medical_schedules = [i for i in doc.medical_schedules if i.id != schedule_id]
@@ -667,7 +667,7 @@ async def update_doctor(request: Request, doctor_id: str, session: SessionDep, d
     try:
         doc = session.exec(
             select(Doctors)
-                .where(Doctors.id == doctor_id)
+            .where(Doctors.id == doctor_id)
         ).first()
 
         form_fields: List[str] = doctor.__fields__.keys()
@@ -709,7 +709,7 @@ async def update_speciality(request: Request, doctor_id: str, session: SessionDe
     try:
         doc = session.exec(
             select(Doctors)
-                .where(Doctors.id == doctor_id)
+            .where(Doctors.id == doctor_id)
         ).first()
 
         doc.speciality_id = doctor_form.speciality_id
@@ -751,10 +751,10 @@ async def update_doctor_password(request: Request, doctor_id: str, session: Sess
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un unauthorized")
 
     try:
-        doc = session.excecute(
+        doc = session.excec(
             select(Doctors)
             .where(Doctors.id == doctor_id)
-        ).scalars().first()
+        ).first()
 
         doc.set_password(password.password)
 
@@ -776,21 +776,21 @@ async def update_doctor_password(request: Request, doctor_id: str, session: Sess
         console.print_exception(show_locals=True)
         raise HTTPException(status_code=404, detail=f"Doctor {doctor_id} not found")
 
-@doctors.put("/add/schedule/", response_model=DoctorResponse)
+@doctors.patch("/add/schedule/", response_model=DoctorResponse)
 async def add_schedule_by_id(request: Request, session: SessionDep, schedule_id: str = Query(...), doc_id: str = Query(...)):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
 
     try:
-        doc = session.execute(
+        doc = session.exec(
             select(Doctors)
-                .where(Doctors.id == doc_id)
-        ).schalars().first()
-        schedule = session.execute(
+            .where(Doctors.id == doc_id)
+        ).first()
+        schedule = session.exec(
             select(MedicalSchedules)
-                .where(MedicalSchedules.id == schedule_id)
-        ).schalars().first()
+            .where(MedicalSchedules.id == schedule_id)
+        ).first()
 
         doc.medical_schedules.append(schedule)
 
@@ -820,14 +820,14 @@ async def add_schedule_by_id(request: Request, session: SessionDep, schedule_id:
         raise HTTPException(status_code=404, detail=f"Doctor {doc_id} not found")
 
 
-@doctors.put("/ban/{doc_id}/", response_model=DoctorResponse)
+@doctors.patch("/ban/{doc_id}/", response_model=DoctorResponse)
 async def ban_doc(request: Request, doc_id: str, session: SessionDep):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
 
     statement = select(Doctors).where(Doctors.id == doc_id)
-    doc: Doctors = session.execute(statement).scalars().first()
+    doc: Doctors = session.exec(statement).first()
 
     doc.is_banned = True
     session.add(doc)
@@ -853,14 +853,14 @@ async def ban_doc(request: Request, doc_id: str, session: SessionDep):
         "message":f"User {doc.name} has been banned."
     })
 
-@doctors.put("/unban/{doc_id}/", response_model=DoctorResponse)
+@doctors.patch("/unban/{doc_id}/", response_model=DoctorResponse)
 async def unban_doc(request: Request, doc_id: str, session: SessionDep):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
 
     statement = select(Doctors).where(Doctors.id == doc_id)
-    doc: Doctors = session.execute(statement).scalars().first()
+    doc: Doctors = session.exec(statement).first()
 
     doc.is_banned = False
     session.add(doc)
@@ -897,19 +897,19 @@ locations = APIRouter(
 @locations.get("/", response_model=List[LocationResponse])
 async def get_locations(request: Request, session: SessionDep):
     statement = select(Locations)
-    result = session.execute(statement).scalars().all()
+    result = session.exec(statement).all()
     locations: List["LocationResponse"] = []
     for location in result:
         statement = select(Departments).where(Departments.location_id == location.id)
-        result: List["Departments"] = session.execute(statement).scalars().all()
+        result: List["Departments"] = session.exec(statement).all()
         departments = []
         for department in result:
             statement = select(Specialties).where(Specialties.department_id == department.id)
-            result: List["Specialties"] = session.execute(statement).scalars().all()
+            result: List["Specialties"] = session.exec(statement).all()
             specialties = []
             for specialty in result:
                 statement = select(Services).where(Services.specialty_id == specialty.id)
-                result: List["Services"] = session.execute(statement).scalars().all()
+                result: List["Services"] = session.exec(statement).all()
                 services: List["ServiceResponse"] = []
                 for service in result:
                     services.append(
@@ -922,7 +922,7 @@ async def get_locations(request: Request, session: SessionDep):
                         )
                     )
                 statement = select(Doctors).where(Doctors.speciality_id == specialty.id)
-                result: List["Doctors"] = session.execute(statement).scalars().all()
+                result: List["Doctors"] = session.exec(statement).all()
                 doctors = []
                 for doc in result:
                     doctors.append(
@@ -1009,7 +1009,7 @@ async def delete_location(request: Request, location_id: int, session: SessionDe
 
     location: Locations = session.exec(
         select(Locations)
-            .where(Locations.id == location_id)
+        .where(Locations.id == location_id)
     ).first()
 
     session.delete(location)
@@ -1030,7 +1030,7 @@ async def update_location(request: Request, location_id: int, session: SessionDe
 
     new_location = session.exec(
         select(Locations)
-            .where(Locations.id == location_id)
+        .where(Locations.id == location_id)
     ).first()
 
     new_location.name = location.name
@@ -1134,7 +1134,7 @@ async def update_service(request: Request, session: SessionDep, service_id: str,
 
     new_service: Services = session.exec(
         select(Services)
-            .where(Services.id == service_id)
+        .where(Services.id == service_id)
     ).first()
 
     fields = service.__fields__.keys()
@@ -1172,12 +1172,12 @@ specialities = APIRouter(
 @specialities.get("/", response_model=List[SpecialtyResponse])
 async def get_specialities(request: Request, session: SessionDep):
     statement = select(Specialties)
-    result: List["Specialties"] = session.execute(statement).scalars().all()
+    result: List["Specialties"] = session.exec(statement).all()
 
     specialities: List[SpecialtyResponse] = []
     for speciality in result:
         statement = select(Services).where(Services.specialty_id == speciality.id)
-        result: List["Services"] = session.execute(statement).scalars().all()
+        result: List["Services"] = session.exec(statement).all()
 
         services: List[ServiceResponse] = []
         for service in result:
@@ -1192,7 +1192,7 @@ async def get_specialities(request: Request, session: SessionDep):
             )
 
         statement = select(Doctors).where(Doctors.speciality_id == speciality.id)
-        result: List["Doctors"] = session.execute(statement).scalars().all()
+        result: List["Doctors"] = session.exec(statement).all()
 
         doctors: List[DoctorResponse] = []
         for doc in result:
@@ -1232,16 +1232,16 @@ async def get_specialities(request: Request, session: SessionDep):
 
 @specialities.get("/{speciality_id}/schedules/available")
 async def get_available_schedules(request: Request, session: SessionDep, speciality_id: str):
-    statement = select(Specialties)\
-        .join(Doctors, Doctors.speciality_id == Specialties.id)\
-        .join(DoctorMedicalScheduleLink, DoctorMedicalScheduleLink.doctor_id == Doctors.id)\
-        .join(MedicalSchedules, MedicalSchedules.id == DoctorMedicalScheduleLink.medical_schedule_id)\
+    statement = select(Specialties) \
+        .join(Doctors, Doctors.speciality_id == Specialties.id) \
+        .join(DoctorMedicalScheduleLink, DoctorMedicalScheduleLink.doctor_id == Doctors.id) \
+        .join(MedicalSchedules, MedicalSchedules.id == DoctorMedicalScheduleLink.medical_schedule_id) \
         .where(Specialties.id == speciality_id,
                MedicalSchedules.available == True,
                speciality_id == Specialties.id,
                Doctors.is_available == True)
 
-    result: List["Specialties"] = session.execute(statement).scalars().all()
+    result: List["Specialties"] = session.exec(statement).all()
 
     serialized_schedules: List = []
 
@@ -1299,10 +1299,10 @@ async def delete_speciality(request: Request, session: SessionDep, speciality_id
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
 
-    speciality: Specialties = session.excecute(
+    speciality: Specialties = session.exec(
         select(Specialties)
-            .where(Specialties.id == speciality_id)
-    ).scalars().first()
+        .where(Specialties.id == speciality_id)
+    ).first()
 
     session.delete(speciality)
     session.commt()
@@ -1320,9 +1320,9 @@ async def update_speciality(request: Request, session: SessionDep, speciality_id
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
 
-    new_speciality: Services = session.execute(
+    new_speciality: Services = session.exec(
         select(Specialties).where(Specialties.id == speciality_id)
-    ).scalers().first()
+    ).first()
 
     fields = speciality.__fields__.keys()
 
@@ -1347,6 +1347,9 @@ async def update_speciality(request: Request, session: SessionDep, speciality_id
 chat = APIRouter(
     prefix="/chat",
     tags=["chat"],
+    dependencies=[
+        Depends(auth)
+    ]
 )
 
 class ConnectionManager:
@@ -1436,7 +1439,7 @@ async def get_chats(request: Request, session: SessionDep):
         raise HTTPException(status_code=500, detail=str(e))
 
 @chat.post("/add")
-async def create_chat(request: Request, session: SessionDep, doc_2_id=Query(...), _=Depends(auth)):
+async def create_chat(request: Request, session: SessionDep, doc_2_id=Query(...)):
     if not "doc" in request.state.scopes:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -1458,7 +1461,14 @@ async def create_chat(request: Request, session: SessionDep, doc_2_id=Query(...)
         "message":f"Chat {new_chat.id} created"
     }, status_code=status.HTTP_200_OK)
 
-@chat.websocket("/ws/chat/{chat_id}")
+ws_chat = APIRouter(
+    prefix="/ws",
+    dependencies=[
+        Depends(ws_auth)
+    ]
+)
+
+@ws_chat.websocket("/ws/chat/{chat_id}")
 async def websocket_chat(request: Request, websocket: WebSocket, session: SessionDep, chat_id):
     if not "doc" in request.state.scopes:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -1552,7 +1562,7 @@ async def get_turn(request: Request, session: SessionDep, turn_id: int):
     try:
         secure_turn: Turns = session.exec(
             select(Turns)
-                .where(Turns.id == turn_id)
+            .where(Turns.id == turn_id)
         ).first()
 
         if secure_turn is None:
@@ -1688,7 +1698,7 @@ async def get_appointments(request: Request, session: SessionDep):
         raise HTTPException(status_code=401, detail="You are not authorized")
 
     statement = select(Appointments)
-    result: List["Appointments"] = session.execute(statement).scalars().all()
+    result: List["Appointments"] = session.exec(statement).all()
     serialized_appointments: List[AppointmentResponse] = []
     for appointment in result:
         serialized_appointments.append(
@@ -1706,6 +1716,8 @@ async def get_appointments(request: Request, session: SessionDep):
         )
 
     return ORJSONResponse(serialized_appointments)
+
+chat.include_router(ws_chat)
 
 router = APIRouter(
     prefix="/medic",

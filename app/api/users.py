@@ -31,7 +31,7 @@ logger.addHandler(handler)
 
 console = Console()
 
-auth = JWTBearer(as_admin=False)
+auth = JWTBearer()
 
 private_router = APIRouter(
     dependencies=[
@@ -47,7 +47,7 @@ public_router = APIRouter(
 @private_router.get("/", response_model=List[UserRead])
 async def get_users(session: SessionDep):
     statement = select(User)
-    result: List[User] = session.execute(statement).scalars().all()
+    result: List[User] = session.exec(statement).all()
     users = []
     #print(result)
     for user in result:
@@ -75,7 +75,7 @@ async def get_users(session: SessionDep):
 @private_router.get("/{user_id}/")
 async def get_user_by_id(session: SessionDep, user_id: UUID):
     statement = select(User).where(User.id == user_id)
-    user: User = session.execute(statement).scalars().first()
+    user: User = session.exec(statement).first()
     if not user:
         raise HTTPException(status_code=404, detail="Not found")
 
@@ -170,7 +170,7 @@ async def delete_user(request: Request, user_id: str, session: SessionDep):
         raise HTTPException(status_code=403, detail="Not authorized")
     try:
         statement = select(User).where(User.id == user_id)
-        user: User = session.execute(statement).scalars().first()
+        user: User = session.exec(statement).first()
         session.delete(user)
         session.commit()
         user_deleted = UserDelete(
@@ -193,7 +193,7 @@ async def update_user(request: Request, user_id: str, session: SessionDep, user_
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un unauthorized")
 
     statement = select(User).where(User.id == user_id)
-    user: User = session.execute(statement).scalars().first()
+    user: User = session.exec(statement).first()
 
     form_fields: List[str] = user_form.__fields__.keys()
 
@@ -271,7 +271,7 @@ async def ban_user(request: Request, user_id: str, session: SessionDep):
         raise HTTPException(status_code=403, detail="Not authorized")
 
     statement = select(User).where(User.id == user_id)
-    user: User = session.execute(statement).scalars().first()
+    user: User = session.exec(statement).first()
 
     user.is_banned = True
     session.commit()
@@ -301,7 +301,7 @@ async def unban_user(request: Request, user_id: str, session: SessionDep):
         raise HTTPException(status_code=403, detail="Not authorized")
 
     statement = select(User).where(User.id == user_id)
-    user: User = session.execute(statement).scalars().first()
+    user: User = session.exec(statement).first()
 
     user.is_banned = False
     session.commit()

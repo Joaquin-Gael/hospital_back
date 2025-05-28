@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 from pydantic import BaseModel
 
-from fastapi import Header, HTTPException, status, Request, Cookie, Query
+from fastapi import Header, HTTPException, status, Request, WebSocket
 
 from functools import singledispatch
 
@@ -162,11 +162,8 @@ def decode_token(token: str):
         raise ValueError("Value Not Found") from e
 
 class JWTBearer:
-    def __init__(self, as_admin: bool = True):
-        self.as_admin = as_admin
-
     async def __call__(self, request: Request, authorization: Optional[str] = Header(None)) -> User | Doctors | None:
-        if authorization is None or not authorization.startswith("Bearer "):
+        if authorization is None or not authorization.startswith("Bearer"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="No credentials provided or invalid format"
@@ -174,29 +171,35 @@ class JWTBearer:
 
         token = authorization.split(" ")[1]
 
-        payload = decode_token(token)
+        try:
+            payload = decode_token(token)
+        except ValueError as e:
+            raise HTTPException(status_code=401, detail=e.args) from e
+
         user_id = payload.get("sub")
 
         ban_token = storage.get(key=payload.get("sub"), table_name="ban-token")
 
-        if token == ban_token:
-            raise HTTPException(status_code=403, detail="Token banned")
+        console.print(">>> ", ban_token, " <<<")
+
+        if ban_token is not None:
+            console.print(f"Token banned: {ban_token.value}")
+            if token == ban_token.value:
+                raise HTTPException(status_code=403, detail="Token banned")
 
         try:
             if user_id is None:
                 raise HTTPException(status_code=401, detail="Invalid token payload")
 
-            if not "admin" in payload.get("scopes") and self.as_admin:
-                raise HTTPException(status_code=403, detail="Not authorized")
+
+            statement = select(User).where(User.id == user_id)
 
             if "doc" in payload.get("scopes"):
                 statement = select(Doctors).where(Doctors.id == user_id)
-            else:
-                statement = select(User).where(User.id == user_id)
 
             with Session(engine) as session:
-                result = session.execute(statement)
-                user = result.scalars().first()
+                result = session.exec(statement)
+                user = result.first()
 
             request.state.user = user
             request.state.scopes = payload.get("scopes")
@@ -204,32 +207,47 @@ class JWTBearer:
             return user
 
         except Exception as e:
-            print(e)
+            console.print(e)
             raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 class JWTWebSocket:
-    async def __call__(self, token:str = Query(...)):
-        if not token or token.startswith("Bearer"):
+    async def __call__(self, websocket: WebSocket) -> tuple[User | Doctors, list[str]] | tuple[None, None] | None:
+
+        query = websocket.query_params
+
+        console.print(query)
+
+        if not "token" in query.keys() or query.get("token") is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="No credentials provided or invalid format"
             )
 
-        token = token.split("_")[1]
+        if not query.get("token").startswith("Bearer_"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No credentials provided or invalid format"
+            )
 
-        payload = decode_token(token)
+        token = query.get("token").split("_")[1]
+
+        try:
+            payload = decode_token(token)
+        except ValueError:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+
         user_id = payload.get("sub", None)
 
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token payload")
 
+        statement = select(User).where(User.id == user_id)
+
         if "doc" in payload.get("scopes"):
             statement = select(Doctors).where(Doctors.id == user_id)
-        else:
-            statement = select(User).where(User.id == user_id)
 
         with Session(engine) as session:
-            result = session.execute(statement)
-            user = result.scalars().first()
+            result = session.exec(statement)
+            user_doctor = result.first()
 
-        return user
+        return user_doctor, payload.get("scopes")

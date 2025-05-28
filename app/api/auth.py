@@ -19,7 +19,7 @@ from app.storage import storage
 
 console = Console()
 
-auth = JWTBearer(as_admin=False)
+auth = JWTBearer()
 
 router = APIRouter(
     prefix="/auth",
@@ -140,9 +140,13 @@ async def refresh(user: User = Depends(auth)):
 
     if isinstance(user, Doctors):
         doc_data = {
-            "sub":user.id,
+            "sub":str(user.id),
             "scopes":["doc"]
         }
+
+        if user.is_active:
+            doc_data["scopes"].append("active")
+
 
         token = gen_token(doc_data)
         refresh_token = gen_token(doc_data)
@@ -171,7 +175,7 @@ async def refresh(user: User = Depends(auth)):
         )
 
     user_data = {
-        "sub":user.id,
+        "sub":str(user.id),
         "scopes":[]
     }
 

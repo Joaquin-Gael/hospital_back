@@ -180,15 +180,20 @@ class Singleton(metaclass=PurgeMeta):
         self._mark_dirty()
         return item
 
-    def delete(self, key, table_name: str):
+    def delete(self, key, table_name: str) -> None:
         del self.data.tables[table_name].items[key]
         self._mark_dirty()
 
-    def clear(self, table_name: str = None):
+    def clear(self, table_name: str = None) -> None:
         self.data.tables[table_name].clear()
         self._mark_dirty()
 
-    def update(self, key, value, table_name):
-        self.data.tables[table_name].items[key].value = value
-        self.data.tables[table_name].items[key].updated = datetime.now()
+    def update(self, key, value, table_name) -> None:
+        item: GetItem = self.get(key, table_name)
+        if item is None:
+            self.set(key, value, table_name)
+            return
+        item.value = value
+        item.updated = datetime.now()
+        self.data.tables[table_name].items[key] = item
         self._mark_dirty()
