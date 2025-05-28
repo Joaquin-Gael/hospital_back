@@ -1469,11 +1469,11 @@ ws_chat = APIRouter(
 )
 
 @ws_chat.websocket("/ws/chat/{chat_id}")
-async def websocket_chat(request: Request, websocket: WebSocket, session: SessionDep, chat_id):
-    if not "doc" in request.state.scopes:
+async def websocket_chat(websocket: WebSocket, session: SessionDep, chat_id, data: tuple = Depends(ws_auth)):
+    if not "doc" in data[1]:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    doc: Doctors = request.state.user
+    doc: Doctors = data[1]
 
     try:
         if isinstance(doc, User):
