@@ -36,8 +36,8 @@ async def get_scopes(request: Request, _=Depends(auth)):
 @router.post("/doc/login", response_model=TokenDoctorsResponse)
 async def doc_login(session: SessionDep, credentials: DoctorAuth):
     statement = select(Doctors).where(Doctors.email == credentials.email)
-    result = session.execute(statement)
-    doc: Doctors = result.scalars().first()
+    result = session.exec(statement)
+    doc: Doctors = result.first()
     if not doc:
         raise HTTPException(status_code=404, detail="Invalid credentials")
 
@@ -81,8 +81,8 @@ async def doc_login(session: SessionDep, credentials: DoctorAuth):
 @router.post("/login", response_model=TokenUserResponse)
 async def login(session: SessionDep, credentials: UserAuth):
     statement = select(User).where(User.email == credentials.email)
-    result = session.execute(statement)
-    user: User = result.scalars().first()
+    result = session.exec(statement)
+    user: User = result.first()
     if not user:
         raise HTTPException(status_code=404, detail="Invalid credentials payload")
 
