@@ -40,10 +40,10 @@ def set_admin():
     try:
         print("Setting admin")
         with Session(engine) as session:
-            admin: User = session.execute(
+            admin: User = session.exec(
                 select(User)
                     .where(User.email == admin_user.email)
-            ).scalars().first()
+            ).first()
 
             if admin:
                 return
@@ -66,7 +66,7 @@ def test_db() -> Tuple[float, bool]:
     try:
         with Session(engine) as session:
             statement = select(User)
-        result: List["User"] = session.execute(statement).scalars().all()
+        result: List["User"] = session.exec(statement).all()
         if result is None:
             end = time.time()
             return (end - start), False
