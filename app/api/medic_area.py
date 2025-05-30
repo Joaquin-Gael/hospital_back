@@ -751,7 +751,7 @@ async def update_doctor_password(request: Request, doctor_id: str, session: Sess
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un unauthorized")
 
     try:
-        doc = session.excec(
+        doc = session.exec(
             select(Doctors)
             .where(Doctors.id == doctor_id)
         ).first()

@@ -65,7 +65,7 @@ def run_migrations_offline() -> None:
     here as well.  By skipping the Engine creation
     we don't even need a DBAPI to be available.
 
-    Calls to context.execute() here emit the given string to the
+    Calls to context.exec() here emit the given string to the
     script output.
 
     """
