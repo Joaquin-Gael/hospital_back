@@ -152,13 +152,11 @@ class BaseModelTurns(SQLModel, RenameTurnsStateMixin, table=False):
 
 class Turns(BaseModelTurns, table=True):
     id: UUID = Field(
-        sa_column=Column(
-            name="turn_id",
-            type_=UUID_TYPE,
-            primary_key=True,
-            unique=True
-        ),
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"turn_id"},
         default_factory=uuid4,
+        primary_key=True,
+        unique=True
     )
     user: Optional["User"] = Relationship(back_populates="turns")
     doctor: Optional["Doctors"] = Relationship(back_populates="turns")
@@ -169,13 +167,11 @@ class Turns(BaseModelTurns, table=True):
 
 class Appointments(SQLModel, table=True):
     id: UUID = Field(
-        sa_column=Column(
-            name="appointment_id",
-            type_=UUID_TYPE,
-            primary_key=True,
-            unique=True
-        ),
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"appointment_id"},
         default_factory=uuid4,
+        primary_key=True,
+        unique=True
     )
     user_id: Optional[UUID] = Field(
         sa_type=UUID_TYPE,
@@ -202,13 +198,11 @@ class Appointments(SQLModel, table=True):
 
 class Cashes(SQLModel, table=True):
     id: UUID = Field(
-        sa_column=Column(
-            name="cash_id",
-            type_=UUID_TYPE,
-            primary_key=True,
-            unique=True
-        ),
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"cash_id"},
         default_factory=uuid4,
+        primary_key=True,
+        unique=True
     )
     income: float = Field(default=0, nullable=False)
     expense: float = Field(default=0, nullable=False)
@@ -224,13 +218,11 @@ class Cashes(SQLModel, table=True):
 
 class CashesDetails(SQLModel, table=True):
     id: UUID = Field(
-        sa_column=Column(
-            name="cash_details_id",
-            type_=UUID_TYPE,
-            primary_key=True,
-            unique=True
-        ),
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"cash_details_id", "comment": "The primary key of the cash_details table"},
         default_factory=uuid4,
+        primary_key=True,
+        unique=True
     )
     description: str = Field(max_length=50)
     amount: float = Field(default=0, nullable=False)
@@ -245,13 +237,11 @@ class CashesDetails(SQLModel, table=True):
 
 class Locations(SQLModel, table=True):
     id: UUID = Field(
-        sa_column=Column(
-            name="location_id",
-            type_=UUID_TYPE,
-            primary_key=True,
-            unique=True
-        ),
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"location_id"},
         default_factory=uuid.uuid4,
+        primary_key=True,
+        unique=True
     )
     name: str = Field(max_length=50)
     description: str = Field(max_length=500)
@@ -260,13 +250,10 @@ class Locations(SQLModel, table=True):
 
 class Departments(SQLModel, table=True):
     id: UUID = Field(
-        sa_column=Column(
-            name="department_id",
-            type_=UUID_TYPE,
-            primary_key=True,
-            unique=True
-        ),
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"department_id"},
         default_factory=uuid.uuid4,
+        primary_key=True
     )
     name: str = Field(max_length=50)
     description: str = Field(max_length=500)
@@ -277,13 +264,10 @@ class Departments(SQLModel, table=True):
 
 class Specialties(SQLModel, table=True):
     id: UUID = Field(
-        sa_column=Column(
-            name="specialty_id",
-            type_=UUID_TYPE,
-            primary_key=True,
-            unique=True
-        ),
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"specialty_id"},
         default_factory=uuid.uuid4,
+        primary_key=True,
     )
     name: str = Field(max_length=50)
     description: str = Field(max_length=500)
@@ -294,13 +278,10 @@ class Specialties(SQLModel, table=True):
 
 class Services(SQLModel, table=True):
     id: UUID = Field(
-        sa_column=Column(
-            name="service_id",
-            type_=UUID_TYPE,
-            primary_key=True,
-            unique=True
-        ),
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"service_id"},
         default_factory=uuid.uuid4,
+        primary_key=True
     )
     name: str = Field(max_length=50)
     description: str = Field(max_length=500)
@@ -328,19 +309,15 @@ class DoctorMedicalScheduleLink(SQLModel, table=True):
 class MedicalSchedules(SQLModel, table=True):
     __tablename__ = "medical_schedules"
     id: UUID = Field(
-        sa_column=Column(
-            name="medical_schedule_id",
-            type_=UUID_TYPE,
-            primary_key=True
-        ),
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"medical_schedule_id"},
         default_factory=uuid.uuid4,
+        primary_key=True
     )
     day: DayOfWeek = Field(
-        sa_column=Column(
-            name="day",
-            type_=SQLEnum(DayOfWeek),
-            nullable=False,
-        )
+        sa_type=SQLEnum(DayOfWeek),
+        nullable=False,
+        sa_column_kwargs={"name":"day"}
     )
     start_time: time = Field(nullable=False)
     end_time: time = Field(nullable=False)
@@ -391,13 +368,10 @@ class Doctors(BaseUser, table=True):
 
 class Chat(SQLModel, table=True):
     id: UUID = Field(
-        sa_column=Column(
-            name="chat_id",
-            type_=UUID_TYPE,
-            primary_key=True,
-            unique=True
-        ),
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"chat_id"},
         default_factory=uuid.uuid4,
+        primary_key=True
     )
     messages: List["ChatMessages"] = Relationship(
         back_populates="chat",
@@ -408,13 +382,11 @@ class Chat(SQLModel, table=True):
 
 class ChatMessages(SQLModel, table=True):
     id: UUID = Field(
-        sa_column=Column(
-            name="message_id",
-            type_=UUID_TYPE,
-            primary_key=True,
-            unique=True
-        ),
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"message_id", "comment": "The primary key of the chat_messages table"},
         default_factory=uuid.uuid4,
+        primary_key=True,
+        unique=True
     )
     sender_id: UUID
     chat_id: UUID = Field(foreign_key="chat.chat_id")
@@ -426,13 +398,11 @@ class ChatMessages(SQLModel, table=True):
 #TODO: completar este tabla con datos importantes
 class HealthInsurance(SQLModel, table=True):
     id: UUID = Field(
-        sa_column=Column(
-            name="health_insurance_id",
-            type_=UUID_TYPE,
-            primary_key=True,
-            unique=True
-        ),
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"health_insurance_id"},
         default_factory=uuid.uuid4,
+        primary_key=True,
+        unique=True
     )
     name: str = Field(max_length=50)
     description: str = Field(max_length=500)

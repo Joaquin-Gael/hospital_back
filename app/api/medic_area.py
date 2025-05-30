@@ -476,7 +476,7 @@ doctors = APIRouter(
 @doctors.get("/", response_model=List[DoctorResponse])
 async def get_doctors(session: SessionDep):
     statement = select(Doctors)
-    result: List[Doctors] = session.exec(statement).scalars().all()
+    result: List[Doctors] = session.exec(statement).all()
     doctors = []
     for doc in result:
         doctors.append(
