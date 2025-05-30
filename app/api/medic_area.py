@@ -1473,7 +1473,7 @@ async def websocket_chat(websocket: WebSocket, session: SessionDep, chat_id, dat
     if not "doc" in data[1]:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    doc: Doctors = data[1]
+    doc: Doctors = data[0]
 
     try:
         if isinstance(doc, User):
