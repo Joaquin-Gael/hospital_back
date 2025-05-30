@@ -119,12 +119,24 @@ async def get_departments(request: Request, session: SessionDep):
 
     departments_list: List[DepartmentResponse] = []
     for department in result:
+        specialities_list = []
+        for speciality in department.specialities:
+            specialities_list.append(
+                SpecialtyResponse(
+                    id=speciality.id,
+                    name=speciality.name,
+                    description=speciality.description,
+                    department_id=department.id
+                )
+            )
+
         departments_list.append(
             DepartmentResponse(
                 id=department.id,
                 name=department.name,
                 description=department.description,
-                location_id=department.location_id
+                location_id=department.location_id,
+                specialities=specialities_list
             ).model_dump()
         )
 
@@ -136,11 +148,23 @@ async def get_department_by_id(request: Request, department_id: int, session: Se
         select(Departments).where(Departments.id == department_id)
     ).first()
 
+    specialities_list = []
+    for speciality in department.specialities:
+        specialities_list.append(
+            SpecialtyResponse(
+                id=speciality.id,
+                name=speciality.name,
+                description=speciality.description,
+                department_id=department.id
+            )
+        )
+
     return DepartmentResponse(
         id=department.id,
         name=department.name,
         description=department.description,
-        location_id=department.location_id
+        location_id=department.location_id,
+        specialities=specialities_list
     ).model_dump()
 
 @departments.post("/add/", response_model=DepartmentResponse)
