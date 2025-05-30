@@ -46,11 +46,17 @@ public_router = APIRouter(
 
 @private_router.get("/", response_model=List[UserRead])
 async def get_users(session: SessionDep):
-    statement = select(User)
-    result: List[User] = session.exec(statement).all()
+    statement = select(User).where(True)
+    result: List[User] = session.exec(statement).scalars().all()
     users = []
-    #print(result)
+    console.print(result)
+    console.print(User.__table__)
     for user in result:
+        console.print(user)
+        try:
+            console.print(user.id)
+        except Exception:
+            console.print_exception(show_locals=True)
         users.append(
             UserRead(
                 id=user.id,

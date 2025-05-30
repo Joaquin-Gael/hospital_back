@@ -355,13 +355,11 @@ class MedicalSchedules(SQLModel, table=True):
 class User(BaseUser, table=True):
     __tablename__ = "users"
     id: Optional[UUID] = Field(
-        sa_column=Column(
-            name="user_id",
-            type_=UUID_TYPE,
-            primary_key=True,
-            unique=True,
-        ),
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"user_id"},
         default_factory=uuid.uuid4,
+        primary_key=True,
+        unique=True
     )
     turns: list["Turns"] = Relationship(back_populates="user")
     appointments: list["Appointments"] = Relationship(back_populates="user")
@@ -369,13 +367,11 @@ class User(BaseUser, table=True):
 class Doctors(BaseUser, table=True):
     __tablename__ = "doctors"
     id: UUID = Field(
-        sa_column=Column(
-            name="doctor_id",
-            type_=UUID_TYPE,
-            primary_key=True,
-            unique=True
-        ),
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"doctor_id"},
         default_factory=uuid.uuid4,
+        primary_key=True,
+        unique=True
     )
 
     is_available: bool = Field(default=True)
@@ -443,3 +439,20 @@ class HealthInsurance(SQLModel, table=True):
     discount: float = Field(default=0, nullable=False, ge=0, le=100)
 
 #TODO: hacer las class link con los usuarios y el seguro
+
+
+User.model_rebuild()
+Doctors.model_rebuild()
+Services.model_rebuild()
+Locations.model_rebuild()
+Departments.model_rebuild()
+Specialties.model_rebuild()
+MedicalSchedules.model_rebuild()
+Turns.model_rebuild()
+Appointments.model_rebuild()
+Cashes.model_rebuild()
+CashesDetails.model_rebuild()
+Chat.model_rebuild()
+ChatMessages.model_rebuild()
+HealthInsurance.model_rebuild()
+DoctorMedicalScheduleLink.model_rebuild()

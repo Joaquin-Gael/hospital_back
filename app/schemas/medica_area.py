@@ -46,15 +46,12 @@ class LocationUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
 
-# Modelo de respuesta: incluye id y relaciones (en este caso, la lista de departamentos)
+
 class LocationResponse(LocationBase):
     id: UUID
     departments: Optional[List["DepartmentResponse"]] = []
 
-    #class Config:
-    #    orm_mode = True
 
-# Modelo de eliminación (puede usarse para responder con un mensaje de confirmación)
 class LocationDelete(BaseModel):
     id: UUID
     message: str

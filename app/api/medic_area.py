@@ -452,7 +452,7 @@ doctors = APIRouter(
 @doctors.get("/", response_model=List[DoctorResponse])
 async def get_doctors(session: SessionDep):
     statement = select(Doctors)
-    result: List[Doctors] = session.exec(statement).all()
+    result: List[Doctors] = session.exec(statement).scalars().all()
     doctors = []
     for doc in result:
         doctors.append(
@@ -1002,7 +1002,7 @@ async def set_location(request: Request, session: SessionDep, location: Location
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 @locations.delete("/delete/{location_id}", response_model=LocationDelete)
-async def delete_location(request: Request, location_id: int, session: SessionDep):
+async def delete_location(request: Request, location_id: str, session: SessionDep):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
@@ -1023,7 +1023,7 @@ async def delete_location(request: Request, location_id: int, session: SessionDe
     )
 
 @locations.put("/update/{location_id}/", response_model=LocationResponse)
-async def update_location(request: Request, location_id: int, session: SessionDep, location: LocationUpdate):
+async def update_location(request: Request, location_id: str, session: SessionDep, location: LocationUpdate):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
@@ -1147,7 +1147,7 @@ async def update_service(request: Request, session: SessionDep, service_id: str,
 
     session.add(new_service)
     session.commit()
-    session.refresh()
+    session.refresh(new_service)
 
     return ORJSONResponse(
         ServiceResponse(
