@@ -174,7 +174,6 @@ async def add_department(request: Request, department: DepartmentCreate, session
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
 
     new_department: Departments = Departments(
-        id=department.id,
         name=department.name,
         description=department.description,
         location_id=department.location_id
