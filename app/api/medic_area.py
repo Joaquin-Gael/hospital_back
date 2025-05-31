@@ -191,7 +191,7 @@ async def add_department(request: Request, department: DepartmentCreate, session
     ).model_dump()
 
 @departments.delete("/delete/{department_id}/", response_model=DepartmentDelete)
-async def delete_department_by_id(request: Request, department_id: int, session: SessionDep):
+async def delete_department_by_id(request: Request, department_id: str, session: SessionDep):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
@@ -211,6 +211,31 @@ async def delete_department_by_id(request: Request, department_id: int, session:
 
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Department {department_id} not found")
+
+@departments.delete("/delete/{department_id}/specialities/{speciality_id}/", response_model=SpecialtyDelete)
+async def delete_speciality_by_id(request: Request, department_id: str, speciality_id: str, session: SessionDep):
+    if not request.state.user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
+
+    try:
+        result = session.execute(select(Departments).where(Departments.id == department_id)).first()
+        if result is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Department {department_id} not found")
+        for speciality in result.specialities:
+            if speciality.id == speciality_id:
+                session.delete(speciality)
+                session.commit()
+                return SpecialtyDelete(
+                    id=speciality.id,
+                    name=speciality.name,
+                    description=speciality.description,
+                    department_id=speciality.department_id,
+                    message=f"Speciality {speciality.name} has been deleted"
+                )
+            return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Speciality {speciality_id} not found")
+        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Department {department_id} don´t has speciality {speciality_id}")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Speciality {speciality_id} not found")
 
 
 @departments.patch("/update/{department_id}/", response_model=DepartmentResponse)
