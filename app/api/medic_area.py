@@ -1353,7 +1353,7 @@ async def delete_speciality(request: Request, session: SessionDep, speciality_id
     ).first()
 
     session.delete(speciality)
-    session.commt()
+    session.commit()
 
     return ORJSONResponse(
         SpecialtyDelete(
