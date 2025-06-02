@@ -143,7 +143,7 @@ async def get_departments(request: Request, session: SessionDep):
     return ORJSONResponse(departments_list)
 
 @departments.get("/{department_id}/", response_model=DepartmentResponse)
-async def get_department_by_id(request: Request, department_id: int, session: SessionDep):
+async def get_department_by_id(request: Request, department_id: UUID, session: SessionDep):
     department = session.exec(
         select(Departments).where(Departments.id == department_id)
     ).first()
@@ -191,7 +191,7 @@ async def add_department(request: Request, department: DepartmentCreate, session
     ).model_dump()
 
 @departments.delete("/delete/{department_id}/", response_model=DepartmentDelete)
-async def delete_department_by_id(request: Request, department_id: str, session: SessionDep):
+async def delete_department_by_id(request: Request, department_id: UUID, session: SessionDep):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
@@ -213,12 +213,12 @@ async def delete_department_by_id(request: Request, department_id: str, session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Department {department_id} not found")
 
 @departments.delete("/delete/{department_id}/specialities/{speciality_id}/", response_model=SpecialtyDelete)
-async def delete_speciality_by_id(request: Request, department_id: str, speciality_id: str, session: SessionDep):
+async def delete_speciality_by_id(request: Request, department_id: UUID, speciality_id: UUID, session: SessionDep):
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
 
     try:
-        result = session.execute(select(Departments).where(Departments.id == department_id)).first()
+        result = session.execute(select(Departments).where(Departments.id == department_id)).scalars().first()
         if result is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Department {department_id} not found")
         for speciality in result.specialities:
@@ -239,7 +239,7 @@ async def delete_speciality_by_id(request: Request, department_id: str, speciali
 
 
 @departments.patch("/update/{department_id}/", response_model=DepartmentResponse)
-async def update_department(request: Request, department_id: str , department: DepartmentUpdate, session: SessionDep):
+async def update_department(request: Request, department_id: UUID , department: DepartmentUpdate, session: SessionDep):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
@@ -354,7 +354,7 @@ async def add_schedule(medical_schedule: MedicalScheduleCreate, session: Session
     )
 
 @schedules.delete("/delete/{schedule_id}/", response_model=MedicalScheduleDelete)
-async def delete_schedule(session: SessionDep, schedule_id: str):
+async def delete_schedule(session: SessionDep, schedule_id: UUID):
     statement = select(MedicalSchedules).where(MedicalSchedules.id == schedule_id)
     result: MedicalSchedules = session.exec(statement).first()
 
@@ -375,7 +375,7 @@ async def delete_schedule(session: SessionDep, schedule_id: str):
         }, status_code=status.HTTP_404_NOT_FOUND)
 
 @schedules.put("/add/doctor/", response_model=MedicalScheduleResponse)
-async def add_doctor_by_id(session: SessionDep, doc_id: str = Query(...), schedule_id: str = Query(...)):
+async def add_doctor_by_id(session: SessionDep, doc_id: UUID = Query(...), schedule_id: UUID = Query(...)):
     try:
         statement = select(MedicalSchedules).where(MedicalSchedules.id == schedule_id)
         schedule: MedicalSchedules = session.exec(statement).first()
@@ -526,7 +526,7 @@ async def get_doctors(session: SessionDep):
     return ORJSONResponse(doctors)
 
 @doctors.get("/{doctor_id}/", response_model=DoctorResponse)
-async def get_doctor_by_id(doctor_id: str, session: SessionDep):
+async def get_doctor_by_id(doctor_id: UUID, session: SessionDep):
     statement = select(Doctors).where(Doctors.id == doctor_id)
     doc = session.exec(statement).first()
 
@@ -647,7 +647,7 @@ async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep
         }, status_code=status.HTTP_400_BAD_REQUEST)
 
 @doctors.delete("/delete/{doctor_id}/", response_model=DoctorDelete)
-async def delete_doctor(request: Request, doctor_id: str, session: SessionDep):
+async def delete_doctor(request: Request, doctor_id: UUID, session: SessionDep):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
@@ -670,7 +670,7 @@ async def delete_doctor(request: Request, doctor_id: str, session: SessionDep):
         },status_code=404)
 
 @doctors.delete("/delete/{doctor_id}/schedule/{schedule_id}/", response_model=DoctorResponse)
-async def delete_doctor_schedule_by_id(request: Request, schedule_id: str, doctor_id: str, session: SessionDep):
+async def delete_doctor_schedule_by_id(request: Request, schedule_id: UUID, doctor_id: UUID, session: SessionDep):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
@@ -704,7 +704,7 @@ async def delete_doctor_schedule_by_id(request: Request, schedule_id: str, docto
     )
 
 @doctors.patch("/update/{doctor_id}/", response_model=DoctorUpdate)
-async def update_doctor(request: Request, doctor_id: str, session: SessionDep, doctor: DoctorUpdate):
+async def update_doctor(request: Request, doctor_id: UUID, session: SessionDep, doctor: DoctorUpdate):
 
     if not "doc" in request.state.scopes and not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
@@ -747,7 +747,7 @@ async def update_doctor(request: Request, doctor_id: str, session: SessionDep, d
         raise HTTPException(status_code=404, detail=f"Doctor {doctor_id} not found")
 
 @doctors.patch("/update/{doctor_id}/speciality", response_model=DoctorResponse)
-async def update_speciality(request: Request, doctor_id: str, session: SessionDep, doctor_form: DoctorSpecialityUpdate):
+async def update_speciality(request: Request, doctor_id: UUID, session: SessionDep, doctor_form: DoctorSpecialityUpdate):
     if not "doc" in request.state.scopes and not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un un unauthorized")
 
@@ -791,7 +791,7 @@ async def update_speciality(request: Request, doctor_id: str, session: SessionDe
         raise HTTPException(status_code=404, detail=f"Doctor {doctor_id} not found")
 
 @doctors.patch("/update/{doctor_id}/password")
-async def update_doctor_password(request: Request, doctor_id: str, session: SessionDep, password: DoctorPasswordUpdate):
+async def update_doctor_password(request: Request, doctor_id: UUID, session: SessionDep, password: DoctorPasswordUpdate):
     if not "doc" in request.state.scopes and not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
 
@@ -825,7 +825,7 @@ async def update_doctor_password(request: Request, doctor_id: str, session: Sess
         raise HTTPException(status_code=404, detail=f"Doctor {doctor_id} not found")
 
 @doctors.patch("/add/schedule/", response_model=DoctorResponse)
-async def add_schedule_by_id(request: Request, session: SessionDep, schedule_id: str = Query(...), doc_id: str = Query(...)):
+async def add_schedule_by_id(request: Request, session: SessionDep, schedule_id: UUID = Query(...), doc_id: UUID = Query(...)):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
@@ -869,7 +869,7 @@ async def add_schedule_by_id(request: Request, session: SessionDep, schedule_id:
 
 
 @doctors.patch("/ban/{doc_id}/", response_model=DoctorResponse)
-async def ban_doc(request: Request, doc_id: str, session: SessionDep):
+async def ban_doc(request: Request, doc_id: UUID, session: SessionDep):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
@@ -902,7 +902,7 @@ async def ban_doc(request: Request, doc_id: str, session: SessionDep):
     })
 
 @doctors.patch("/unban/{doc_id}/", response_model=DoctorResponse)
-async def unban_doc(request: Request, doc_id: str, session: SessionDep):
+async def unban_doc(request: Request, doc_id: UUID, session: SessionDep):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
@@ -1050,7 +1050,7 @@ async def set_location(request: Request, session: SessionDep, location: Location
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 @locations.delete("/delete/{location_id}", response_model=LocationDelete)
-async def delete_location(request: Request, location_id: str, session: SessionDep):
+async def delete_location(request: Request, location_id: UUID, session: SessionDep):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
@@ -1071,7 +1071,7 @@ async def delete_location(request: Request, location_id: str, session: SessionDe
     )
 
 @locations.put("/update/{location_id}/", response_model=LocationResponse)
-async def update_location(request: Request, location_id: str, session: SessionDep, location: LocationUpdate):
+async def update_location(request: Request, location_id: UUID, session: SessionDep, location: LocationUpdate):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
@@ -1157,7 +1157,7 @@ async def set_service(request: Request, session: SessionDep, service: ServiceCre
         }, status_code=status.HTTP_400_BAD_REQUEST)
 
 @services.delete("/delete/{service_id}/", response_model=ServiceDelete)
-async def delete_service(request: Request, session: SessionDep, service_id :str):
+async def delete_service(request: Request, session: SessionDep, service_id :UUID):
     try:
         service = session.exec(select(Services).where(Services.id == service_id)).first()
 
@@ -1175,7 +1175,7 @@ async def delete_service(request: Request, session: SessionDep, service_id :str)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 @services.patch("/update/{service_id}/", response_model=ServiceResponse)
-async def update_service(request: Request, session: SessionDep, service_id: str, service: ServiceUpdate):
+async def update_service(request: Request, session: SessionDep, service_id: UUID, service: ServiceUpdate):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
@@ -1279,7 +1279,7 @@ async def get_specialities(request: Request, session: SessionDep):
     )
 
 @specialities.get("/{speciality_id}/schedules/available")
-async def get_available_schedules(request: Request, session: SessionDep, speciality_id: str):
+async def get_available_schedules(request: Request, session: SessionDep, speciality_id: UUID):
     statement = select(Specialties) \
         .join(Doctors, Doctors.speciality_id == Specialties.id) \
         .join(DoctorMedicalScheduleLink, DoctorMedicalScheduleLink.doctor_id == Doctors.id) \
@@ -1342,7 +1342,7 @@ async def add_speciality(request: Request, session: SessionDep, specialty: Speci
 
 
 @specialities.delete("/delete/{speciality_id}}/", response_model=SpecialtyDelete)
-async def delete_speciality(request: Request, session: SessionDep, speciality_id: str):
+async def delete_speciality(request: Request, session: SessionDep, speciality_id: UUID):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
@@ -1363,7 +1363,7 @@ async def delete_speciality(request: Request, session: SessionDep, speciality_id
     )
 
 @specialities.patch("/update/{speciality_id}/", response_model=SpecialtyResponse)
-async def update_speciality(request: Request, session: SessionDep, speciality_id: str, speciality: SpecialtyUpdate):
+async def update_speciality(request: Request, session: SessionDep, speciality_id: UUID, speciality: SpecialtyUpdate):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
@@ -1604,7 +1604,7 @@ async def get_turns(request: Request, session: SessionDep):
     return ORJSONResponse(turns_serialized)
 
 @turns.get("/{turn_id}", response_model=TurnsResponse)
-async def get_turn(request: Request, session: SessionDep, turn_id: int):
+async def get_turn(request: Request, session: SessionDep, turn_id: UUID):
     user = request.state.user
 
     try:
@@ -1712,7 +1712,7 @@ async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
         raise HTTPException(status_code=400, detail=str(e))
 
 @turns.delete("/delete/{turn_id}", response_model=TurnsDelete)
-async def delete_turn(request: Request, session: SessionDep, turn_id: int):
+async def delete_turn(request: Request, session: SessionDep, turn_id: UUID):
     session_user = request.state.user
     try:
         turn = session.exec(select(Turns).where(Turns.id == turn_id)).first()
