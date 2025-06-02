@@ -171,7 +171,7 @@ async def add_user(session: SessionDep, user: UserCreate):
         return ORJSONResponse({"error": str(e)})
 
 @private_router.delete("/delete/{user_id}/", response_model=UserDelete)
-async def delete_user(request: Request, user_id: str, session: SessionDep):
+async def delete_user(request: Request, user_id: UUID, session: SessionDep):
     if not request.state.user.is_superuser or str(request.state.user.id) == user_id:
         raise HTTPException(status_code=403, detail="Not authorized")
     try:
@@ -193,7 +193,7 @@ async def delete_user(request: Request, user_id: str, session: SessionDep):
         return ORJSONResponse({"error": "User not found"}, status_code=404)
 
 @private_router.patch("/update/{user_id}/", response_model=UserRead)
-async def update_user(request: Request, user_id: str, session: SessionDep, user_form: UserUpdate):
+async def update_user(request: Request, user_id: UUID, session: SessionDep, user_form: UserUpdate):
 
     if not request.state.user.id == user_id and not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un unauthorized")
@@ -233,7 +233,7 @@ async def update_user(request: Request, user_id: str, session: SessionDep, user_
     )
 
 @private_router.patch("/update/{user_id}/password", response_model=UserRead)
-async def update_user_password(request: Request, user_id: str, session: SessionDep, user_form: UserPasswordUpdate):
+async def update_user_password(request: Request, user_id: UUID, session: SessionDep, user_form: UserPasswordUpdate):
 
     if not request.state.user.id == user_id and not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un unauthorized")
@@ -272,7 +272,7 @@ async def update_user_password(request: Request, user_id: str, session: SessionD
     )
 
 @private_router.patch("/ban/{user_id}/", response_model=UserRead)
-async def ban_user(request: Request, user_id: str, session: SessionDep):
+async def ban_user(request: Request, user_id: UUID, session: SessionDep):
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=403, detail="Not authorized")
 
@@ -302,7 +302,7 @@ async def ban_user(request: Request, user_id: str, session: SessionDep):
     })
 
 @private_router.patch("/unban/{user_id}/", response_model=UserRead)
-async def unban_user(request: Request, user_id: str, session: SessionDep):
+async def unban_user(request: Request, user_id: UUID, session: SessionDep):
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=403, detail="Not authorized")
 
