@@ -95,7 +95,7 @@ class SpecialtyCreate(SpecialtyBase):
 class SpecialtyUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    department_id: Optional[str] = None
+    department_id: Optional[UUID] = None
 
 class SpecialtyResponse(SpecialtyBase):
     id: UUID
