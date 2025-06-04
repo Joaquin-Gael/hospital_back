@@ -233,7 +233,8 @@ async def delete_speciality_by_id(request: Request, department_id: str, speciali
                     message=f"Speciality {speciality.name} has been deleted"
                 )
             return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Speciality {speciality_id} not found")
-        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Department {department_id} don´t has speciality {speciality_id}")
+        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Department {department_id} don´"
+                                                                           f"t has speciality {speciality_id}")
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Speciality {speciality_id} not found")
 
