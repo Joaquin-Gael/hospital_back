@@ -95,7 +95,7 @@ class SpecialtyCreate(SpecialtyBase):
 class SpecialtyUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    department_id: Optional[str] = None
+    department_id: Optional[UUID] = None
 
 class SpecialtyResponse(SpecialtyBase):
     id: UUID
@@ -143,14 +143,14 @@ class DoctorBase(BaseModel):
     email: EmailStr
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    dni: str
+    dni: constr(min_length=8)
     telephone: Optional[str] = None
     speciality_id: UUID
     address: Optional[str] = None
     blood_type: Optional[str] = None
 
 class DoctorCreate(DoctorBase):
-    password: str
+    password: constr(min_length=8)
     pass
 
 class DoctorUpdate(BaseModel):

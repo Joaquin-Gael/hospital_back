@@ -11,7 +11,7 @@ class UserBase(BaseModel):
     email: EmailStr
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    dni: str
+    dni: constr(min_length=8)
     telephone: Optional[str] = None
     address: Optional[str] = None
     blood_type: Optional[str] = None
