@@ -227,9 +227,6 @@ async def delete_speciality_by_id(request: Request, department_id: UUID, special
                 session.commit()
                 return SpecialtyDelete(
                     id=speciality.id,
-                    name=speciality.name,
-                    description=speciality.description,
-                    department_id=speciality.department_id,
                     message=f"Speciality {speciality.name} has been deleted"
                 )
             return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Speciality {speciality_id} not found")
@@ -1395,10 +1392,7 @@ async def update_speciality(request: Request, session: SessionDep, speciality_id
 
 chat = APIRouter(
     prefix="/chat",
-    tags=["chat"],
-    dependencies=[
-        Depends(auth)
-    ]
+    tags=["chat"]
 )
 
 class ConnectionManager:
@@ -1428,7 +1422,7 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 @chat.get("/", response_model=List[ChatResponse])
-async def get_chats(request: Request, session: SessionDep):
+async def get_chats(session: SessionDep):
     try:
         chats: List[Chat] = session.exec(
             select(Chat)
@@ -1488,7 +1482,7 @@ async def get_chats(request: Request, session: SessionDep):
         raise HTTPException(status_code=500, detail=str(e))
 
 @chat.post("/add")
-async def create_chat(request: Request, session: SessionDep, doc_2_id=Query(...)):
+async def create_chat(request: Request, session: SessionDep, doc_2_id=Query(...), _=Depends(auth)):
     if not "doc" in request.state.scopes:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -1511,10 +1505,7 @@ async def create_chat(request: Request, session: SessionDep, doc_2_id=Query(...)
     }, status_code=status.HTTP_200_OK)
 
 ws_chat = APIRouter(
-    prefix="/ws",
-    dependencies=[
-        Depends(ws_auth)
-    ]
+    prefix="/ws"
 )
 
 @ws_chat.websocket("/chat/{chat_id}")
@@ -1529,18 +1520,14 @@ async def websocket_chat(websocket: WebSocket, session: SessionDep, chat_id, dat
             raise HTTPException(status_code=403, detail="You are not authorized")
 
         chat_db: Chat = session.exec(select(Chat).where(Chat.id == chat_id)).first()
-        print(chat_db)
-        if chat_db.doc_1_id == doc.id or chat_db.doc_2_id == doc.id:
-            await websocket.close(1008)
+        if chat_db.doc_1_id != doc.id and chat_db.doc_2_id != doc.id:
+            await websocket.close(1008, reason="doctor unauthorized")
     except Exception:
         console.print_exception(show_locals=True)
-        await websocket.close(1008)
-    if isinstance(doc, User):
-        await websocket.close(1008)
-        return
+        await websocket.close(1008, reason="unknown error")
     await manager.connect(doc.id, websocket)
     try:
-        await manager.broadcast({"type":"presence","user":doc.id,"status":"offline"})
+        await manager.broadcast({"type":"presence","user":str(doc.id),"status":"online"})
         while True:
             data = await websocket.receive_json()
             content = data["content"]
@@ -1561,12 +1548,15 @@ async def websocket_chat(websocket: WebSocket, session: SessionDep, chat_id, dat
             if manager.is_connected(doc.id):
                 await websocket.send_json({
                     "type":"message",
-                    "message":message.model_dump(mode="json")
+                    "message":{
+                        "content":message.content,
+                        "created_at":message.created_at.strftime("%Y-%m-%d %H:%M:%S")
+                    }
                 })
 
     except WebSocketDisconnect:
-        manager.disconnect(doc.id)
         await manager.broadcast({"type":"presence","user":doc.id,"status":"offline"})
+        manager.disconnect(doc.id)
 
 
 turns = APIRouter(

@@ -35,9 +35,9 @@ main_router = APIRouter(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
-    migrate()
-    set_admin()
+    #init_db()
+    #migrate()
+    #set_admin()
     storage.create_table("ban-token")
     console.rule("[green]Server Opened[/green]")
     if debug:
@@ -180,6 +180,10 @@ class SPAStaticFiles(StaticFiles):
 
 
     async def __call__(self, scope, receive, send):
+
+        if scope["type"] == "websocket":
+            return await self.app(scope, receive, send)
+
         assert scope["type"] == "http"
 
         request = Request(scope, receive)

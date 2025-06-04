@@ -392,8 +392,8 @@ class ChatMessages(SQLModel, table=True):
     chat_id: UUID = Field(foreign_key="chat.chat_id")
     chat: Optional[Chat] = Relationship(back_populates="messages")
     content: str = Field()
-    created_at: datetime = Field(nullable=False, default=datetime.now)
-    deleted_at: datetime = Field(nullable=False, default=(datetime.now() + timedelta(days=1)).timestamp())
+    created_at: datetime = Field(nullable=False, default=datetime.now())
+    deleted_at: datetime = Field(nullable=False, default=datetime.fromtimestamp((datetime.now() + timedelta(days=1)).timestamp()))
 
 #TODO: completar este tabla con datos importantes
 class HealthInsurance(SQLModel, table=True):

@@ -198,8 +198,7 @@ class JWTBearer:
                 statement = select(Doctors).where(Doctors.id == user_id)
 
             with Session(engine) as session:
-                result = session.exec(statement)
-                user = result.first()
+                user = session.exec(statement).first()
 
             request.state.user = user
             request.state.scopes = payload.get("scopes")
@@ -212,42 +211,38 @@ class JWTBearer:
 
 class JWTWebSocket:
     async def __call__(self, websocket: WebSocket) -> tuple[User | Doctors, list[str]] | tuple[None, None] | None:
-
         query = websocket.query_params
 
         console.print(query)
 
         if not "token" in query.keys() or query.get("token") is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No credentials provided or invalid format"
-            )
+            await websocket.close(1008, reason="No credentials provided or invalid format")
 
         if not query.get("token").startswith("Bearer_"):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No credentials provided or invalid format"
-            )
+            await websocket.close(1008, reason="No credentials provided or invalid format")
+
 
         token = query.get("token").split("_")[1]
 
         try:
             payload = decode_token(token)
+
+            user_id = payload.get("sub", None)
+
+            if user_id is None:
+                console.print("user id: ", user_id)
+                await websocket.close(1008, reason="Invalid token payload")
+
+            statement = select(User).where(User.id == user_id)
+
+            if "doc" in payload.get("scopes"):
+                statement = select(Doctors).where(Doctors.id == user_id)
+
+            with Session(engine) as session:
+                user_doctor = session.exec(statement).first()
+
+            return user_doctor, payload.get("scopes")
+
         except ValueError:
-            raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-        user_id = payload.get("sub", None)
-
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid token payload")
-
-        statement = select(User).where(User.id == user_id)
-
-        if "doc" in payload.get("scopes"):
-            statement = select(Doctors).where(Doctors.id == user_id)
-
-        with Session(engine) as session:
-            result = session.exec(statement)
-            user_doctor = result.first()
-
-        return user_doctor, payload.get("scopes")
+            await websocket.close(1008, reason="Invalid o Expired Token")
+            return None
