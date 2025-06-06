@@ -1510,22 +1510,29 @@ ws_chat = APIRouter(
 
 @ws_chat.websocket("/chat/{chat_id}")
 async def websocket_chat(websocket: WebSocket, session: SessionDep, chat_id, data: tuple = Depends(ws_auth)):
+    if data is None:
+        await websocket.close(1008, reason="Data Error")
+
     if not "doc" in data[1]:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+        await websocket.close(1008, reason="Unauthorized")
 
     doc: Doctors = data[0]
 
     try:
         if isinstance(doc, User):
-            raise HTTPException(status_code=403, detail="You are not authorized")
+            await websocket.close(1008, reason="You are not authorized")
 
         chat_db: Chat = session.exec(select(Chat).where(Chat.id == chat_id)).first()
+
         if chat_db.doc_1_id != doc.id and chat_db.doc_2_id != doc.id:
             await websocket.close(1008, reason="doctor unauthorized")
+
     except Exception:
         console.print_exception(show_locals=True)
         await websocket.close(1008, reason="unknown error")
+
     await manager.connect(doc.id, websocket)
+
     try:
         await manager.broadcast({"type":"presence","user":str(doc.id),"status":"online"})
         while True:

@@ -217,9 +217,11 @@ class JWTWebSocket:
 
         if not "token" in query.keys() or query.get("token") is None:
             await websocket.close(1008, reason="No credentials provided or invalid format")
+            return None
 
         if not query.get("token").startswith("Bearer_"):
             await websocket.close(1008, reason="No credentials provided or invalid format")
+            return None
 
 
         token = query.get("token").split("_")[1]
@@ -227,11 +229,12 @@ class JWTWebSocket:
         try:
             payload = decode_token(token)
 
-            user_id = payload.get("sub", None)
+            user_id = payload.get("sub")
 
             if user_id is None:
                 console.print("user id: ", user_id)
                 await websocket.close(1008, reason="Invalid token payload")
+                return None
 
             statement = select(User).where(User.id == user_id)
 
