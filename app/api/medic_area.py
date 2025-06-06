@@ -1532,7 +1532,6 @@ async def websocket_chat(websocket: WebSocket, session: SessionDep, chat_id, dat
         await websocket.close(1008, reason="unknown error")
 
     await manager.connect(doc.id, websocket)
-
     try:
         await manager.broadcast({"type":"presence","user":str(doc.id),"status":"online"})
         while True:
@@ -1562,6 +1561,9 @@ async def websocket_chat(websocket: WebSocket, session: SessionDep, chat_id, dat
                 })
 
     except WebSocketDisconnect:
+        pass
+
+    finally:
         await manager.broadcast({"type":"presence","user":doc.id,"status":"offline"})
         manager.disconnect(doc.id)
 
