@@ -895,7 +895,7 @@ async def ban_doc(request: Request, doc_id: UUID, session: SessionDep):
             dni=doc.dni,
             telephone=doc.telephone,
             speciality_id=doc.speciality_id
-        ),
+        ).model_dumb(),
         "message":f"User {doc.name} has been banned."
     })
 
