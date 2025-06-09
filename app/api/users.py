@@ -279,7 +279,7 @@ async def ban_user(request: Request, user_id: UUID, session: SessionDep):
     statement = select(User).where(User.id == user_id)
     user: User = session.exec(statement).first()
 
-    user.is_banned = True
+    user.is_active = True
     session.commit()
     session.refresh(user)
 
