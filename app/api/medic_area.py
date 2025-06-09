@@ -875,7 +875,7 @@ async def ban_doc(request: Request, doc_id: UUID, session: SessionDep):
     statement = select(Doctors).where(Doctors.id == doc_id)
     doc: Doctors = session.exec(statement).first()
 
-    doc.is_banned = True
+    doc.is_active = True
     session.add(doc)
     session.commit()
     session.refresh(doc)
