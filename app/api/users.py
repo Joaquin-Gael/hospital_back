@@ -277,7 +277,7 @@ async def ban_user(request: Request, user_id: UUID, session: SessionDep):
         raise HTTPException(status_code=403, detail="Not authorized")
 
     statement = select(User).where(User.id == user_id)
-    user: User = session.exec(statement).first()
+    user: User = session.exec(statement).scalars().first()
 
     user.is_active = True
     session.commit()
@@ -307,7 +307,7 @@ async def unban_user(request: Request, user_id: UUID, session: SessionDep):
         raise HTTPException(status_code=403, detail="Not authorized")
 
     statement = select(User).where(User.id == user_id)
-    user: User = session.exec(statement).first()
+    user: User = session.exec(statement).scalars().first()
 
     user.is_banned = False
     session.commit()
