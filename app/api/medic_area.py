@@ -32,13 +32,15 @@ from app.models import (
     User,
     Turns,
     Appointments,
-    DoctorMedicalScheduleLink
+    DoctorMedicalScheduleLink,
+    HealthInsurance,
+    UserHealthInsuranceLink
 )
 from app.schemas.medica_area import (
     MedicalScheduleCreate,
     MedicalScheduleDelete,
     MedicalScheduleUpdate,
-    MedicalScheduleResponse, DoctorSpecialityUpdate
+    MedicalScheduleResponse
 )
 from app.schemas.medica_area import (
     DayOfWeek,
@@ -93,6 +95,12 @@ from app.schemas.medica_area import (
     AppointmentCreate,
     AppointmentUpdate,
     AppointmentDelete
+)
+from app.schemas.medica_area import (
+    HealthInsuranceRead,
+    HealthInsuranceUpdate,
+    HealthInsuranceDelete,
+    HealthInsuranceCreate
 )
 from app.db.main import SessionDep
 from app.core.auth import JWTBearer, JWTWebSocket
@@ -1765,6 +1773,105 @@ async def get_appointments(request: Request, session: SessionDep):
 
     return ORJSONResponse(serialized_appointments)
 
+health_insurance = APIRouter(
+    prefix="/health_insurance",
+    tags=["health_insurance"],
+    dependencies=[
+        Depends(auth),
+    ]
+)
+
+@health_insurance.get("/", response_model=List[HealthInsuranceRead])
+async def get_health_insurance(request: Request, session: SessionDep):
+    result = session.exec(
+        select(HealthInsurance)
+    ).all()
+
+    serialized_heath_insurance: List[HealthInsuranceRead] = []
+    for i in result:
+        serialized_heath_insurance.append(
+            HealthInsuranceRead(
+                id=i.id,
+                name=i.name,
+                description=i.description,
+                discount=i.discount
+            ).model_dump()
+        )
+
+    return ORJSONResponse(serialized_heath_insurance)
+
+@health_insurance.get("/detail/{hi_id}", response_model=HealthInsuranceRead)
+async def get_health_insurance(
+        request: Request,
+        session: SessionDep,
+        hi_id: UUID,
+):
+    hi = session.get(HealthInsurance, hi_id)
+    if not hi:
+        raise HTTPException(status_code=404, detail="HealthInsurance not found")
+    data = HealthInsuranceRead(
+        id=hi.id,
+        name=hi.name,
+        description=hi.description,
+        discount=hi.discount,
+    ).model_dump()
+    return ORJSONResponse(data)
+
+@health_insurance.post("/create", response_model=HealthInsuranceRead, status_code=status.HTTP_201_CREATED)
+async def create_health_insurance(
+        request: Request,
+        session: SessionDep,
+        payload: HealthInsuranceCreate,
+):
+    hi = HealthInsurance.from_orm(payload)
+    session.add(hi)
+    session.commit()
+    session.refresh(hi)
+    data = HealthInsuranceRead(
+        id=hi.id,
+        name=hi.name,
+        description=hi.description,
+        discount=hi.discount,
+    ).model_dump()
+    return ORJSONResponse(data)
+
+@health_insurance.patch("/update/{hi_id}", response_model=HealthInsuranceRead)
+async def update_health_insurance(
+        request: Request,
+        session: SessionDep,
+        hi_id: UUID,
+        payload: HealthInsuranceUpdate,
+):
+    hi = session.get(HealthInsurance, hi_id)
+    if not hi:
+        raise HTTPException(status_code=404, detail="HealthInsurance not found")
+    update_data = payload.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(hi, key, value)
+    session.add(hi)
+    session.commit()
+    session.refresh(hi)
+    data = HealthInsuranceRead(
+        id=hi.id,
+        name=hi.name,
+        description=hi.description,
+        discount=hi.discount,
+    ).model_dump()
+    return ORJSONResponse(data)
+
+@health_insurance.delete("/delete/{hi_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_health_insurance(
+        request: Request,
+        session: SessionDep,
+        hi_id: UUID,
+):
+    hi = session.get(HealthInsurance, hi_id)
+    if not hi:
+        raise HTTPException(status_code=404, detail="HealthInsurance not found")
+    session.delete(hi)
+    session.commit()
+    return ORJSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
+
 chat.include_router(ws_chat)
 
 router = APIRouter(
@@ -1781,3 +1888,4 @@ router.include_router(chat)
 router.include_router(departments)
 router.include_router(turns)
 router.include_router(appointments)
+router.include_router(health_insurance)

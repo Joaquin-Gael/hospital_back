@@ -135,7 +135,7 @@ async def login(session: SessionDep, credentials: UserAuth):
         ).model_dump()
     )
 
-@router.get("/refresh", response_model=TokenUserResponse)
+@router.get("/refresh", response_model=TokenUserResponse, name="refresh_token")
 async def refresh(user: User = Depends(auth)):
 
     if isinstance(user, Doctors):

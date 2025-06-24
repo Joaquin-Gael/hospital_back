@@ -4,7 +4,8 @@ from typing import Optional, List
 
 from datetime import time as time_type, date as date_type
 
-from pydantic import BaseModel, EmailStr, constr, ValidationError, field_validator
+from pydantic import BaseModel, EmailStr, ValidationError, field_validator
+from pydantic import condecimal, constr
 
 from datetime import datetime
 
@@ -337,6 +338,30 @@ class AppointmentDelete(BaseModel):
     id: UUID
     message: str
 
+# ------------------------ HEALTH INSURANCES -----------------------------------
+class HealthInsuranceBase(BaseModel):
+    name: constr(max_length=50)
+    description: constr(max_length=500)
+    discount: condecimal(ge=0, le=100, max_digits=5, decimal_places=2) = 0
+
+
+class HealthInsuranceCreate(HealthInsuranceBase):
+    # Aquí podrías añadir campos obligatorios extra si hiciera falta
+    pass
+
+
+class HealthInsuranceUpdate(BaseModel):
+    name: Optional[constr(max_length=50)] = None
+    description: Optional[constr(max_length=500)] = None
+    discount: Optional[condecimal(ge=0, le=100, max_digits=5, decimal_places=2)] = None
+
+
+class HealthInsuranceRead(HealthInsuranceBase):
+    id: UUID
+
+class HealthInsuranceDelete(BaseModel):
+    id: UUID
+    message: str
 
 # ------------------------ ACTUALIZACIÓN DE REFERENCIAS ------------------------
 # Debido a las relaciones circulares, es importante actualizar los forward refs.
@@ -350,3 +375,4 @@ ChatResponse.model_rebuild()
 MessageResponse.model_rebuild()
 TurnsResponse.model_rebuild()
 AppointmentResponse.model_rebuild()
+HealthInsuranceRead.model_rebuild()

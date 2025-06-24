@@ -293,6 +293,7 @@ class Services(SQLModel, table=True):
     #appointments: List["Appointments"] = Relationship(back_populates="service")
     details: List["CashesDetails"] = Relationship(back_populates="service")
 
+# LINKS ---------------------------------------------------------------
 class DoctorMedicalScheduleLink(SQLModel, table=True):
     __tablename__ = "doctor_medical_schedule_link"
     doctor_id: UUID = Field(
@@ -305,6 +306,21 @@ class DoctorMedicalScheduleLink(SQLModel, table=True):
         primary_key=True,
         ondelete="CASCADE"
     )
+
+
+class UserHealthInsuranceLink(SQLModel, table=True):
+    __tablename__ = "user_health_insurance_link"
+    user_id: UUID = Field(
+        foreign_key="users.user_id",
+        primary_key=True,
+        ondelete="CASCADE"
+    )
+    health_insurance_id: UUID = Field(
+        foreign_key="health_insurance.health_insurance_id",
+        primary_key=True,
+        ondelete="CASCADE"
+    )
+# -------------------------------------------------------------
 
 class MedicalSchedules(SQLModel, table=True):
     __tablename__ = "medical_schedules"
@@ -340,6 +356,11 @@ class User(BaseUser, table=True):
     )
     turns: list["Turns"] = Relationship(back_populates="user")
     appointments: list["Appointments"] = Relationship(back_populates="user")
+
+    health_insurance: List["HealthInsurance"] = Relationship(
+        back_populates="users",
+        link_model=UserHealthInsuranceLink
+    )
 
 class Doctors(BaseUser, table=True):
     __tablename__ = "doctors"
@@ -397,6 +418,7 @@ class ChatMessages(SQLModel, table=True):
 
 #TODO: completar este tabla con datos importantes
 class HealthInsurance(SQLModel, table=True):
+    __tablename__ = "health_insurance"
     id: UUID = Field(
         sa_type=UUID_TYPE,
         sa_column_kwargs={"name":"health_insurance_id"},
@@ -408,7 +430,10 @@ class HealthInsurance(SQLModel, table=True):
     description: str = Field(max_length=500)
     discount: float = Field(default=0, nullable=False, ge=0, le=100)
 
-#TODO: hacer las class link con los usuarios y el seguro
+    users: List["User"] = Relationship(
+        back_populates="health_insurance",
+        link_model=UserHealthInsuranceLink
+    )
 
 
 User.model_rebuild()
