@@ -22,6 +22,7 @@ dependencies = [
     "pytest-rich>=0.2.0",
     "python-dotenv>=1.1.0",
     "python-multipart>=0.0.20",
+    "requests>=2.32.4",
     "scalar-fastapi>=1.0.3",
     "sqlmodel>=0.0.24",
 ]
