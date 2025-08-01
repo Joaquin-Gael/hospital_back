@@ -47,6 +47,9 @@ class UserHeathInsuranceUpdate(BaseModel):
 class UserPasswordUpdate(BaseModel):
     password: constr(min_length=8)
 
+class UserPetitionPasswordUpdate(BaseModel):
+    email: EmailStr
+
 class UserDelete(UserBase):
     id: UUID
 

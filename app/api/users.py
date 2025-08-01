@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Request, Depends, HTTPException, status, UploadFile
 from fastapi.responses import ORJSONResponse
 
@@ -13,10 +15,14 @@ import logging
 
 import sys
 
-from app.schemas.users import UserRead, UserCreate, UserDelete, UserUpdate, UserPasswordUpdate
+from app.schemas.users import UserRead, UserCreate, UserDelete, UserUpdate, UserPasswordUpdate, \
+    UserPetitionPasswordUpdate
 from app.models import User
 from app.core.auth import JWTBearer
 from app.db.main import SessionDep
+from app.core.interfaces.emails import EmailService
+from app.core.auth import encode, decode
+from app.storage import storage
 
 logger = logging.getLogger("uvicorn.error")
 logger.setLevel(logging.DEBUG)
@@ -238,6 +244,28 @@ async def update_user(request: Request, user_id: UUID, session: SessionDep, user
             blood_type=user.blood_type
         ).model_dump()
     )
+
+@public_router.post("/update/petition/password")
+async def update_petition_password(session: SessionDep, data: UserPetitionPasswordUpdate):
+    try:
+        user = session.exec(
+            select(User)\
+                .where(User.email == data.email)
+        ).first()
+
+        if not user:
+            ORJSONResponse({"detail": "Ok 200"}, status_code=200)
+
+        r_cod = encode({"info":"Tu_mama"}).hex()
+
+        storage.set(key=user.email, value=r_cod, table_name="Nose")
+
+        EmailService.send_password_reset_email(user.email, reset_code=r_cod)
+
+    except Exception:
+        console.print_exception(show_locals=True)
+        return ORJSONResponse({"detail":"Ok 200"}, status_code=200)
+
 
 @private_router.patch("/update/{user_id}/password", response_model=UserRead)
 async def update_user_password(request: Request, user_id: UUID, session: SessionDep, user_form: UserPasswordUpdate):
