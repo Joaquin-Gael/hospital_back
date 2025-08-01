@@ -950,23 +950,37 @@ locations = APIRouter(
 
 @locations.get("/", response_model=List[LocationResponse])
 async def get_locations(request: Request, session: SessionDep):
-    statement = select(Locations)
-    result = session.exec(statement).all()
-    locations: List["LocationResponse"] = []
-    for location in result:
-        statement = select(Departments).where(Departments.location_id == location.id)
-        result: List["Departments"] = session.exec(statement).all()
-        departments = []
-        for department in result:
-            statement = select(Specialties).where(Specialties.department_id == department.id)
-            result: List["Specialties"] = session.exec(statement).all()
-            specialties = []
-            for specialty in result:
-                statement = select(Services).where(Services.specialty_id == specialty.id)
-                result: List["Services"] = session.exec(statement).all()
-                services: List["ServiceResponse"] = []
-                for service in result:
-                    services.append(
+    statement = select(Locations).where(True)
+    result_i: List[Locations] = session.exec(statement).all()
+    locations_serialized: List["LocationResponse"] = [
+        LocationResponse(
+            id=location.id,
+            name=location.name,
+            description=location.description,
+        ).model_dump() for location in result_i
+    ]
+
+    return locations_serialized
+
+@locations.get("/all", response_model=List[LocationResponse])
+async def get_locations_all_data(request: Request, session: SessionDep):
+    statement = select(Locations).where(True)
+    result_i: List[Locations] = session.exec(statement).all()
+    locations_serialized: List["LocationResponse"] = []
+    for location in result_i:
+        #statement = select(Departments).where(Departments.location_id == location.id)
+        result_i: List["Departments"] = location.departments #session.exec(statement).all()
+        departments_serialized = []
+        for department in result_i:
+            #statement = select(Specialties).where(Specialties.department_id == department.id)
+            result_ii: List["Specialties"] = department.specialities #session.exec(statement).all()
+            specialties_serialized = []
+            for specialty in result_ii:
+                #statement = select(Services).where(Services.specialty_id == specialty.id)
+                result_iii: List["Services"] = specialty.services #session.exec(statement).all()
+                services_serialized: List["ServiceResponse"] = []
+                for service in result_iii:
+                    services_serialized.append(
                         ServiceResponse(
                             id=service.id,
                             name=service.name,
@@ -975,11 +989,11 @@ async def get_locations(request: Request, session: SessionDep):
                             specialty_id=service.specialty_id,
                         )
                     )
-                statement = select(Doctors).where(Doctors.speciality_id == specialty.id)
-                result: List["Doctors"] = session.exec(statement).all()
-                doctors = []
-                for doc in result:
-                    doctors.append(
+                #statement = select(Doctors).where(Doctors.speciality_id == specialty.id)
+                result_iiii: List["Doctors"] = specialty.doctors #session.exec(statement).all()
+                doctors_serialized = []
+                for doc in result_iiii:
+                    doctors_serialized.append(
                         DoctorResponse(
                             id=doc.id,
                             is_active=doc.is_active,
@@ -997,35 +1011,35 @@ async def get_locations(request: Request, session: SessionDep):
                             blood_type=doc.blood_type
                         )
                     )
-                specialties.append(
+                specialties_serialized.append(
                     SpecialtyResponse(
                         id=specialty.id,
                         name=specialty.name,
                         description=specialty.description,
                         department_id=specialty.department_id,
-                        services=services,
-                        doctors=doctors
+                        services=services_serialized,
+                        doctors=doctors_serialized
                     )
                 )
-            departments.append(
+            departments_serialized.append(
                 DepartmentResponse(
                     id=department.id,
                     name=department.name,
                     description=department.description,
                     location_id=department.location_id,
-                    specialities=specialties
+                    specialities=specialties_serialized
                 )
             )
-        locations.append(
+        locations_serialized.append(
             LocationResponse(
                 id=location.id,
                 name=location.name,
                 description=location.description,
-                departments=departments
+                departments=departments_serialized
             ).model_dump()
         )
 
-    return ORJSONResponse({"locations":locations})
+    return ORJSONResponse({"locations_serialized":locations_serialized})
 
 @locations.post("/add/", response_model=LocationResponse)
 async def set_location(request: Request, session: SessionDep, location: LocationCreate):
@@ -1611,6 +1625,26 @@ async def get_turns(request: Request, session: SessionDep):
 
     return ORJSONResponse(turns_serialized)
 
+@turns.get("/{user_id}", response_model=List[TurnsResponse])
+async def get_turn_by_user_id(request: Request, session: SessionDep, user_id: UUID):
+    user = request.user
+    try:
+        turns_serialized = [
+            TurnsResponse(
+                id=turn.id,
+                reason=turn.reason,
+                state=turn.state,
+                date=turn.date,
+                date_limit=turn.date_limit,
+                date_created=turn.date_created,
+                user_id=turn.user_id,
+            ).model_dump() for turn in user.turns
+        ]
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
 @turns.get("/{turn_id}", response_model=TurnsResponse)
 async def get_turn(request: Request, session: SessionDep, turn_id: UUID):
     user = request.state.user
@@ -1750,7 +1784,7 @@ appointments = APIRouter(
 
 @appointments.get("/", response_model=List[AppointmentResponse])
 async def get_appointments(request: Request, session: SessionDep):
-    if not request.state.user.is_superuser and not "doc" in request.state.user.scopes:
+    if not request.state.user.is_superuser and not "doc" in request.state.scopes:
         raise HTTPException(status_code=401, detail="You are not authorized")
 
     statement = select(Appointments)

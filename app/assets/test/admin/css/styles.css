@@ -1,0 +1,243 @@
+/* Estilos personalizados para el dashboard */
+
+/* Animaciones */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Ventanas arrastrables */
+.draggable-window {
+  position: absolute;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+  resize: both;
+  min-width: 300px;
+  min-height: 200px;
+  animation: slideIn 0.3s ease-out;
+  transition: all 0.2s ease;
+}
+
+.draggable-window:hover {
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+}
+
+.draggable-window.active {
+  border-color: #3b82f6;
+  box-shadow: 0 15px 35px rgba(59, 130, 246, 0.2);
+}
+
+/* Header de ventana */
+.window-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 12px 16px;
+  cursor: move;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+}
+
+.window-header:hover {
+  cursor: grab;
+}
+
+.window-header:active {
+  cursor: grabbing;
+}
+
+/* Controles de ventana */
+.window-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.window-control {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.window-control.close {
+  background-color: #ff5f57;
+}
+
+.window-control.minimize {
+  background-color: #ffbd2e;
+}
+
+.window-control.maximize {
+  background-color: #28ca42;
+}
+
+.window-control:hover {
+  transform: scale(1.2);
+  opacity: 0.8;
+}
+
+/* Contenido de ventana */
+.window-content {
+  padding: 16px;
+  height: calc(100% - 48px);
+  overflow: auto;
+}
+
+/* Estados de ventana */
+.window-minimized {
+  display: none !important;
+}
+
+.window-maximized {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 9999 !important;
+  border-radius: 0 !important;
+}
+
+/* Componentes específicos */
+.chart-container {
+  height: 100%;
+  position: relative;
+}
+
+.table-container {
+  height: 100%;
+  overflow: auto;
+}
+
+.metric-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 16px;
+  rounded: 8px;
+  text-align: center;
+  border-radius: 8px;
+}
+
+.info-panel {
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* Chat */
+.chat-message {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.user-message {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  margin-left: 2rem;
+}
+
+.ai-message {
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+}
+
+/* Prompt items */
+.prompt-item {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.prompt-item:hover {
+  background-color: #f3f4f6;
+  border-color: #3b82f6 !important;
+  transform: translateX(4px);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .draggable-window {
+    width: calc(100vw - 32px) !important;
+    left: 16px !important;
+  }
+
+  #chatPanel {
+    width: 100vw;
+  }
+
+  .window-header {
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+
+  .window-content {
+    padding: 12px;
+  }
+}
+
+/* Scrollbar personalizado */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Efectos de hover para botones */
+button {
+  transition: all 0.2s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+/* Gradientes para cards */
+.bg-gradient-blue {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.bg-gradient-green {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.bg-gradient-purple {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.bg-gradient-yellow {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}

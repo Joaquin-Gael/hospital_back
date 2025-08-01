@@ -75,7 +75,7 @@ def _(data: BaseModel) -> bytes:
 @encode.register
 def _(data: dict) -> bytes:
     # JSON: diccionario → bytes
-    text = dumps(data, sort_keys=True).encode("utf-8")
+    text = dumps(data, separators=(",", ":"), sort_keys=True).encode("utf-8")
     return encoder_f.encrypt(text)
 
 @encode.register

@@ -24,7 +24,7 @@ console = Console()
 
 STORAGE_PATH: Path = (Path(__file__).parent / "storage.json").resolve()
 
-class NoneResult(Exception):
+class NoneResultException(Exception):
     def __init__(self, message: str = "Result is None"):
         self.message = message
         super().__init__(self.message)
@@ -60,7 +60,7 @@ class PurgeMeta(type):
             return method(self, *args, **kwargs)
         return wrapper
 
-def fecha_encoder(o):
+def date_encoder(o):
     if isinstance(o, datetime):
         return o.isoformat()
     if isinstance(o, UUID):
@@ -137,7 +137,7 @@ class Singleton(metaclass=PurgeMeta):
             self._flush_event.wait(timeout=1)
             with self._lock:
                 if self._dirty:
-                    data_bytes = orjson.dumps(self.data.model_dump(), default=fecha_encoder)
+                    data_bytes = orjson.dumps(self.data.model_dump(), default=date_encoder)
                     STORAGE_PATH.write_bytes(data_bytes)
                     self._dirty = False
                 # Resetea el evento
@@ -169,18 +169,32 @@ class Singleton(metaclass=PurgeMeta):
     @cached(_cache)
     def get(self, key: str, table_name: str) -> GetItem | None:
         self._load()
-        return self.data.tables[table_name].items.get(key, None)
+        item = self.data.tables[table_name].items.get(key, None)
+        if not item:
+            return None
+        return GetItem(
+            key=item.key,
+            value=Response(
+                key=item.key,
+                value=item.value,
+                expired=item.expired,
+                created=item.created,
+                updated=item.updated,
+                id=item.id
+            )
+        )
     
     def get_by_parameter(self, parameter: str, equals: Any, table_name: str) -> GetItem:
         self._load()
-        for item in self.data.tables[table_name].items:
-            data = item.get(parameter, None)
+        for item in self.data.tables[table_name].items.values():
+            console.print(item)
+            data = item.value.get(parameter, None)
             if data:
                 if type(data) == type(equals) and data == equals:
-                    return item
+                    return GetItem(key=item.key, value=item)
                 else:
                     continue
-        raise NoneResult(f"No exist item whit {parameter} = {equals}")
+        raise NoneResultException(f"No exist item whit {parameter} = {equals}")
 
     def set(self, key = None, value = None, table_name: str = "", long_live: bool = False) -> SetItem:
         item = SetItem(
@@ -208,7 +222,7 @@ class Singleton(metaclass=PurgeMeta):
         if item is None:
             self.set(key, value, table_name)
             return
-        item.value = value
+        item.value.value = value
         item.value.updated = datetime.now()
         item.value.expired = datetime.now() + timedelta(minutes=15) if not long_live else datetime.now() + timedelta(days=30)
         self.data.tables[table_name].items[key] = item

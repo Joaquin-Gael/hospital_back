@@ -1,3 +1,3 @@
-from .singleton_class import Singleton
+from .singleton_class import Singleton, NoneResultException
 
 storage = Singleton()

@@ -1,1 +1,1 @@
-from .main import storage
+from .main import storage, NoneResultException

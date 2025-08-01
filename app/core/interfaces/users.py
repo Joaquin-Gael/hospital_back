@@ -4,7 +4,9 @@ from sqlmodel import Session, select
 
 from app.db.main import engine
 from app.models import User
-from app.storage import storage
+from app.storage import storage, NoneResultException
+from app.storage.command.main import console
+
 
 class EmailHasNotBeenVerified(Exception):
     def __init__(self, message: str = "Email has not been verified."):
@@ -16,6 +18,25 @@ class UserAlreadyExists(Exception):
     def __init__(self, message: str = "User with this email already exists."):
         self.message = message
         super().__init__(self.message)
+
+def set_or_update_google_user(user: User, user_data: dict) -> None:
+    try:
+        item = storage.get_by_parameter(parameter="email", equals=user.email, table_name="google-user-data")
+
+        console.print(item)
+
+        if not item:
+            console.rule("not item")
+            storage.set(key=str(user.id), value=user_data, table_name="google-user-data", long_live=True)
+            return
+        else:
+            console.rule("si item")
+            storage.update(key=item.key, value=user_data, table_name="google-user-data", long_live=True)
+            return
+
+    except NoneResultException:
+        console.print_exception(show_locals=True)
+        return
 
 
 class UserRepository:
@@ -54,9 +75,9 @@ class UserRepository:
         first_name = user_data.get('given_name')
         last_name = user_data.get('family_name')
         img_url = user_data.get('picture')
-        has_email_verificated = user_data.get('verified_email')
+        has_email_verified = user_data.get('verified_email')
         
-        if not has_email_verificated:
+        if not has_email_verified:
             raise EmailHasNotBeenVerified()
         
         user = User(
@@ -76,21 +97,13 @@ class UserRepository:
         with Session(engine) as session:
             existing_user = UserRepository.get_user_by_email(email, session)
             if existing_user:
+                set_or_update_google_user(existing_user, user_data)
                 return existing_user, True
             
             session.add(user)
             session.commit()
             session.refresh(user)
-            
-        try:
-            item = storage.get_by_parameter(parameter="email", equals=user.email, table_name="google-user-data")
 
-            if not item:
-                storage.set(key=str(user.id), value=user_data, table_name="google-user-data", long_live=True)
-            else:
-                storage.update(key=item.value.key, value=user_data, table_name="google-user-data")
-
-        except Exception as e:
-            print(__file__, e)
+            set_or_update_google_user(user, user_data)
         
         return user, False

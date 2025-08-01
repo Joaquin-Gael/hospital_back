@@ -11,7 +11,7 @@ from datetime import datetime
 
 from app.models import Doctors, User
 from app.db.main import SessionDep
-from app.core.auth import gen_token, JWTBearer, decode_token
+from app.core.auth import gen_token, JWTBearer, decode
 from app.core.interfaces.oauth import OauthRepository
 from app.core.interfaces.users import UserRepository
 from app.core.interfaces.emails import EmailService
@@ -40,6 +40,11 @@ async def get_scopes(request: Request, _=Depends(auth)):
     return ORJSONResponse({
         "scopes":scopes,
     })
+
+@router.post("/decode/")
+async def decode_hex(code: str):
+    bytes_code = bytes.fromhex(code)
+    return decode(bytes_code, dict)
 
 @router.post("/doc/login", response_model=TokenDoctorsResponse)
 async def doc_login(session: SessionDep, credentials: DoctorAuth):

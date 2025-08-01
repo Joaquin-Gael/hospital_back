@@ -67,15 +67,18 @@ class OauthRepository:
         data = loads(response.content.decode('utf-8'))
         
         if "error" in data:
+            console.print("Error en data Oauth")
             raise OauthCallbackError(data["error"])
         
         user_data = get_user_data(data['access_token'])
         
         user, exist = UserRepository.create_google_user(user_data)
-        
-        user_data.setdefault("access_token", gen_token_from_user_data(user))
+
+        url_data = {
+            "a":encode({"access_token":gen_token_from_user_data(user)}).hex()
+        }
 
         return user_data, exist, Response(
             status_code=302,
-            headers={"Location": f"{cors_host}/user_panel?{urlencode(user_data)}" if not debug else f"http://localhost:4200/user_panel?{urlencode(user_data)}" }
+            headers={"Location": f"{cors_host}/user_panel?{urlencode(url_data)}" if not debug else f"http://localhost:4200/user_panel?{urlencode(url_data)}" }
         )

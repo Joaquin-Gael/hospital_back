@@ -93,7 +93,7 @@ app = FastAPI(
     description="Esta API permite gestionar usuarios, pacientes y médicos.",
     version=version,
     contact={
-        "name": "Tu Nombre o Equipo",
+        "name": "JoaDev",
         "email": "tuemail@example.com",
         "url": "https://tuweb.com"
     },
@@ -218,8 +218,8 @@ async def oauth_index(request: Request):
 async def oauth_index(request: Request):
     return templates.TemplateResponse(request, name=parser_name(folders=["test", "oauth"], name="login"))
 
-#@app.get("/user_panel")
-#async def user_panel(request:Request):
-    #return templates.TemplateResponse(request, name=parser_name(folders=["test", "oauth"], name="panel"))
+@app.get("/user_panel")
+async def user_panel(request:Request):
+    return templates.TemplateResponse(request, name=parser_name(folders=["test", "oauth"], name="panel"))
 
 #app.mount("/", SPAStaticFiles(), name="spa")
