@@ -1,3 +1,6 @@
+from pathlib import Path
+
+from fastapi import UploadFile
 from sqlmodel import SQLModel, Field, Relationship
 
 from sqlalchemy import Column, UUID as UUID_TYPE, VARCHAR
@@ -18,6 +21,10 @@ from enum import Enum
 
 import re
 
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -70,7 +77,29 @@ class BaseUser(SQLModel, table=False):
     telephone: Optional[str] = Field(max_length=50)
     address: Optional[str] = Field(nullable=True)
     blood_type: Optional[str] = Field(nullable=True)
+    url_image_profile: Optional[str] = Field(nullable=True)
 
+    def set_url_image_profile(self, file_name: str):
+        self.url_image_profile = f"{os.getenv("DOMINIO")}/media/{self.__class__.__name__.lower()}/{file_name}"
+
+    async def save_profile_image(self, file: UploadFile, media_root: str = "media"):
+        cls_name = self.__class__.__name__.lower()
+
+        if self.url_image_profile:
+            os.remove(self.url_image_profile)
+
+        folder_path = Path(media_root) / cls_name
+        folder_path.mkdir(parents=True, exist_ok=True)
+
+        ext = file.filename.split(".")[-1]
+        unique_name = f"{uuid4().hex}.{ext}"
+        file_path = folder_path / unique_name
+
+        with open(file_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+
+        self.set_url_image_profile(unique_name)
 
     def set_password(self, raw_password: str):
         """
@@ -361,6 +390,10 @@ class User(BaseUser, table=True):
         back_populates="users",
         link_model=UserHealthInsuranceLink
     )
+    
+
+    def set_google_liked_acount_password(self, password:str) -> str:
+        self.password = pwd_context.hash(password)
 
 class Doctors(BaseUser, table=True):
     __tablename__ = "doctors"

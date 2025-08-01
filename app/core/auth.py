@@ -29,6 +29,7 @@ from app.config import token_key, api_name, version
 from app.models import Doctors, User
 from app.db.main import Session, engine
 from app.storage import storage
+from app.core.interfaces.emails import EmailService
 
 logger = logging.getLogger("uvicorn.error")
 logger.setLevel(logging.DEBUG)
@@ -203,6 +204,15 @@ class JWTBearer:
 
             with Session(engine) as session:
                 user = session.exec(statement).first()
+
+            if "google" in payload.get("scopes"):
+                EmailService.send_warning_google_account(
+                    email=user.email,
+                    first_name=user.first_name,
+                    last_name=user.last_name,
+                    created=user.date_joined,
+                    to_delete=datetime.now() + timedelta(days=7)
+                )
 
             request.state.user = user
             request.state.scopes = payload.get("scopes")

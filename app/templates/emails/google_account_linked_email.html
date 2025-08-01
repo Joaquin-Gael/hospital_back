@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cuenta de Google vinculada</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; background-color: #f8fafc; line-height: 1.6;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 0; padding: 0;">
+        <tr>
+            <td style="padding: 40px 20px;">
+                <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden;">
+                    <!-- Header -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #ea4335 0%, #4285f4 50%, #34a853 100%); padding: 40px 30px; text-align: center;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">
+                                Hospital SDLG
+                            </h1>
+                            <p style="margin: 8px 0 0 0; color: #ffffff; font-size: 16px; font-weight: 400; opacity: 0.9;">
+                                Cuenta de Google vinculada exitosamente
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <div style="text-align: center; margin-bottom: 30px;">
+                                <div style="display: inline-block; width: 60px; height: 60px; background-color: #e8f5e8; border-radius: 50%; position: relative;">
+                                    <span style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 24px;">🔗</span>
+                                </div>
+                            </div>
+                            
+                            <h2 style="margin: 0 0 20px 0; color: #1f2937; font-size: 24px; font-weight: 600; text-align: center;">
+                                ¡Hola {{ first_name }} {{ last_name }}!
+                            </h2>
+                            
+                            <p style="margin: 0 0 24px 0; color: #4b5563; font-size: 16px; line-height: 1.6; text-align: center;">
+                                Tu cuenta de Google ha sido vinculada exitosamente con Hospital SDLG. Hemos generado una contraseña provisional para que puedas acceder a tu cuenta.
+                            </p>
+                            
+                            <!-- Contraseña provisional destacada -->
+                            <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; border-radius: 8px; padding: 24px; margin: 24px 0; text-align: center;">
+                                <p style="margin: 0 0 12px 0; color: #92400e; font-size: 16px; font-weight: 600;">
+                                    Tu contraseña provisional:
+                                </p>
+                                <div style="background-color: #ffffff; border: 2px dashed #f59e0b; border-radius: 6px; padding: 20px; margin: 12px 0;">
+                                    <span style="font-family: 'Courier New', monospace; font-size: 24px; font-weight: 700; color: #1f2937; letter-spacing: 2px;">
+                                        {{ provisional_password }}
+                                    </span>
+                                </div>
+                                <p style="margin: 12px 0 0 0; color: #92400e; font-size: 13px; font-weight: 500;">
+                                    ⚠️ Cambia esta contraseña en tu primer inicio de sesión
+                                </p>
+                            </div>
+                            
+                            <!-- Instrucciones paso a paso -->
+                            <div style="background-color: #f0f9ff; border-left: 4px solid #3b82f6; padding: 20px; margin: 24px 0; border-radius: 0 6px 6px 0;">
+                                <h3 style="margin: 0 0 16px 0; color: #1e40af; font-size: 18px; font-weight: 600;">
+                                    Próximos pasos:
+                                </h3>
+                                <ol style="margin: 0; padding-left: 20px; color: #374151;">
+                                    <li style="margin-bottom: 8px; line-height: 1.5;">
+                                        <strong>Inicia sesión</strong> con tu email y la contraseña provisional
+                                    </li>
+                                    <li style="margin-bottom: 8px; line-height: 1.5;">
+                                        <strong>Cambia tu contraseña</strong> por una más segura y personal
+                                    </li>
+                                    <li style="margin-bottom: 0; line-height: 1.5;">
+                                        <strong>Explora</strong> todos los servicios médicos disponibles
+                                    </li>
+                                </ol>
+                            </div>
+                            
+                            <!-- Información de seguridad -->
+                            <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 16px; margin: 24px 0;">
+                                <div style="display: flex; align-items: flex-start;">
+                                    <span style="color: #dc2626; font-size: 18px; margin-right: 12px; flex-shrink: 0;">🛡️</span>
+                                    <div>
+                                        <h4 style="margin: 0 0 8px 0; color: #991b1b; font-size: 16px; font-weight: 600;">
+                                            Importante para tu seguridad:
+                                        </h4>
+                                        <ul style="margin: 0; padding-left: 16px; color: #7f1d1d; font-size: 14px;">
+                                            <li style="margin-bottom: 4px;">Esta contraseña es temporal y debe cambiarse</li>
+                                            <li style="margin-bottom: 4px;">No compartas esta información con nadie</li>
+                                            <li style="margin-bottom: 0;">Si no solicitaste esta vinculación, contacta soporte inmediatamente</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Beneficios de la vinculación -->
+                            <div style="background-color: #ecfdf5; border-left: 4px solid #10b981; padding: 20px; margin: 24px 0; border-radius: 0 6px 6px 0;">
+                                <h3 style="margin: 0 0 12px 0; color: #065f46; font-size: 16px; font-weight: 600;">
+                                    ✅ Beneficios de tu cuenta vinculada:
+                                </h3>
+                                <ul style="margin: 0; padding-left: 20px; color: #047857; font-size: 14px;">
+                                    <li style="margin-bottom: 6px;">Acceso rápido con tu cuenta de Google</li>
+                                    <li style="margin-bottom: 6px;">Sincronización automática de datos básicos</li>
+                                    <li style="margin-bottom: 6px;">Mayor seguridad en tu cuenta médica</li>
+                                    <li style="margin-bottom: 0;">Experiencia de usuario mejorada</li>
+                                </ul>
+                            </div>
+                            
+                            <p style="margin: 24px 0 0 0; color: #6b7280; font-size: 14px; text-align: center;">
+                                Si necesitas ayuda con el proceso de cambio de contraseña, nuestro equipo de soporte está disponible 24/7.
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f9fafb; padding: 30px; text-align: center; border-top: 1px solid #e5e7eb;">
+                            <p style="margin: 0 0 12px 0; color: #6b7280; font-size: 14px;">
+                                Hospital SDLG - Innovación y seguridad en salud digital
+                            </p>
+                            <p style="margin: 0; color: #9ca3af; font-size: 12px;">
+                                Este correo contiene información confidencial. Por favor, no respondas a este mensaje.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

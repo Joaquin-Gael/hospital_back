@@ -1798,7 +1798,7 @@ async def get_health_insurance(request: Request, session: SessionDep):
             ).model_dump()
         )
 
-    return ORJSONResponse(serialized_heath_insurance)
+    return serialized_heath_insurance
 
 @health_insurance.get("/detail/{hi_id}", response_model=HealthInsuranceRead)
 async def get_health_insurance(
@@ -1815,7 +1815,7 @@ async def get_health_insurance(
         description=hi.description,
         discount=hi.discount,
     ).model_dump()
-    return ORJSONResponse(data)
+    return data
 
 @health_insurance.post("/create", response_model=HealthInsuranceRead, status_code=status.HTTP_201_CREATED)
 async def create_health_insurance(
@@ -1823,7 +1823,7 @@ async def create_health_insurance(
         session: SessionDep,
         payload: HealthInsuranceCreate,
 ):
-    hi = HealthInsurance.from_orm(payload)
+    hi = HealthInsurance.model_validate(payload)
     session.add(hi)
     session.commit()
     session.refresh(hi)
@@ -1833,7 +1833,7 @@ async def create_health_insurance(
         description=hi.description,
         discount=hi.discount,
     ).model_dump()
-    return ORJSONResponse(data)
+    return data
 
 @health_insurance.patch("/update/{hi_id}", response_model=HealthInsuranceRead)
 async def update_health_insurance(
@@ -1857,7 +1857,7 @@ async def update_health_insurance(
         description=hi.description,
         discount=hi.discount,
     ).model_dump()
-    return ORJSONResponse(data)
+    return data
 
 @health_insurance.delete("/delete/{hi_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_health_insurance(

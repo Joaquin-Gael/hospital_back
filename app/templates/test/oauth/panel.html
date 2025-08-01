@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Usuario - OAuth Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#1e40af'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <h1 class="text-xl font-bold text-gray-900">Panel de Usuario</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button onclick="goToHome()" class="text-gray-600 hover:text-gray-900 transition-colors">
+                        Volver al inicio
+                    </button>
+                    <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors">
+                        Cerrar Sesión
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- User Profile Card -->
+        <div class="bg-white rounded-xl shadow-lg p-8 mb-8">
+            <div class="flex items-center space-x-6 mb-6">
+                <div class="relative">
+                    <img
+                        id="user-picture"
+                        src="/placeholder.svg?height=80&width=80"
+                        alt="Foto de perfil"
+                        class="w-20 h-20 rounded-full border-4 border-primary"
+                    >
+                    <div id="verified-badge" class="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center hidden">
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div>
+                    <h2 id="user-name" class="text-2xl font-bold text-gray-900">Cargando...</h2>
+                    <p id="user-email" class="text-gray-600">Cargando email...</p>
+                    <div class="flex items-center mt-2">
+                        <span id="verification-status" class="text-sm text-gray-500">Verificando estado...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Grid -->
+        <div class="grid md:grid-cols-2 gap-6 mb-8">
+            <!-- Personal Info -->
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                    </svg>
+                    Información Personal
+                </h3>
+                <div class="space-y-3">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">ID de Usuario:</span>
+                        <span id="user-id" class="font-mono text-sm bg-gray-100 px-2 py-1 rounded">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Nombre:</span>
+                        <span id="display-name" class="font-medium">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Nombre:</span>
+                        <span id="given-name" class="font-medium">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Apellido:</span>
+                        <span id="family-name" class="font-medium">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Email:</span>
+                        <span id="display-email" class="font-medium">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Email Verificado:</span>
+                        <span id="email-verified" class="font-medium">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Token Info -->
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m0 0a2 2 0 012 2m-2-2a2 2 0 00-2 2m2-2V5a2 2 0 00-2-2m0 0H9a2 2 0 00-2 2v0m0 0a2 2 0 00-2 2m2-2a2 2 0 012 2m0 0v8a2 2 0 002 2h6a2 2 0 002-2V9a2 2 0 00-2-2h-6a2 2 0 00-2-2V5a2 2 0 012-2h6z"></path>
+                    </svg>
+                    Token de Acceso
+                </h3>
+                <div class="space-y-3">
+                    <div>
+                        <span class="text-gray-600 block mb-2">JWT Token:</span>
+                        <div class="bg-gray-100 p-3 rounded-lg">
+                            <code id="access-token" class="text-xs font-mono break-all text-gray-700">-</code>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 mt-4">
+                        <div class="text-center p-3 bg-blue-50 rounded-lg">
+                            <div id="token-status" class="text-sm font-medium text-blue-800">Verificando...</div>
+                            <div class="text-xs text-blue-600 mt-1">Estado del Token</div>
+                        </div>
+                        <div class="text-center p-3 bg-green-50 rounded-lg">
+                            <div id="token-expires" class="text-sm font-medium text-green-800">-</div>
+                            <div class="text-xs text-green-600 mt-1">Expira en</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Raw Data Section -->
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                Datos Raw (URL Parameters)
+            </h3>
+            <div class="bg-gray-100 p-4 rounded-lg">
+                <pre id="raw-data" class="text-xs font-mono text-gray-700 whitespace-pre-wrap">Cargando datos...</pre>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="mt-8 flex justify-center space-x-4">
+            <button onclick="refreshData()" class="bg-primary text-white px-6 py-3 rounded-lg hover:bg-secondary transition-colors">
+                Actualizar Datos
+            </button>
+            <button onclick="copyToken()" class="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-colors">
+                Copiar Token
+            </button>
+            <button onclick="decodeToken()" class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors">
+                Decodificar JWT
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300">
+        <span id="toast-message"></span>
+    </div>
+
+    <!-- JWT Decode Modal -->
+    <div id="jwt-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-96 overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold">JWT Token Decodificado</h3>
+                <button onclick="closeJWTModal()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <pre id="jwt-content" class="bg-gray-100 p-4 rounded text-xs font-mono overflow-x-auto"></pre>
+        </div>
+    </div>
+
+    <script>
+        let userData = {};
+
+        // Parse URL parameters
+        function parseURLParameters() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const data = {};
+
+            for (const [key, value] of urlParams.entries()) {
+                data[key] = decodeURIComponent(value);
+            }
+
+            return data;
+        }
+
+        // Populate user interface
+        function populateUserData(data) {
+            userData = data;
+
+            // Profile section
+            if (data.picture) {
+                document.getElementById('user-picture').src = data.picture;
+            }
+
+            if (data.name) {
+                document.getElementById('user-name').textContent = data.name;
+            }
+
+            if (data.email) {
+                document.getElementById('user-email').textContent = data.email;
+            }
+
+            // Verification status
+            const isVerified = data.verified_email === 'True' || data.verified_email === true;
+            const verificationStatus = document.getElementById('verification-status');
+            const verifiedBadge = document.getElementById('verified-badge');
+
+            if (isVerified) {
+                verificationStatus.innerHTML = '<span class="text-green-600 font-medium">✓ Email verificado</span>';
+                verifiedBadge.classList.remove('hidden');
+            } else {
+                verificationStatus.innerHTML = '<span class="text-red-600 font-medium">✗ Email no verificado</span>';
+            }
+
+            // Personal info
+            document.getElementById('user-id').textContent = data.id || '-';
+            document.getElementById('display-name').textContent = data.name || '-';
+            document.getElementById('given-name').textContent = data.given_name || '-';
+            document.getElementById('family-name').textContent = data.family_name || '-';
+            document.getElementById('display-email').textContent = data.email || '-';
+            document.getElementById('email-verified').textContent = isVerified ? 'Sí' : 'No';
+
+            // Token info
+            if (data.access_token) {
+                document.getElementById('access-token').textContent = data.access_token;
+                analyzeToken(data.access_token);
+            }
+
+            // Raw data
+            document.getElementById('raw-data').textContent = JSON.stringify(data, null, 2);
+        }
+
+        // Analyze JWT token
+        function analyzeToken(token) {
+            try {
+                const parts = token.split('.');
+                if (parts.length === 3) {
+                    const payload = JSON.parse(atob(parts[1]));
+
+                    document.getElementById('token-status').textContent = 'Válido';
+
+                    if (payload.exp) {
+                        const expDate = new Date(payload.exp * 1000);
+                        const now = new Date();
+                        const timeLeft = expDate - now;
+
+                        if (timeLeft > 0) {
+                            const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+                            const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+                            document.getElementById('token-expires').textContent = `${hours}h ${minutes}m`;
+                        } else {
+                            document.getElementById('token-expires').textContent = 'Expirado';
+                            document.getElementById('token-status').textContent = 'Expirado';
+                        }
+                    }
+                }
+            } catch (error) {
+                document.getElementById('token-status').textContent = 'Inválido';
+                console.error('Error analyzing token:', error);
+            }
+        }
+
+        // Actions
+        function refreshData() {
+            window.location.reload();
+        }
+
+        function copyToken() {
+            const token = userData.access_token;
+            if (token) {
+                navigator.clipboard.writeText(token).then(() => {
+                    showToast('Token copiado al portapapeles', 'success');
+                }).catch(() => {
+                    showToast('Error al copiar token', 'error');
+                });
+            } else {
+                showToast('No hay token disponible', 'error');
+            }
+        }
+
+        function decodeToken() {
+            const token = userData.access_token;
+            if (!token) {
+                showToast('No hay token disponible', 'error');
+                return;
+            }
+
+            try {
+                const parts = token.split('.');
+                if (parts.length !== 3) {
+                    throw new Error('Token JWT inválido');
+                }
+
+                const header = JSON.parse(atob(parts[0]));
+                const payload = JSON.parse(atob(parts[1]));
+
+                const decoded = {
+                    header: header,
+                    payload: payload,
+                    signature: parts[2]
+                };
+
+                document.getElementById('jwt-content').textContent = JSON.stringify(decoded, null, 2);
+                document.getElementById('jwt-modal').classList.remove('hidden');
+            } catch (error) {
+                showToast('Error decodificando JWT: ' + error.message, 'error');
+            }
+        }
+
+        function closeJWTModal() {
+            document.getElementById('jwt-modal').classList.add('hidden');
+        }
+
+        function logout() {
+            if (confirm('¿Estás seguro de que quieres cerrar sesión?')) {
+                window.location.href = 'login.html';
+            }
+        }
+
+        function goToHome() {
+            window.location.href = 'index.html';
+        }
+
+        // Toast notification system
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+
+            toastMessage.textContent = message;
+
+            toast.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg transform transition-transform duration-300 ${
+                type === 'success' ? 'bg-green-500' :
+                type === 'error' ? 'bg-red-500' :
+                type === 'info' ? 'bg-blue-500' : 'bg-green-500'
+            } text-white`;
+
+            toast.style.transform = 'translateX(0)';
+
+            setTimeout(() => {
+                toast.style.transform = 'translateX(100%)';
+            }, 3000);
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('User Panel loaded');
+
+            const urlData = parseURLParameters();
+
+            if (Object.keys(urlData).length === 0) {
+                showToast('No se encontraron datos en la URL', 'error');
+                document.getElementById('raw-data').textContent = 'No hay datos disponibles en la URL';
+            } else {
+                populateUserData(urlData);
+                showToast('Datos cargados correctamente', 'success');
+            }
+        });
+
+        // Close modal on escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeJWTModal();
+            }
+        });
+
+        // Close modal on outside click
+        document.getElementById('jwt-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeJWTModal();
+            }
+        });
+    </script>
+</body>
+</html>

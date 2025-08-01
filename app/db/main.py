@@ -15,11 +15,10 @@ import time
 
 from typing import List, Tuple
 
-from app.config import debug, admin_user, User
+from app.config import debug, admin_user, User, db_url
 
-DB_URL_TEST = f"postgresql://neondb_owner:npg_5VeahKofDF6p@ep-still-pond-acx4cyvn-pooler.sa-east-1.aws.neon.tech/neondb"
 
-engine = create_engine(DB_URL_TEST, echo=debug, future=True, pool_pre_ping=True)
+engine = create_engine(db_url, echo=debug, future=True, pool_pre_ping=True)
 
 console = Console()
 

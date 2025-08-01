@@ -12,7 +12,10 @@ from datetime import datetime
 from app.models import Doctors, User
 from app.db.main import SessionDep
 from app.core.auth import gen_token, JWTBearer, decode_token
-from app.schemas.users import UserAuth, UserRead
+from app.core.interfaces.oauth import OauthRepository
+from app.core.interfaces.users import UserRepository
+from app.core.interfaces.emails import EmailService
+from app.schemas.users import UserAuth
 from app.schemas.auth import TokenUserResponse, TokenDoctorsResponse
 from app.schemas.medica_area import DoctorAuth, DoctorResponse
 from app.storage import storage
@@ -24,6 +27,11 @@ auth = JWTBearer()
 router = APIRouter(
     prefix="/auth",
     tags=["auth"],
+)
+
+oauth_router = APIRouter(
+    prefix="/oauth",
+    tags=["oauth"]
 )
 
 @router.get("/scopes", response_model=Dict[str, List[str]])
@@ -118,22 +126,42 @@ async def login(session: SessionDep, credentials: UserAuth):
         TokenUserResponse(
             access_token=token,
             token_type="Bearer",
-            user=UserRead(
-                id=user.id,
-                is_active=user.is_active,
-                is_admin=user.is_admin,
-                is_superuser=user.is_superuser,
-                last_login=user.last_login,
-                date_joined=user.date_joined,
-                username=user.name,
-                email=user.email,
-                first_name=user.first_name,
-                last_name=user.last_name,
-                dni=user.dni,
-            ).model_dump(),
             refresh_token=refresh_token,
         ).model_dump()
     )
+
+@oauth_router.get("/{service}/")
+async def oauth_login(service: str):
+    try:
+        match service:
+            case "google":
+                return OauthRepository.google_oauth()
+            case _:
+                raise HTTPException(status_code=501, detail="Not Implemented")
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@oauth_router.get("/webhook/google_callback")
+async def google_callback(request: Request):
+    try:
+        params: dict = dict(request.query_params)
+        data, exist, response = OauthRepository.google_callback(params.get("code"))
+        if not exist:
+            EmailService.send_welcome_email(
+                email=data.get("email"),
+                first_name=data.get("given_name"),
+                last_name=data.get("family_name")
+            )
+            EmailService.send_google_account_linked_password(email=data.get("email"), first_name=data.get("given_name"),
+                                                             last_name=data.get("family_name"),
+                                                             raw_password=data.get("id"))
+
+        return response
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    
 
 @router.get("/refresh", response_model=TokenUserResponse, name="refresh_token")
 async def refresh(user: User = Depends(auth)):
@@ -197,19 +225,6 @@ async def refresh(user: User = Depends(auth)):
         TokenUserResponse(
             access_token=token,
             token_type="bearer",
-            user=UserRead(
-                id=user.id,
-                is_active=user.is_active,
-                is_admin=user.is_admin,
-                is_superuser=user.is_superuser,
-                last_login=user.last_login,
-                date_joined=user.date_joined,
-                username=user.name,
-                email=user.email,
-                first_name=user.first_name,
-                last_name=user.last_name,
-                dni=user.dni,
-            ),
             refresh_token=refresh_token,
         ).model_dump()
     )

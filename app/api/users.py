@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends, HTTPException, status
+from fastapi import APIRouter, Request, Depends, HTTPException, status, UploadFile
 from fastapi.responses import ORJSONResponse
 
 from sqlalchemy import select
@@ -72,7 +72,8 @@ async def get_users(session: SessionDep):
                 dni=user.dni,
                 address=user.address,
                 telephone=user.telephone,
-                blood_type=user.blood_type
+                blood_type=user.blood_type,
+                img_profile=user.url_image_profile
             ).model_dump()
         )
 
@@ -100,7 +101,8 @@ async def get_user_by_id(session: SessionDep, user_id: UUID):
             dni=user.dni,
             blood_type=user.blood_type,
             address=user.address,
-            telephone=user.telephone
+            telephone=user.telephone,
+            img_profile=user.url_image_profile
         ).model_dump()
     )
 
@@ -127,12 +129,13 @@ async def me_user(request: Request):
             dni=user.dni,
             telephone=user.telephone,
             blood_type=user.blood_type,
-            address=user.address
+            address=user.address,
+            img_profile=user.url_image_profile
         ).model_dump(),
     })
 
 @public_router.post("/add/", response_model=UserRead)
-async def add_user(session: SessionDep, user: UserCreate):
+async def add_user(session: SessionDep, user: UserCreate, img_profile: UploadFile):
     try:
         user_db = User(
             email=user.email,
@@ -145,6 +148,7 @@ async def add_user(session: SessionDep, user: UserCreate):
             blood_type=user.blood_type
         )
         user_db.set_password(user.password)
+        await user_db.save_profile_image(img_profile)
         session.add(user_db)
         session.commit()
         session.refresh(user_db)
@@ -163,7 +167,8 @@ async def add_user(session: SessionDep, user: UserCreate):
                 dni=user_db.dni,
                 address=user_db.address,
                 telephone=user_db.telephone,
-                blood_type=user_db.blood_type
+                blood_type=user_db.blood_type,
+                img_profile=user_db.url_image_profile
             ).model_dump()
         )
     except Exception as e:
@@ -176,7 +181,7 @@ async def delete_user(request: Request, user_id: UUID, session: SessionDep):
         raise HTTPException(status_code=403, detail="Not authorized")
     try:
         statement = select(User).where(User.id == user_id)
-        user: User = session.exec(statement).first()
+        user: User = session.exec(statement).scalar_one_or_none()
         session.delete(user)
         session.commit()
         user_deleted = UserDelete(
@@ -193,7 +198,7 @@ async def delete_user(request: Request, user_id: UUID, session: SessionDep):
         return ORJSONResponse({"error": "User not found"}, status_code=404)
 
 @private_router.patch("/update/{user_id}/", response_model=UserRead)
-async def update_user(request: Request, user_id: UUID, session: SessionDep, user_form: UserUpdate):
+async def update_user(request: Request, user_id: UUID, session: SessionDep, user_form: UserUpdate, img_profile: UploadFile):
 
     if not request.state.user.id == user_id and not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un unauthorized")
@@ -209,7 +214,9 @@ async def update_user(request: Request, user_id: UUID, session: SessionDep, user
             setattr(user, field, value)
         elif field == "username":
             user.name = user_form.username
-           
+
+    if img_profile:
+        await user.save_profile_image(img_profile)
 
     session.add(user)
     session.commit()
@@ -267,7 +274,8 @@ async def update_user_password(request: Request, user_id: UUID, session: Session
             dni=user.dni,
             blood_type=user.blood_type,
             telephone=user.telephone,
-            address=user.address
+            address=user.address,
+            img_profile=user.url_image_profile
         ).model_dump()
     )
 
@@ -297,6 +305,7 @@ async def ban_user(request: Request, user_id: UUID, session: SessionDep):
             last_name=user.last_name,
             dni=user.dni,
             blood_type=user.blood_type,
+            img_profile=user.url_image_profile
         ),
         "message":f"User {user.name} has been banned."
     })
@@ -327,6 +336,7 @@ async def unban_user(request: Request, user_id: UUID, session: SessionDep):
             last_name=user.last_name,
             dni=user.dni,
             blood_type=user.blood_type,
+            img_profile=user.url_image_profile
         ),
         "message":f"User {user.name} has been unbanned."
     })

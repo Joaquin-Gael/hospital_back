@@ -30,15 +30,13 @@ from app.models import (
     User,
     BaseUser
 )
-from app.db.main import DB_URL_TEST
+from app.db.main import db_url
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-DB_URL = DB_URL_TEST
-
-config.set_main_option("sqlalchemy.url", DB_URL)
+config.set_main_option("sqlalchemy.url", db_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

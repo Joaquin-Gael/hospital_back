@@ -18,9 +18,9 @@ from uuid import uuid4, UUID
 
 from pathlib import Path
 
-from app.db.main import init_db, set_admin, migrate, test_db, DB_URL_TEST
+from app.db.main import init_db, set_admin, migrate, test_db, db_url
 from app.api import users, medic_area, auth
-from app.config import api_name, version, debug, cors_host
+from app.config import api_name, version, debug, cors_host, templates, parser_name
 from app.storage.main import storage
 
 install(show_locals=True)
@@ -35,10 +35,11 @@ main_router = APIRouter(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    #init_db()
-    #migrate()
-    #set_admin()
+    init_db()
+    migrate()
+    set_admin()
     storage.create_table("ban-token")
+    storage.create_table("google-user-data")
     console.rule("[green]Server Opened[/green]")
     if debug:
         # Línea destacada con título
@@ -66,8 +67,8 @@ async def lifespan(app: FastAPI):
             from pathlib import Path
             import time
 
-            db_name = DB_URL_TEST.split("/")[-1]
-            db_driver = DB_URL_TEST.split(":")[0]
+            db_name = db_url.split("/")[-1]
+            db_driver = db_url.split(":")[0]
 
             if db_driver == "sqlite":
                 db_path = Path(db_name).resolve()
@@ -164,11 +165,13 @@ main_router.include_router(auth.router)
 app.include_router(main_router)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8000"] if debug else [cors_host],
+    allow_origins=["http://localhost:4200"] if debug else [cors_host],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(auth.oauth_router)
 
 class SPAStaticFiles(StaticFiles):
     def __init__(self, directory: str="dist/hospital-sdlg/browser", html: bool=True, check_dir: bool=True, api_prefix: UUID=id_prefix, index_file: str="index.html"):
@@ -207,4 +210,16 @@ class SPAStaticFiles(StaticFiles):
 async def get_secret():
     return {"id_prefix_api_secret": str(id_prefix)}
 
-app.mount("/", SPAStaticFiles(), name="spa")
+@app.get("/test/oauth/")
+async def oauth_index(request: Request):
+    return templates.TemplateResponse(request, name=parser_name(folders=["test", "oauth"], name="index"))
+
+@app.get("/test/oauth/login")
+async def oauth_index(request: Request):
+    return templates.TemplateResponse(request, name=parser_name(folders=["test", "oauth"], name="login"))
+
+#@app.get("/user_panel")
+#async def user_panel(request:Request):
+    #return templates.TemplateResponse(request, name=parser_name(folders=["test", "oauth"], name="panel"))
+
+#app.mount("/", SPAStaticFiles(), name="spa")

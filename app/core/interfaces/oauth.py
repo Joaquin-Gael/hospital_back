@@ -1,0 +1,81 @@
+from typing import Any, Dict, Tuple
+
+from fastapi import Response
+
+from rich.console import Console
+
+from orjson import loads
+from urllib.parse import urlencode
+import requests as r
+
+from app.config import google_client_id, google_client_secret, cors_host, google_oauth_url, google_oauth_token_url, google_oauth_userinfo_url, debug
+from app.core.auth import gen_token, encode
+from app.core.interfaces.users import UserRepository
+from app.models import User
+
+console= Console()
+
+class OauthCallbackError(Exception):
+    def __init__(self, message: str = "Error during OAuth callback."):
+        self.message = message
+        super().__init__(self.message)
+
+def get_user_data(access_token: str) -> Dict[str, str | bool | int | None]:
+    headers = {'Authorization': f'Bearer {access_token}'}
+    user_info_response = r.get(google_oauth_userinfo_url, headers=headers)
+    user_data = loads(user_info_response.content)
+    return user_data
+
+def gen_token_from_user_data(user_data: User) -> str:
+    payload = {
+        "sub": str(user_data.id),
+        "scopes": ["google", "user"]
+    }
+    
+    return gen_token(payload=payload, refresh=False)
+
+
+class OauthRepository:
+    @staticmethod
+    def google_oauth() -> Response:
+
+        payload:Dict = {
+            'client_id': google_client_id,
+            'redirect_uri': f'{cors_host}/oauth/webhook/google_callback',
+            'response_type':'code',
+            'scope':'openid email profile',
+            'access_type':'offline',
+            'prompt':'select_account',
+        }
+        
+        return Response(status_code=302, headers={"Location": f"{google_oauth_url}?{urlencode(payload)}"})
+
+        
+        
+    @staticmethod
+    def google_callback(code: str) -> Tuple[Dict[str, Any], bool, Response]:
+        payload:Dict = {
+            'client_id': google_client_id,
+            'client_secret': google_client_secret,
+            'redirect_uri': f'{cors_host}/oauth/webhook/google_callback',
+            'grant_type': 'authorization_code',
+            'code': code,
+        }
+
+        response = r.post(google_oauth_token_url, data=payload)
+
+        data = loads(response.content.decode('utf-8'))
+        
+        if "error" in data:
+            raise OauthCallbackError(data["error"])
+        
+        user_data = get_user_data(data['access_token'])
+        
+        user, exist = UserRepository.create_google_user(user_data)
+        
+        user_data.setdefault("access_token", gen_token_from_user_data(user))
+
+        return user_data, exist, Response(
+            status_code=302,
+            headers={"Location": f"{cors_host}/user_panel?{urlencode(user_data)}" if not debug else f"http://localhost:4200/user_panel?{urlencode(user_data)}" }
+        )

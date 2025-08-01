@@ -24,6 +24,11 @@ console = Console()
 
 STORAGE_PATH: Path = (Path(__file__).parent / "storage.json").resolve()
 
+class NoneResult(Exception):
+    def __init__(self, message: str = "Result is None"):
+        self.message = message
+        super().__init__(self.message)
+
 def timeit(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -152,7 +157,7 @@ class Singleton(metaclass=PurgeMeta):
             items={}
         )
         self.data.tables[table_name] = table
-        print(self.data)
+        console.print(self.data)
         self._mark_dirty()
         return table
 
@@ -165,16 +170,26 @@ class Singleton(metaclass=PurgeMeta):
     def get(self, key: str, table_name: str) -> GetItem | None:
         self._load()
         return self.data.tables[table_name].items.get(key, None)
+    
+    def get_by_parameter(self, parameter: str, equals: Any, table_name: str) -> GetItem:
+        self._load()
+        for item in self.data.tables[table_name].items:
+            data = item.get(parameter, None)
+            if data:
+                if type(data) == type(equals) and data == equals:
+                    return item
+                else:
+                    continue
+        raise NoneResult(f"No exist item whit {parameter} = {equals}")
 
-
-    def set(self, key = None, value = None, table_name: str = "") -> SetItem:
+    def set(self, key = None, value = None, table_name: str = "", long_live: bool = False) -> SetItem:
         item = SetItem(
             key=key,
             value=value,
             created=datetime.now(),
             updated=datetime.now(),
             id=uuid4(),
-            expired=datetime.now() + timedelta(minutes=15)
+            expired=datetime.now() + timedelta(minutes=15) if not long_live else datetime.now() + timedelta(days=30)
         )
         self.data.tables[table_name].items[key] = item
         self._mark_dirty()
@@ -188,12 +203,13 @@ class Singleton(metaclass=PurgeMeta):
         self.data.tables[table_name].clear()
         self._mark_dirty()
 
-    def update(self, key, value, table_name) -> None:
+    def update(self, key, value, table_name, long_live: bool = False) -> None:
         item: GetItem = self.get(key, table_name)
         if item is None:
             self.set(key, value, table_name)
             return
         item.value = value
-        item.updated = datetime.now()
+        item.value.updated = datetime.now()
+        item.value.expired = datetime.now() + timedelta(minutes=15) if not long_live else datetime.now() + timedelta(days=30)
         self.data.tables[table_name].items[key] = item
         self._mark_dirty()
