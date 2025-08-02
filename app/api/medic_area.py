@@ -103,7 +103,7 @@ from app.schemas.medica_area import (
     HealthInsuranceCreate
 )
 from app.db.main import SessionDep
-from app.core.auth import JWTBearer, JWTWebSocket, OauthCodeInput
+from app.core.auth import JWTBearer, JWTWebSocket
 
 auth = JWTBearer()
 ws_auth = JWTWebSocket()
