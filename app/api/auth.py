@@ -16,8 +16,8 @@ from app.core.interfaces.oauth import OauthRepository
 from app.core.interfaces.users import UserRepository
 from app.core.interfaces.emails import EmailService
 from app.schemas.users import UserAuth
-from app.schemas.auth import TokenUserResponse, TokenDoctorsResponse
-from app.schemas.medica_area import DoctorAuth, DoctorResponse, OauthCodeInput
+from app.schemas.auth import TokenUserResponse, TokenDoctorsResponse, OauthCodeInput
+from app.schemas.medica_area import DoctorAuth, DoctorResponse
 from app.storage import storage
 
 console = Console()
