@@ -1627,7 +1627,7 @@ async def get_turns(request: Request, session: SessionDep):
 
 @turns.get("/{user_id}", response_model=List[TurnsResponse])
 async def get_turn_by_user_id(request: Request, session: SessionDep, user_id: UUID):
-    user = request.user
+    user = request.state.user
     try:
         turns_serialized = [
             TurnsResponse(
