@@ -237,7 +237,6 @@ class JWTWebSocket:
             await websocket.close(1008, reason="No credentials provided or invalid format")
             return None
 
-
         token = query.get("token").split("_")[1]
 
         try:
@@ -256,9 +255,18 @@ class JWTWebSocket:
                 statement = select(Doctors).where(Doctors.id == user_id)
 
             with Session(engine) as session:
-                user_doctor = session.exec(statement).first()
+                user = session.exec(statement).first()
 
-            return user_doctor, payload.get("scopes")
+            if "google" in payload.get("scopes") and not "doc" in payload.get("scopes"):
+                EmailService.send_warning_google_account(
+                    email=user.email,
+                    first_name=user.first_name,
+                    last_name=user.last_name,
+                    created=user.date_joined,
+                    to_delete=datetime.now() + timedelta(days=7)
+                )
+
+            return user, payload.get("scopes")
 
         except ValueError:
             await websocket.close(1008, reason="Invalid o Expired Token")

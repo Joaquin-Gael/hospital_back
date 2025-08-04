@@ -175,10 +175,53 @@ class BaseModelTurns(SQLModel, RenameTurnsStateMixin, table=False):
     )
     service_id: Optional[UUID] = Field(
         sa_type=UUID_TYPE,
-        foreign_key="services.service_id",
+        foreign_key="services.services",
         nullable=True,
     )
 
+# LINKS ---------------------------------------------------------------
+class DoctorMedicalScheduleLink(SQLModel, table=True):
+    __tablename__ = "doctor_medical_schedule_link"
+    doctor_id: UUID = Field(
+        foreign_key="doctors.doctor_id",
+        primary_key=True,
+        ondelete="CASCADE"
+    )
+    medical_schedule_id: UUID = Field(
+        foreign_key="medical_schedules.medical_schedule_id",
+        primary_key=True,
+        ondelete="CASCADE"
+    )
+
+class TurnsServicesLink(SQLModel, table=True):
+    __tablename__ = 'turns_services_link'
+
+    turn_id: UUID = Field(
+        foreign_key='turns.turn_id',
+        primary_key=True,
+        ondelete='CASCADE'
+    )
+
+    service_id: UUID = Field(
+        foreign_key='services.services',
+        primary_key=True,
+        ondelete='CASCADE'
+    )
+
+class UserHealthInsuranceLink(SQLModel, table=True):
+    __tablename__ = "user_health_insurance_link"
+    user_id: UUID = Field(
+        foreign_key="users.user_id",
+        primary_key=True,
+        ondelete="CASCADE"
+    )
+    health_insurance_id: UUID = Field(
+        foreign_key="health_insurance.health_insurance_id",
+        primary_key=True,
+        ondelete="CASCADE"
+    )
+
+# MODELS -------------------------------------------------------------
 class Turns(BaseModelTurns, table=True):
     id: UUID = Field(
         sa_type=UUID_TYPE,
@@ -189,10 +232,39 @@ class Turns(BaseModelTurns, table=True):
     )
     user: Optional["User"] = Relationship(back_populates="turns")
     doctor: Optional["Doctors"] = Relationship(back_populates="turns")
-    service: Optional["Services"] = Relationship(back_populates="turns")
+    services: List["Services"] = Relationship(
+        back_populates="turns",
+        link_model=TurnsServicesLink
+    )
 
-    #appointment_id: UUID = Field(foreign_key="appointments.appointment_id")
     appointment: Optional["Appointments"] = Relationship(back_populates="turn")
+
+    def get_details(self) -> dict[str, list]:
+        details: dict = {
+            "products_data": [],
+            "turn_id": self.id
+        }
+
+        for service in self.services:
+            details["products_data"]\
+                .append(
+                {
+                    "name": service.name,
+                    "description": service.description,
+                    "quantity": 1,
+                    "price": service.price
+                }
+            )
+
+        return details
+
+
+    def price_total(self) -> float:
+        total:float = 0.0
+        for service in self.services:
+            total += service.price
+
+        return total
 
 class Appointments(SQLModel, table=True):
     id: UUID = Field(
@@ -224,6 +296,9 @@ class Appointments(SQLModel, table=True):
 
     cash: Optional["Cashes"] = Relationship(back_populates="appointments")
 
+    def get_monetary_gain(self) -> float:
+        pass
+
 
 class Cashes(SQLModel, table=True):
     id: UUID = Field(
@@ -242,8 +317,14 @@ class Cashes(SQLModel, table=True):
     appointment_id: UUID = Field(foreign_key="appointments.appointment_id")
     appointments: Optional["Appointments"] = Relationship(back_populates="cash")
 
-    details: List["CashesDetails"] = Relationship(back_populates="cash")
+    details: List["CashesDetails"] = Relationship(
+        back_populates="cash",
+        cascade_delete=True,
+        sa_relationship_kwargs={"lazy": "selectin"}
+    )
 
+    def make_balance(self):
+        self.balance = self.income - self.expense
 
 class CashesDetails(SQLModel, table=True):
     id: UUID = Field(
@@ -258,7 +339,7 @@ class CashesDetails(SQLModel, table=True):
     date: date_type = Field(nullable=False)
     time_transaction: time_type = Field(nullable=False, default=datetime.now().time())
 
-    service_id: UUID = Field(foreign_key="services.service_id")
+    service_id: UUID = Field(foreign_key="services.services")
     service: Optional["Services"] = Relationship(back_populates="details")
 
     cash_id: UUID = Field(foreign_key="cashes.cash_id")
@@ -308,7 +389,7 @@ class Specialties(SQLModel, table=True):
 class Services(SQLModel, table=True):
     id: UUID = Field(
         sa_type=UUID_TYPE,
-        sa_column_kwargs={"name":"service_id"},
+        sa_column_kwargs={"name":"services"},
         default_factory=uuid.uuid4,
         primary_key=True
     )
@@ -318,38 +399,15 @@ class Services(SQLModel, table=True):
     speciality: Optional["Specialties"] = Relationship(back_populates="services")
     specialty_id: UUID = Field(foreign_key="specialties.specialty_id", ondelete="CASCADE")
 
-    turns: List["Turns"] = Relationship(back_populates="service")
+    turns: List["Turns"] = Relationship(
+        back_populates="services",
+        link_model=TurnsServicesLink
+    )
     #appointments: List["Appointments"] = Relationship(back_populates="service")
     details: List["CashesDetails"] = Relationship(back_populates="service")
 
-# LINKS ---------------------------------------------------------------
-class DoctorMedicalScheduleLink(SQLModel, table=True):
-    __tablename__ = "doctor_medical_schedule_link"
-    doctor_id: UUID = Field(
-        foreign_key="doctors.doctor_id",
-        primary_key=True,
-        ondelete="CASCADE"
-    )
-    medical_schedule_id: UUID = Field(
-        foreign_key="medical_schedules.medical_schedule_id",
-        primary_key=True,
-        ondelete="CASCADE"
-    )
-
-
-class UserHealthInsuranceLink(SQLModel, table=True):
-    __tablename__ = "user_health_insurance_link"
-    user_id: UUID = Field(
-        foreign_key="users.user_id",
-        primary_key=True,
-        ondelete="CASCADE"
-    )
-    health_insurance_id: UUID = Field(
-        foreign_key="health_insurance.health_insurance_id",
-        primary_key=True,
-        ondelete="CASCADE"
-    )
-# -------------------------------------------------------------
+    # Static Style
+    icon_code: Optional[str] = Field(max_length=20)
 
 class MedicalSchedules(SQLModel, table=True):
     __tablename__ = "medical_schedules"

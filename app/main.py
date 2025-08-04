@@ -14,20 +14,18 @@ from rich.panel import Panel
 
 from enum import Enum
 
-from uuid import uuid4, UUID
+from uuid import UUID
 
 from pathlib import Path
 
 from app.db.main import init_db, set_admin, migrate, test_db, db_url
-from app.api import users, medic_area, auth
-from app.config import api_name, version, debug, cors_host, templates, parser_name
+from app.api import users, medic_area, auth, cashes
+from app.config import api_name, version, debug, cors_host, templates, parser_name, id_prefix, assets_dir
 from app.storage.main import storage
 
 install(show_locals=True)
 
 console = Console()
-
-id_prefix: UUID = uuid4()
 
 main_router = APIRouter(
     prefix=f"/{str(id_prefix)}",
@@ -161,6 +159,7 @@ if debug:
 main_router.include_router(users.router)
 main_router.include_router(medic_area.router)
 main_router.include_router(auth.router)
+main_router.include_router(cashes.router)
 
 app.include_router(main_router)
 app.add_middleware(
@@ -206,6 +205,8 @@ class SPAStaticFiles(StaticFiles):
         response = FileResponse(index_path)
         await response(scope, receive, send)
 
+app.mount("/assets", StaticFiles(directory=assets_dir))
+
 @app.get("/id_prefix_api_secret/", include_in_schema=debug)
 async def get_secret():
     return {"id_prefix_api_secret": str(id_prefix)}
@@ -221,5 +222,9 @@ async def oauth_index(request: Request):
 @app.get("/user_panel")
 async def user_panel(request:Request):
     return templates.TemplateResponse(request, name=parser_name(folders=["test", "oauth"], name="panel"))
+
+@app.get("/admin")
+async def user_panel(request:Request):
+    return templates.TemplateResponse(request, name=parser_name(folders=["test", "admin"], name="admin"))
 
 #app.mount("/", SPAStaticFiles(), name="spa")

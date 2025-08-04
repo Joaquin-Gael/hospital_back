@@ -5,15 +5,21 @@ from dotenv import load_dotenv
 
 from pathlib import Path
 
+from uuid import uuid4, UUID
+
 from fastapi.templating import Jinja2Templates
 
 from app.models import User
 
 load_dotenv()
 
+id_prefix: UUID = uuid4()
+
 debug:bool = bool(int(os.getenv("DEBUG")))
 
 templates_dir = Path(__file__).parent / "templates"
+
+assets_dir = Path(__file__).parent / "assets"
 
 templates = Jinja2Templates(directory=templates_dir)
 
@@ -37,6 +43,9 @@ email_port = int(os.getenv("EMAIL_PORT"))
 email_use_tls = bool(int(os.getenv("EMAIL_USE_TLS")))
 email_host_user = os.getenv("EMAIL_HOST_USER")
 email_host_password = os.getenv("EMAIL_HOST_PASSWORD")
+
+stripe_public_key = os.getenv("STRIPE_PUBLIC_KEY")
+stripe_secret_key = os.getenv("STRIPE_SECRET_KEY")
 
 admin_username = os.getenv("ADMIN_USERNAME")
 admin_password = os.getenv("ADMIN_PASSWORD")

@@ -31,7 +31,7 @@ def upgrade() -> None:
     op.add_column('doctors', sa.Column('blood_type', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
     op.create_unique_constraint(None, 'doctors', ['doctor_id'])
     op.create_unique_constraint(None, 'locations', ['location_id'])
-    op.create_unique_constraint(None, 'services', ['service_id'])
+    op.create_unique_constraint(None, 'services', ['services'])
     op.create_unique_constraint(None, 'specialties', ['specialty_id'])
     op.create_unique_constraint(None, 'turns', ['turn_id'])
     op.add_column('users', sa.Column('blood_type', sqlmodel.sql.sqltypes.AutoString(), nullable=True))

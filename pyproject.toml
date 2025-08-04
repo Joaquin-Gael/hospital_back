@@ -26,4 +26,5 @@ dependencies = [
     "requests>=2.32.4",
     "scalar-fastapi>=1.0.3",
     "sqlmodel>=0.0.24",
+    "stripe>=12.4.0",
 ]

@@ -3,49 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel de Usuario - Dashboard Interactivo</title>
+    <title>Panel de Usuario - Dashboard Empresarial</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="/assets/test/admin/css/styles.css">
 </head>
-<body class="bg-gray-50 font-sans">
+<body class="bg-gradient-to-br from-gray-50 to-gray-100 font-sans">
     <!-- Sidebar Overlay (Mobile) -->
     <div id="sidebarOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden lg:hidden"></div>
 
     <!-- Sidebar -->
-    <div id="sidebar" class="fixed left-0 top-0 h-full w-80 bg-white shadow-lg transform -translate-x-full lg:translate-x-0 transition-transform duration-300 z-50">
-        <div class="p-6 border-b border-gray-200">
+    <div id="sidebar" class="fixed left-0 top-0 h-full w-80 bg-white shadow-2xl transform -translate-x-full lg:translate-x-0 transition-transform duration-300 z-50 border-r border-gray-200">
+        <div class="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-indigo-700">
             <div class="flex items-center justify-between">
-                <h2 class="text-xl font-bold text-gray-800">
-                    <i class="fas fa-tachometer-alt mr-2 text-blue-500"></i>
-                    Dashboard
+                <h2 class="text-xl font-bold text-white">
+                    <i class="fas fa-chart-line mr-2"></i>
+                    Analytics Pro
                 </h2>
-                <button id="toggleSidebar" class="lg:hidden text-gray-500 hover:text-gray-700">
+                <button id="toggleSidebar" class="lg:hidden text-white hover:text-gray-200 transition-colors">
                     <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
+            <p class="text-blue-100 text-sm mt-1">Dashboard Empresarial</p>
         </div>
 
         <!-- Componentes -->
         <div class="p-6 border-b border-gray-200">
             <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-4">Agregar Componentes</h3>
-            <div class="space-y-2">
-                <button onclick="createComponent('chart')" class="w-full flex items-center p-3 text-left bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
-                    <i class="fas fa-chart-bar text-blue-500 mr-3"></i>
-                    <span class="text-gray-700">Gráfico</span>
+            <div class="space-y-3">
+                <button onclick="createComponent('chart')" class="component-btn w-full flex items-center p-3 text-left bg-blue-50 hover:bg-blue-100 rounded-xl transition-all duration-200 hover:shadow-md">
+                    <div class="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center mr-3">
+                        <i class="fas fa-chart-bar text-white"></i>
+                    </div>
+                    <div>
+                        <span class="text-gray-800 font-medium">Gráfico</span>
+                        <p class="text-xs text-gray-500">Visualización de datos</p>
+                    </div>
                 </button>
-                <button onclick="createComponent('table')" class="w-full flex items-center p-3 text-left bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
-                    <i class="fas fa-table text-green-500 mr-3"></i>
-                    <span class="text-gray-700">Tabla</span>
+                <button onclick="createComponent('table')" class="component-btn w-full flex items-center p-3 text-left bg-green-50 hover:bg-green-100 rounded-xl transition-all duration-200 hover:shadow-md">
+                    <div class="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center mr-3">
+                        <i class="fas fa-table text-white"></i>
+                    </div>
+                    <div>
+                        <span class="text-gray-800 font-medium">Tabla</span>
+                        <p class="text-xs text-gray-500">Datos tabulares</p>
+                    </div>
                 </button>
-                <button onclick="createComponent('card')" class="w-full flex items-center p-3 text-left bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors">
-                    <i class="fas fa-chart-pie text-purple-500 mr-3"></i>
-                    <span class="text-gray-700">Métricas</span>
+                <button onclick="createComponent('card')" class="component-btn w-full flex items-center p-3 text-left bg-purple-50 hover:bg-purple-100 rounded-xl transition-all duration-200 hover:shadow-md">
+                    <div class="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center mr-3">
+                        <i class="fas fa-chart-pie text-white"></i>
+                    </div>
+                    <div>
+                        <span class="text-gray-800 font-medium">Métricas</span>
+                        <p class="text-xs text-gray-500">KPIs principales</p>
+                    </div>
                 </button>
-                <button onclick="createComponent('info')" class="w-full flex items-center p-3 text-left bg-yellow-50 hover:bg-yellow-100 rounded-lg transition-colors">
-                    <i class="fas fa-info-circle text-yellow-500 mr-3"></i>
-                    <span class="text-gray-700">Información</span>
+                <button onclick="createComponent('info')" class="component-btn w-full flex items-center p-3 text-left bg-orange-50 hover:bg-orange-100 rounded-xl transition-all duration-200 hover:shadow-md">
+                    <div class="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center mr-3">
+                        <i class="fas fa-info-circle text-white"></i>
+                    </div>
+                    <div>
+                        <span class="text-gray-800 font-medium">Información</span>
+                        <p class="text-xs text-gray-500">Panel informativo</p>
+                    </div>
                 </button>
             </div>
         </div>
@@ -54,11 +75,11 @@
         <div class="p-6 flex-1 overflow-hidden">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Historial</h3>
-                <button onclick="clearHistory()" class="text-xs text-red-500 hover:text-red-700">
+                <button onclick="clearHistory()" class="text-xs text-red-500 hover:text-red-700 transition-colors">
                     <i class="fas fa-trash mr-1"></i>Limpiar
                 </button>
             </div>
-            <div id="promptHistory" class="space-y-2 overflow-y-auto max-h-96">
+            <div id="promptHistory" class="space-y-2 overflow-y-auto max-h-96 custom-scrollbar">
                 <p class="text-gray-500 text-sm">No hay prompts recientes</p>
             </div>
         </div>
@@ -67,179 +88,80 @@
     <!-- Main Content -->
     <div class="lg:ml-80 min-h-screen">
         <!-- Header -->
-        <header class="bg-white shadow-sm border-b border-gray-200 p-4">
-            <div class="flex items-center justify-between">
+        <header class="bg-white shadow-sm border-b border-gray-200 backdrop-blur-sm bg-white/95">
+            <div class="flex items-center justify-between p-6">
                 <div class="flex items-center">
-                    <button id="openSidebar" class="lg:hidden mr-4 text-gray-500 hover:text-gray-700">
+                    <button id="openSidebar" class="lg:hidden mr-4 text-gray-500 hover:text-gray-700 transition-colors">
                         <i class="fas fa-bars text-xl"></i>
                     </button>
-                    <h1 class="text-2xl font-bold text-gray-800">Panel de Usuario</h1>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-800">Dashboard Empresarial</h1>
+                        <p class="text-sm text-gray-600">Análisis y métricas en tiempo real</p>
+                    </div>
                 </div>
                 <div class="flex items-center space-x-4">
-                    <div class="text-sm text-gray-600">
-                        <i class="fas fa-user-circle mr-2"></i>
-                        Usuario Demo
+                    <div class="flex items-center space-x-2 bg-gray-50 px-3 py-2 rounded-lg">
+                        <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                        <span class="text-sm text-gray-600">En línea</span>
+                    </div>
+                    <div class="flex items-center space-x-2 text-sm text-gray-600">
+                        <i class="fas fa-user-circle text-lg"></i>
+                        <span>Admin Usuario</span>
                     </div>
                 </div>
             </div>
         </header>
 
         <!-- Dashboard Area -->
-        <main class="p-6 relative">
-            <!-- Empty State -->
-            <div id="emptyState" class="flex flex-col items-center justify-center h-96 text-center">
-                <div class="bg-gray-100 rounded-full p-8 mb-6">
-                    <i class="fas fa-plus text-4xl text-gray-400"></i>
-                </div>
-                <h3 class="text-xl font-semibold text-gray-700 mb-2">¡Comienza a crear tu dashboard!</h3>
-                <p class="text-gray-500 mb-6 max-w-md">
-                    Agrega componentes desde el sidebar o chatea con la IA para crear automáticamente gráficos, tablas y más.
-                </p>
-                <button id="startChat" onclick="document.getElementById('chatPanel').classList.remove('translate-x-full')" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg transition-colors">
-                    <i class="fas fa-comments mr-2"></i>
-                    Chatear con IA
-                </button>
-            </div>
-
+        <main class="p-6 relative min-h-screen">
             <!-- Components Container -->
-            <div id="componentsContainer" class="relative min-h-[600px]">
-                <!-- Static Chart -->
-                <div id="static-chart-1" class="draggable-window" style="left: 50px; top: 50px; width: 500px; height: 350px;">
-                    <div class="window-header">
-                        <span class="font-semibold">Ventas Mensuales</span>
-                        <div class="window-controls">
-                            <button class="window-control minimize" onclick="minimizeWindow('static-chart-1')"></button>
-                            <button class="window-control maximize" onclick="maximizeWindow('static-chart-1')"></button>
-                            <button class="window-control close" onclick="closeWindow('static-chart-1')"></button>
-                        </div>
-                    </div>
-                    <div class="window-content">
-                        <div class="chart-container">
-                            <canvas id="chart-static-1"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Static Table -->
-                <div id="static-table-1" class="draggable-window" style="left: 600px; top: 100px; width: 450px; height: 300px;">
-                    <div class="window-header">
-                        <span class="font-semibold">Últimos Pedidos</span>
-                        <div class="window-controls">
-                            <button class="window-control minimize" onclick="minimizeWindow('static-table-1')"></button>
-                            <button class="window-control maximize" onclick="maximizeWindow('static-table-1')"></button>
-                            <button class="window-control close" onclick="closeWindow('static-table-1')"></button>
-                        </div>
-                    </div>
-                    <div class="window-content">
-                        <div class="table-container">
-                            <table class="w-full text-sm">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="p-2 text-left">ID Pedido</th>
-                                        <th class="p-2 text-left">Cliente</th>
-                                        <th class="p-2 text-left">Total</th>
-                                        <th class="p-2 text-left">Estado</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr class="border-t">
-                                        <td class="p-2">#1001</td>
-                                        <td class="p-2">Ana López</td>
-                                        <td class="p-2">$120.50</td>
-                                        <td class="p-2"><span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">Completado</span></td>
-                                    </tr>
-                                    <tr class="border-t">
-                                        <td class="p-2">#1002</td>
-                                        <td class="p-2">Pedro Gómez</td>
-                                        <td class="p-2">$85.00</td>
-                                        <td class="p-2"><span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs">Pendiente</span></td>
-                                    </tr>
-                                    <tr class="border-t">
-                                        <td class="p-2">#1003</td>
-                                        <td class="p-2">Laura Díaz</td>
-                                        <td class="p-2">$210.75</td>
-                                        <td class="p-2"><span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">Enviado</span></td>
-                                    </tr>
-                                    <tr class="border-t">
-                                        <td class="p-2">#1004</td>
-                                        <td class="p-2">Miguel Ruiz</td>
-                                        <td class="p-2">$45.99</td>
-                                        <td class="p-2"><span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs">Cancelado</span></td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Static Card -->
-                <div id="static-card-1" class="draggable-window" style="left: 100px; top: 450px; width: 350px; height: 200px;">
-                    <div class="window-header">
-                        <span class="font-semibold">Resumen de Usuarios</span>
-                        <div class="window-controls">
-                            <button class="window-control minimize" onclick="minimizeWindow('static-card-1')"></button>
-                            <button class="window-control maximize" onclick="maximizeWindow('static-card-1')"></button>
-                            <button class="window-control close" onclick="closeWindow('static-card-1')"></button>
-                        </div>
-                    </div>
-                    <div class="window-content">
-                        <div class="grid grid-cols-2 gap-4 h-full">
-                            <div class="metric-card bg-gradient-blue">
-                                <i class="fas fa-users text-2xl mb-2"></i>
-                                <h3 class="text-lg font-bold">1,234</h3>
-                                <p class="text-sm opacity-90">Usuarios Activos</p>
-                            </div>
-                            <div class="metric-card bg-gradient-green">
-                                <i class="fas fa-user-plus text-2xl mb-2"></i>
-                                <h3 class="text-lg font-bold">87</h3>
-                                <p class="text-sm opacity-90">Nuevos Registros</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <div id="componentsContainer" class="relative min-h-[800px]">
+                <!-- Los componentes estáticos se generarán aquí con JavaScript -->
             </div>
         </main>
     </div>
 
     <!-- Chat Panel -->
-    <div id="chatPanel" class="fixed right-0 top-0 h-full w-96 bg-white shadow-xl transform translate-x-full transition-transform duration-300 z-50 flex flex-col">
+    <div id="chatPanel" class="fixed right-0 top-0 h-full w-96 bg-white shadow-2xl transform translate-x-full transition-transform duration-300 z-50 flex flex-col border-l border-gray-200">
         <!-- Chat Header -->
-        <div class="p-4 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-purple-600 text-white">
+        <div class="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-indigo-700 text-white">
             <div class="flex items-center justify-between">
                 <div class="flex items-center">
-                    <i class="fas fa-robot text-xl mr-3"></i>
+                    <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center mr-3">
+                        <i class="fas fa-robot text-lg"></i>
+                    </div>
                     <div>
                         <h3 class="font-semibold">Asistente IA</h3>
-                        <p class="text-xs opacity-90">Siempre disponible</p>
+                        <p class="text-xs opacity-90">Siempre disponible para ayudarte</p>
                     </div>
                 </div>
-                <button id="toggleChat" class="text-white hover:text-gray-200">
+                <button id="toggleChat" class="text-white hover:text-gray-200 transition-colors">
                     <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
         </div>
 
         <!-- Chat Messages -->
-        <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-4">
-            <div class="ai-message bg-gray-50 p-3 rounded-lg">
+        <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+            <div class="ai-message bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-100">
                 <div class="flex items-center mb-2">
-                    <i class="fas fa-robot mr-2"></i>
-                    <span class="font-semibold">Asistente IA</span>
+                    <i class="fas fa-robot mr-2 text-blue-600"></i>
+                    <span class="font-semibold text-blue-800">Asistente IA</span>
                 </div>
-                <p>¡Hola! Soy tu asistente de dashboard. Puedo ayudarte a crear gráficos, tablas, cards y más. Solo dime qué necesitas.</p>
+                <p class="text-gray-700">¡Hola! Soy tu asistente de dashboard empresarial. Puedo ayudarte a crear gráficos, tablas, métricas y más componentes analíticos. ¿Qué necesitas visualizar hoy?</p>
             </div>
         </div>
 
         <!-- Chat Input -->
-        <div class="p-4 border-t border-gray-200">
+        <div class="p-4 border-t border-gray-200 bg-gray-50">
             <div class="flex space-x-2">
                 <input
                     id="chatInput"
                     type="text"
                     placeholder="Escribe tu mensaje..."
-                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    class="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 >
-                <button id="sendMessage" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors">
+                <button id="sendMessage" class="bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white px-6 py-3 rounded-xl transition-all duration-200 hover:shadow-lg">
                     <i class="fas fa-paper-plane"></i>
                 </button>
             </div>
@@ -247,10 +169,10 @@
     </div>
 
     <!-- Chat Toggle Button -->
-    <button id="openChat" class="fixed bottom-6 right-6 bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 z-40">
+    <button id="openChat" class="fixed bottom-6 right-6 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white p-4 rounded-full shadow-xl hover:shadow-2xl transition-all duration-300 z-40 hover:scale-110">
         <i class="fas fa-comments text-xl"></i>
     </button>
 
-    <script src="script.js"></script>
+    <script src="/assets/test/admin/js/script.js"></script>
 </body>
 </html>

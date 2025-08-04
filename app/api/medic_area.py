@@ -13,7 +13,7 @@ from fastapi.responses import ORJSONResponse
 
 from sqlmodel import select
 
-from typing import List, Optional 
+from typing import List, Optional, Dict
 
 from rich import print
 from rich.console import Console
@@ -104,6 +104,8 @@ from app.schemas.medica_area import (
 )
 from app.db.main import SessionDep
 from app.core.auth import JWTBearer, JWTWebSocket
+from app.core.interfaces.medic_area import TurnAndAppointmentRepository
+from app.core.services.stripe_payment import StripeServices
 
 auth = JWTBearer()
 ws_auth = JWTWebSocket()
@@ -987,6 +989,7 @@ async def get_locations_all_data(request: Request, session: SessionDep):
                             description=service.description,
                             price=service.price,
                             specialty_id=service.specialty_id,
+                            icon_code=service.icon_code
                         )
                     )
                 #statement = select(Doctors).where(Doctors.speciality_id == specialty.id)
@@ -1018,7 +1021,8 @@ async def get_locations_all_data(request: Request, session: SessionDep):
                         description=specialty.description,
                         department_id=specialty.department_id,
                         services=services_serialized,
-                        doctors=doctors_serialized
+                        doctors=doctors_serialized,
+                        icon_type=specialty.icon_code
                     )
                 )
             departments_serialized.append(
@@ -1138,6 +1142,7 @@ async def get_services(request: Request, session: SessionDep):
                 description=service.description,
                 price=service.price,
                 specialty_id=service.specialty_id,
+                icon_code=service.icon_code
             ).model_dump()
         )
 
@@ -1154,7 +1159,8 @@ async def set_service(request: Request, session: SessionDep, service: ServiceCre
             name=service.name,
             description=service.description,
             price=service.price,
-            specialty_id=service.specialty_id
+            specialty_id=service.specialty_id,
+            icon_code=service.icon_code
         )
 
         session.add(new_service)
@@ -1167,7 +1173,8 @@ async def set_service(request: Request, session: SessionDep, service: ServiceCre
                 name=service.name,
                 description=service.description,
                 price=service.price,
-                specialty_id=service.specialty_id
+                specialty_id=service.specialty_id,
+                icon_code=service.icon_code
             ).model_dump()
         )
     except Exception as e:
@@ -1176,7 +1183,7 @@ async def set_service(request: Request, session: SessionDep, service: ServiceCre
             "error": str(e),
         }, status_code=status.HTTP_400_BAD_REQUEST)
 
-@services.delete("/delete/{service_id}/", response_model=ServiceDelete)
+@services.delete("/delete/{services}/", response_model=ServiceDelete)
 async def delete_service(request: Request, session: SessionDep, service_id :UUID):
     try:
         service = session.exec(select(Services).where(Services.id == service_id)).first()
@@ -1194,7 +1201,7 @@ async def delete_service(request: Request, session: SessionDep, service_id :UUID
         console.print_exception(show_locals=True)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
-@services.patch("/update/{service_id}/", response_model=ServiceResponse)
+@services.patch("/update/{services}/", response_model=ServiceResponse)
 async def update_service(request: Request, session: SessionDep, service_id: UUID, service: ServiceUpdate):
 
     if not request.state.user.is_superuser:
@@ -1223,7 +1230,8 @@ async def update_service(request: Request, session: SessionDep, service_id: UUID
             name=new_service.name,
             description=new_service.description,
             price=new_service.price,
-            specialty_id=new_service.specialty_id
+            specialty_id=new_service.specialty_id,
+            icon_code=new_service.icon_code
         ).model_dump()
     )
 
@@ -1255,7 +1263,8 @@ async def get_specialities(request: Request, session: SessionDep):
                     name=service.name,
                     description=service.description,
                     price=service.price,
-                    specialty_id=service.specialty_id
+                    specialty_id=service.specialty_id,
+                    icon_code=service.icon_code
                 )
             )
 
@@ -1619,7 +1628,7 @@ async def get_turns(request: Request, session: SessionDep):
                 user_id=turn.user_id,
                 doctor_id=turn.doctor_id,
                 appointment_id=turn.appointment_id,
-                service_id=turn.service_id
+                service=turn.service_id
             )
         )
 
@@ -1675,43 +1684,34 @@ async def get_turn(request: Request, session: SessionDep, turn_id: UUID):
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-@turns.post("/add/", response_model=TurnsResponse)
+@turns.post("/add/", response_model=Dict[str, TurnsResponse | str])
 async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
     if "doc" in request.state.scopes and turn.doctor_id == request.user.id:
         if turn.user_id is None:
             raise HTTPException(status_code=400, detail="user_id is required")
 
         try:
-            new_turn = Turns(
-                reason=turn.reason,
-                state=turn.state,
-                date=turn.date,
-                date_limit=turn.date_limit,
-                user_id=turn.id,
-                doctor_id=turn.doctor_id,
-                appointment_id=turn.appointment_id,
-                service_id=turn.service_id
+            new_turn, new_appointment = await TurnAndAppointmentRepository.create_turn_and_appointment(
+                session=session,
+                turn=turn
             )
-            new_appointment = Appointments(
-                user_id = new_turn.id,
-                doctor_id = new_turn.doctor_id,
-                turn_id = new_turn.id,
-            )
-            session.add(new_turn)
-            session.add(new_appointment)
-            session.commit()
-            session.refresh(new_turn)
-            session.refresh(new_appointment)
+
+            response = await StripeServices.proces_payment(price=new_turn.price_total(), details=new_turn.get_details())
+
             return ORJSONResponse(
-                TurnsResponse(
-                    id=new_turn.id,
-                    reason=turn.reason,
-                    state=turn.state,
-                    date=turn.date,
-                    date_limit=turn.date_limit,
-                    date_created=new_turn.date_created,
-                    user_id=new_turn.user_id,
-                ).model_dump()
+                {
+                    "turn":TurnsResponse(
+                        id=new_turn.id,
+                        reason=turn.reason,
+                        state=turn.state,
+                        date=turn.date,
+                        date_limit=turn.date_limit,
+                        date_created=new_turn.date_created,
+                        user_id=new_turn.user_id,
+                    ).model_dump(),
+                    "payment_url": response
+                },
+                status_code=status.HTTP_201_CREATED
             )
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e))
@@ -1726,7 +1726,7 @@ async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
             user_id=session_user.id,
             doctor_id=turn.doctor_id,
             appointment_id=turn.appointment_id,
-            service_id=turn.service_id
+            service_id=turn.services
         )
         new_turn.user = session_user
         new_appointment = Appointments(

@@ -117,6 +117,7 @@ class ServiceBase(BaseModel):
     description: str
     price: float
     specialty_id: UUID
+    icon_code: Optional[str] = None
 
 class ServiceCreate(ServiceBase):
     pass
@@ -125,6 +126,7 @@ class ServiceUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     price: Optional[float] = None
+    icon_code: Optional[str] = None
     specialty_id: Optional[UUID] = None
 
 class ServiceResponse(ServiceBase):
@@ -280,12 +282,18 @@ class TurnsBase(BaseModel):
     date_created: date_type
     user_id: Optional[UUID] = None
     doctor_id: Optional[UUID] = None
-    service_id: Optional[UUID] = None
+    services: Optional[List[UUID]] = None
     appointment_id: Optional[UUID] = None
     date_limit: date_type
 
-class TurnsCreate(TurnsBase):
-    pass
+class TurnsCreate(BaseModel):
+    reason: Optional[str] = None
+    state: TurnsState
+    date: date_type
+    date_created: date_type
+    user_id: Optional[UUID] = None
+    doctor_id: Optional[UUID] = None
+    services: List[UUID] = []
 
 class TurnsUpdate(BaseModel):
     id: Optional[UUID] = None
