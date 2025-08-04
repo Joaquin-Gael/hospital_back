@@ -16,7 +16,7 @@ from app.core.interfaces.oauth import OauthRepository
 from app.core.interfaces.users import UserRepository
 from app.core.interfaces.emails import EmailService
 from app.schemas.users import UserAuth
-from app.schemas.auth import TokenUserResponse, TokenDoctorsResponse
+from app.schemas.auth import TokenUserResponse, TokenDoctorsResponse, OauthCodeInput
 from app.schemas.medica_area import DoctorAuth, DoctorResponse
 from app.storage import storage
 
@@ -42,8 +42,8 @@ async def get_scopes(request: Request, _=Depends(auth)):
     })
 
 @router.post("/decode/")
-async def decode_hex(code: str):
-    bytes_code = bytes.fromhex(code)
+async def decode_hex(data: OauthCodeInput):
+    bytes_code = bytes.fromhex(data.code)
     return decode(bytes_code, dict)
 
 @router.post("/doc/login", response_model=TokenDoctorsResponse)

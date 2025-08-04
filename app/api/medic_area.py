@@ -13,7 +13,7 @@ from fastapi.responses import ORJSONResponse
 
 from sqlmodel import select
 
-from typing import List
+from typing import List, Optional 
 
 from rich import print
 from rich.console import Console
@@ -1625,9 +1625,9 @@ async def get_turns(request: Request, session: SessionDep):
 
     return ORJSONResponse(turns_serialized)
 
-@turns.get("/{user_id}", response_model=List[TurnsResponse])
+@turns.get("/{user_id}", response_model=Optional[List[TurnsResponse]])
 async def get_turn_by_user_id(request: Request, session: SessionDep, user_id: UUID):
-    user = request.user
+    user = session.get(User, request.state.user.id)
     try:
         turns_serialized = [
             TurnsResponse(

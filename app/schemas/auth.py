@@ -13,3 +13,6 @@ class TokenDoctorsResponse(BaseModel):
     token_type: str
     refresh_token: str
     doc: DoctorResponse
+
+class OauthCodeInput(BaseModel):
+    code: str
