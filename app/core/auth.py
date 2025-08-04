@@ -205,7 +205,7 @@ class JWTBearer:
             with Session(engine) as session:
                 user = session.exec(statement).first()
 
-            if "google" in payload.get("scopes"):
+            if "google" in payload.get("scopes") and not "doc" in payload.get("scopes"):
                 EmailService.send_warning_google_account(
                     email=user.email,
                     first_name=user.first_name,
