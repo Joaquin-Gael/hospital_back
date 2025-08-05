@@ -23,20 +23,15 @@ def set_or_update_google_user(user: User, user_data: dict) -> None:
     try:
         item = storage.get_by_parameter(parameter="email", equals=user.email, table_name="google-user-data")
 
-        console.print(item)
-
-        if not item:
-            console.rule("not item")
-            storage.set(key=str(user.id), value=user_data, table_name="google-user-data", long_live=True)
-            return
-        else:
-            console.rule("si item")
-            storage.update(key=item.key, value=user_data, table_name="google-user-data", long_live=True)
-            return
-
     except NoneResultException:
         console.print_exception(show_locals=True)
-        return
+        item = None
+
+    if item:
+        item.value.update(user_data)
+        storage.set(key=item.key, value=item.value, table_name="google-user-data", long_live=True)
+    else:
+        storage.set(key=str(user.id), value=user_data, table_name="google-user-data", long_live=True)
 
 
 class UserRepository:

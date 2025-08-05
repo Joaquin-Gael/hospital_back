@@ -1183,7 +1183,7 @@ async def set_service(request: Request, session: SessionDep, service: ServiceCre
             "error": str(e),
         }, status_code=status.HTTP_400_BAD_REQUEST)
 
-@services.delete("/delete/{services}/", response_model=ServiceDelete)
+@services.delete("/delete/{service_id}", response_model=ServiceDelete)
 async def delete_service(request: Request, session: SessionDep, service_id :UUID):
     try:
         service = session.exec(select(Services).where(Services.id == service_id)).first()
@@ -1250,14 +1250,13 @@ async def get_specialities(request: Request, session: SessionDep):
     statement = select(Specialties)
     result: List["Specialties"] = session.exec(statement).all()
 
-    specialities: List[SpecialtyResponse] = []
+    specialities_serialized: List[SpecialtyResponse] = []
     for speciality in result:
-        statement = select(Services).where(Services.specialty_id == speciality.id)
-        result: List["Services"] = session.exec(statement).all()
+        result: List["Services"] = speciality.services
 
-        services: List[ServiceResponse] = []
+        services_serialized: List[ServiceResponse] = []
         for service in result:
-            services.append(
+            services_serialized.append(
                 ServiceResponse(
                     id=service.id,
                     name=service.name,
@@ -1271,9 +1270,9 @@ async def get_specialities(request: Request, session: SessionDep):
         statement = select(Doctors).where(Doctors.speciality_id == speciality.id)
         result: List["Doctors"] = session.exec(statement).all()
 
-        doctors: List[DoctorResponse] = []
+        doctors_serialized: List[DoctorResponse] = []
         for doc in result:
-            doctors.append(
+            doctors_serialized.append(
                 DoctorResponse(
                     id=doc.id,
                     is_active=doc.is_active,
@@ -1291,19 +1290,19 @@ async def get_specialities(request: Request, session: SessionDep):
                 )
             )
 
-        specialities.append(
+        specialities_serialized.append(
             SpecialtyResponse(
                 id=speciality.id,
                 name=speciality.name,
                 description=speciality.description,
                 department_id=speciality.department_id,
-                doctors=doctors,
-                services=services
+                doctors=doctors_serialized,
+                services=services_serialized
             ).model_dump()
         )
 
     return ORJSONResponse(
-        specialities,
+        specialities_serialized,
         status_code=status.HTTP_200_OK
     )
 

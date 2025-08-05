@@ -99,8 +99,8 @@ app = FastAPI(
         "name": "MIT",
         "url": "https://opensource.org/licenses/MIT"
     },
-    docs_url=None,
-    redoc_url=None,
+    docs_url="/docs",
+    redoc_url="/redoc",
     debug=debug,
     redirect_slashes=True
 )

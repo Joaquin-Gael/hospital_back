@@ -194,7 +194,14 @@ class DoctorDelete(BaseModel):
 
 class DoctorAuth(BaseModel):
     email: EmailStr
-    password: str
+    password: constr(min_length=8)
+
+    @classmethod
+    @field_validator("email", mode="before")
+    def email_validator(cls, v: EmailStr):
+        if "ñ" in v or "Ñ" in v:
+            raise ValueError("El valor de email no puede contener ñ.")
+        return v
 
 # ------------------------ MEDICAL SCHEDULES ------------------------
 

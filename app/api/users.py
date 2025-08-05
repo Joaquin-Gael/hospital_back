@@ -1,11 +1,9 @@
-import uuid
-
-from fastapi import APIRouter, Request, Depends, HTTPException, status, UploadFile
+from fastapi import APIRouter, Request, Depends, HTTPException, status, Form
 from fastapi.responses import ORJSONResponse
 
 from sqlalchemy import select
 
-from typing import List
+from typing import List, Annotated
 
 from rich.console import Console
 
@@ -17,7 +15,7 @@ import sys
 
 from app.schemas.users import UserRead, UserCreate, UserDelete, UserUpdate, UserPasswordUpdate, \
     UserPetitionPasswordUpdate
-from app.models import User
+from app.models import User, HealthInsurance
 from app.core.auth import JWTBearer
 from app.db.main import SessionDep
 from app.core.interfaces.emails import EmailService
@@ -141,7 +139,7 @@ async def me_user(request: Request):
     })
 
 @public_router.post("/add/", response_model=UserRead)
-async def add_user(session: SessionDep, user: UserCreate, img_profile: UploadFile):
+async def add_user(session: SessionDep, user: Annotated[UserCreate, Form(..., media_type="multipart/form-data")]):
     try:
         user_db = User(
             email=user.email,
@@ -154,7 +152,7 @@ async def add_user(session: SessionDep, user: UserCreate, img_profile: UploadFil
             blood_type=user.blood_type
         )
         user_db.set_password(user.password)
-        await user_db.save_profile_image(img_profile)
+        await user_db.save_profile_image(user.img_profile) if user.img_profile else None
         session.add(user_db)
         session.commit()
         session.refresh(user_db)
@@ -204,25 +202,34 @@ async def delete_user(request: Request, user_id: UUID, session: SessionDep):
         return ORJSONResponse({"error": "User not found"}, status_code=404)
 
 @private_router.patch("/update/{user_id}/", response_model=UserRead)
-async def update_user(request: Request, user_id: UUID, session: SessionDep, user_form: UserUpdate, img_profile: UploadFile):
+async def update_user(request: Request, user_id: UUID, session: SessionDep, user_form: Annotated[UserUpdate, Form(..., media_type="multipart/form-data")]):
 
     if not request.state.user.id == user_id and not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un unauthorized")
 
     statement = select(User).where(User.id == user_id)
-    user: User = session.exec(statement).first()
+    user: User = session.exec(statement).scalars().first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
 
     form_fields: List[str] = user_form.__fields__.keys()
 
     for field in form_fields:
         value = getattr(user_form, field, None)
-        if value is not None and field != "username":
+        if not field in ["username", "health_insurance_id", "img_profile"] and value is not None:
             setattr(user, field, value)
-        elif field == "username":
+        elif field == "username" and value is not None:
+            if not value:
+                raise HTTPException(status_code=400, detail="Username cannot be empty")
             user.name = user_form.username
+        elif field  == "health_insurance_id" and value is not None:
+            user.health_insurance.append(session.get(HealthInsurance, user_form.health_insurance_id))
+        else:
+            continue
 
-    if img_profile:
-        await user.save_profile_image(img_profile)
+    if user_form.img_profile and not "google" in request.state.scopes:
+        await user.save_profile_image(user_form.img_profile)
 
     session.add(user)
     session.commit()
@@ -236,7 +243,7 @@ async def update_user(request: Request, user_id: UUID, session: SessionDep, user
             is_superuser=user.is_superuser,
             last_login=user.last_login,
             date_joined=user.date_joined,
-            username=user.name,
+            username=user.username,
             email=user.email,
             first_name=user.first_name,
             last_name=user.last_name,

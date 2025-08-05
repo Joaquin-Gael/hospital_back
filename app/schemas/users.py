@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from fastapi import UploadFile
+
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr, constr, field_validator
@@ -26,6 +28,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: constr(min_length=8)
+    img_profile: UploadFile = None
 
 class UserRead(UserBase):
     id: UUID
@@ -40,6 +43,10 @@ class UserUpdate(BaseModel):
     username: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    address: Optional[str] = None
+    telephone: Optional[str] = None
+    health_insurance_id: Optional[UUID] = None
+    img_profile: Optional[UploadFile] = None
 
 class UserHeathInsuranceUpdate(BaseModel):
     heath_insurance_id: Optional[UUID] = None

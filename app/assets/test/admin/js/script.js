@@ -6,7 +6,7 @@ import {
   ChartLegend,
   ChartLegendContent,
   ChartStyle
-} from "/assets/test/admin/js/ui/chart"
+} from "@/components/ui/chart"
 // Variables globales
 let componentCounter = 0
 let activeWindow = null
@@ -74,15 +74,19 @@ const enterpriseData = {
 
 // Inicialización de la aplicación
 document.addEventListener("DOMContentLoaded", () => {
+  console.log("DOM loaded, initializing app...")
+
   initializeEventListeners()
   loadPromptHistory()
-  createStaticComponents()
-  updateEmptyState()
+
+  // Crear componentes estáticos con un pequeño delay para asegurar que el DOM esté listo
+  setTimeout(() => {
+    createStaticComponents()
+    updateEmptyState()
+  }, 500)
 
   // Añadir animaciones de entrada a elementos existentes
   const sidebar = document.getElementById("sidebar")
-  const chatPanel = document.getElementById("chatPanel")
-
   if (sidebar) {
     sidebar.classList.add("slide-up")
   }
@@ -143,23 +147,39 @@ function closeSidebar() {
 
 // Crear componentes estáticos al cargar
 function createStaticComponents() {
-  // Gráfico de ventas
-  createStaticChart('sales-chart', 'Ventas Mensuales 2024', 100, 80, 520, 360, 'line')
+  // Limpiar el contenedor primero
+  const container = document.getElementById('componentsContainer')
+  container.innerHTML = ''
+
+  // Gráfico de ventas mensuales
+  setTimeout(() => {
+    createStaticChart('sales-chart', 'Ventas Mensuales 2024', 100, 80, 520, 360, 'line')
+  }, 100)
 
   // Gráfico de ingresos por trimestre
-  createStaticChart('revenue-chart', 'Ingresos por Trimestre', 650, 80, 480, 360, 'doughnut')
+  setTimeout(() => {
+    createStaticChart('revenue-chart', 'Ingresos por Trimestre', 650, 80, 480, 360, 'doughnut')
+  }, 200)
 
   // Tabla de pedidos
-  createStaticTable('orders-table', 'Últimos Pedidos', 100, 480, 600, 320, enterpriseData.ordersTable, ['ID Pedido', 'Cliente', 'Monto', 'Estado', 'Fecha'])
+  setTimeout(() => {
+    createStaticTable('orders-table', 'Últimos Pedidos', 100, 480, 600, 320, enterpriseData.ordersTable, ['ID Pedido', 'Cliente', 'Monto', 'Estado', 'Fecha'])
+  }, 300)
 
   // Tabla de clientes
-  createStaticTable('customers-table', 'Clientes Principales', 750, 480, 550, 320, enterpriseData.customersTable, ['ID', 'Nombre', 'Empresa', 'Valor', 'Segmento'])
+  setTimeout(() => {
+    createStaticTable('customers-table', 'Clientes Principales', 750, 480, 550, 320, enterpriseData.customersTable, ['ID', 'Nombre', 'Empresa', 'Valor', 'Segmento'])
+  }, 400)
 
   // Métricas KPI
-  createStaticMetrics('kpi-metrics', 'Métricas Principales', 1200, 80, 400, 280)
+  setTimeout(() => {
+    createStaticMetrics('kpi-metrics', 'Métricas Principales', 1200, 80, 400, 280)
+  }, 500)
 
   // Panel de información
-  createStaticInfo('info-panel', 'Resumen Ejecutivo', 1200, 400, 400, 400)
+  setTimeout(() => {
+    createStaticInfo('info-panel', 'Resumen Ejecutivo', 1200, 400, 400, 400)
+  }, 600)
 }
 
 function createStaticChart(id, title, x, y, width, height, type) {
@@ -380,7 +400,10 @@ function createStaticInfo(id, title, x, y, width, height) {
 
 function initializeChart(componentId, type) {
   const canvas = document.getElementById(`chart-${componentId}`)
-  if (!canvas) return
+  if (!canvas) {
+    console.error(`Canvas not found for ${componentId}`)
+    return
+  }
 
   let chartData, chartOptions
 
@@ -392,7 +415,11 @@ function initializeChart(componentId, type) {
       plugins: {
         legend: {
           display: true,
-          position: 'top'
+          position: 'top',
+          labels: {
+            usePointStyle: true,
+            padding: 20
+          }
         }
       },
       scales: {
@@ -402,6 +429,14 @@ function initializeChart(componentId, type) {
             callback: function(value) {
               return '$' + (value / 1000) + 'K'
             }
+          },
+          grid: {
+            color: 'rgba(0, 0, 0, 0.1)'
+          }
+        },
+        x: {
+          grid: {
+            color: 'rgba(0, 0, 0, 0.1)'
           }
         }
       }
@@ -414,17 +449,26 @@ function initializeChart(componentId, type) {
       plugins: {
         legend: {
           display: true,
-          position: 'bottom'
+          position: 'bottom',
+          labels: {
+            usePointStyle: true,
+            padding: 15
+          }
         }
       }
     }
   }
 
-  new Chart(canvas, {
-    type: type,
-    data: chartData,
-    options: chartOptions
-  })
+  try {
+    new Chart(canvas, {
+      type: type,
+      data: chartData,
+      options: chartOptions
+    })
+    console.log(`Chart ${componentId} initialized successfully`)
+  } catch (error) {
+    console.error(`Error initializing chart ${componentId}:`, error)
+  }
 }
 
 // Funciones del chat
@@ -871,11 +915,14 @@ function makeDraggable(element) {
 
 function updateEmptyState() {
   const emptyState = document.getElementById("emptyState")
-  const hasComponents = document.getElementById("componentsContainer").children.length > 0
+  const container = document.getElementById("componentsContainer")
+  const hasComponents = container && container.children.length > 0
 
   if (emptyState) {
     emptyState.style.display = hasComponents ? "none" : "flex"
   }
+
+  console.log(`Components count: ${container ? container.children.length : 0}`)
 }
 
 // Responsive mejorado

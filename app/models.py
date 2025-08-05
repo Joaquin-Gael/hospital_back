@@ -82,11 +82,19 @@ class BaseUser(SQLModel, table=False):
     def set_url_image_profile(self, file_name: str):
         self.url_image_profile = f"{os.getenv("DOMINIO")}/media/{self.__class__.__name__.lower()}/{file_name}"
 
-    async def save_profile_image(self, file: UploadFile, media_root: str = "media"):
+    async def save_profile_image(self, file: UploadFile | None, media_root: str = "media"):
+        if file is None:
+            return
+        
         cls_name = self.__class__.__name__.lower()
-
-        if self.url_image_profile:
-            os.remove(self.url_image_profile)
+        
+        try:
+            if self.url_image_profile:
+                os.remove(self.url_image_profile)
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            print(f"Error removing old profile image: {e}")
 
         folder_path = Path(media_root) / cls_name
         folder_path.mkdir(parents=True, exist_ok=True)
@@ -203,7 +211,7 @@ class TurnsServicesLink(SQLModel, table=True):
     )
 
     service_id: UUID = Field(
-        foreign_key='services.services',
+        foreign_key='services.service_id',
         primary_key=True,
         ondelete='CASCADE'
     )
@@ -339,7 +347,7 @@ class CashesDetails(SQLModel, table=True):
     date: date_type = Field(nullable=False)
     time_transaction: time_type = Field(nullable=False, default=datetime.now().time())
 
-    service_id: UUID = Field(foreign_key="services.services")
+    service_id: UUID = Field(foreign_key="services.service_id")
     service: Optional["Services"] = Relationship(back_populates="details")
 
     cash_id: UUID = Field(foreign_key="cashes.cash_id")
@@ -389,7 +397,7 @@ class Specialties(SQLModel, table=True):
 class Services(SQLModel, table=True):
     id: UUID = Field(
         sa_type=UUID_TYPE,
-        sa_column_kwargs={"name":"services"},
+        sa_column_kwargs={"name":"service_id"},
         default_factory=uuid.uuid4,
         primary_key=True
     )
