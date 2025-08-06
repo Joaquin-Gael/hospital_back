@@ -165,6 +165,7 @@ class DoctorUpdate(BaseModel):
     email: Optional[str] = None
     speciality_id: Optional[UUID] = None
     address: Optional[str] = None
+    doctor_state: Optional[str] = None
 
     @classmethod
     @field_validator("email", mode="before")
