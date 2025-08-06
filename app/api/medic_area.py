@@ -1,3 +1,5 @@
+from http.client import responses
+
 from fastapi import (
     APIRouter,
     Request,
@@ -7,13 +9,14 @@ from fastapi import (
     HTTPException,
     WebSocket,
     WebSocketDisconnect,
-    WebSocketException
+    WebSocketException,
+    Form
 )
 from fastapi.responses import ORJSONResponse
 
 from sqlmodel import select
 
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Annotated
 
 from rich import print
 from rich.console import Console
@@ -319,6 +322,37 @@ async def get_medical_schedules(request: Request, session: SessionDep):
         schedules
     )
 
+@schedules.get("/{schedule_id}", response_model=MedicalScheduleResponse)
+async def get_schedule_by_id(session: SessionDep, schedule_id: UUID):
+    try:
+        schedule = session.get(MedicalSchedules, schedule_id)
+        doctors_by_schedule_serialized: List[DoctorResponse] = [
+            DoctorResponse(
+                username=doc.name,
+                dni=doc.dni,
+                id=doc.id,
+                email=doc.email,
+                speciality_id=doc.speciality_id,
+                is_active=doc.is_active,
+                doctor_status=doc.doctor_state,
+                date_joined=doc.date_joined
+            ) for doc in schedule.doctors
+        ]
+
+        return ORJSONResponse(
+            MedicalScheduleResponse(
+                id=schedule.id,
+                day=schedule.day,
+                start_time=schedule.start_time,
+                end_time=schedule.end_time,
+                doctors=doctors_by_schedule_serialized
+            ).model_dump(),
+            status_code=status.HTTP_200_OK
+        )
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
 @schedules.post("/add/", response_model=MedicalScheduleResponse)
 async def add_schedule(medical_schedule: MedicalScheduleCreate, session: SessionDep):
     schedule = MedicalSchedules(
@@ -596,6 +630,7 @@ async def me_doctor(request: Request):
             telephone=doc.telephone,
             speciality_id=doc.speciality_id,
             blood_type=doc.blood_type,
+            address=doc.address
         ).model_dump(),
         #"schedules":schedules
     })
@@ -712,7 +747,7 @@ async def delete_doctor_schedule_by_id(request: Request, schedule_id: UUID, doct
     )
 
 @doctors.patch("/update/{doctor_id}/", response_model=DoctorUpdate)
-async def update_doctor(request: Request, doctor_id: UUID, session: SessionDep, doctor: DoctorUpdate):
+async def update_doctor(request: Request, doctor_id: UUID, session: SessionDep, doctor: Annotated[DoctorUpdate, Form(...)]):
 
     if not "doc" in request.state.scopes and not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
@@ -746,7 +781,8 @@ async def update_doctor(request: Request, doctor_id: UUID, session: SessionDep, 
                 last_name=doc.last_name,
                 telephone=doc.telephone,
                 email=doc.email,
-                speciality_id=doc.speciality_id
+                speciality_id=doc.speciality_id,
+                address=doc.address
             ).model_dump()
         )
 
@@ -755,7 +791,7 @@ async def update_doctor(request: Request, doctor_id: UUID, session: SessionDep, 
         raise HTTPException(status_code=404, detail=f"Doctor {doctor_id} not found")
 
 @doctors.patch("/update/{doctor_id}/speciality", response_model=DoctorResponse)
-async def update_speciality(request: Request, doctor_id: UUID, session: SessionDep, doctor_form: DoctorSpecialityUpdate):
+async def update_speciality(request: Request, doctor_id: UUID, session: SessionDep, doctor_form: Annotated[DoctorSpecialityUpdate, Form(...)]):
     if not "doc" in request.state.scopes and not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un un unauthorized")
 
@@ -799,7 +835,7 @@ async def update_speciality(request: Request, doctor_id: UUID, session: SessionD
         raise HTTPException(status_code=404, detail=f"Doctor {doctor_id} not found")
 
 @doctors.patch("/update/{doctor_id}/password")
-async def update_doctor_password(request: Request, doctor_id: UUID, session: SessionDep, password: DoctorPasswordUpdate):
+async def update_doctor_password(request: Request, doctor_id: UUID, session: SessionDep, password: Annotated[DoctorPasswordUpdate, Form()]):
     if not "doc" in request.state.scopes and not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
 
@@ -1627,7 +1663,15 @@ async def get_turns(request: Request, session: SessionDep):
                 user_id=turn.user_id,
                 doctor_id=turn.doctor_id,
                 appointment_id=turn.appointment_id,
-                service=turn.service_id
+                service=[
+                    ServiceResponse(
+                        id=serv.id,
+                        name=serv.name,
+                        description=serv.description,
+                        price=serv.price,
+                        specialty_id=serv.specialty_id
+                    ) for serv in turn.services
+                ]
             )
         )
 
@@ -1654,7 +1698,7 @@ async def get_turn_by_user_id(request: Request, session: SessionDep, user_id: UU
 
 
 @turns.get("/{turn_id}", response_model=TurnsResponse)
-async def get_turn(request: Request, session: SessionDep, turn_id: UUID):
+async def get_turn_by_id(request: Request, session: SessionDep, turn_id: UUID):
     user = request.state.user
 
     try:

@@ -28,8 +28,7 @@ def set_or_update_google_user(user: User, user_data: dict) -> None:
         item = None
 
     if item:
-        item.value.update(user_data)
-        storage.set(key=item.key, value=item.value, table_name="google-user-data", long_live=True)
+        storage.update(key=item.key, value=item.value, table_name="google-user-data", long_live=True)
     else:
         storage.set(key=str(user.id), value=user_data, table_name="google-user-data", long_live=True)
 

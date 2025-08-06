@@ -13,6 +13,7 @@ import logging
 
 import sys
 
+from app.api.medic_area import health_insurance
 from app.schemas.users import UserRead, UserCreate, UserDelete, UserUpdate, UserPasswordUpdate, \
     UserPetitionPasswordUpdate
 from app.models import User, HealthInsurance
@@ -224,7 +225,11 @@ async def update_user(request: Request, user_id: UUID, session: SessionDep, user
                 raise HTTPException(status_code=400, detail="Username cannot be empty")
             user.name = user_form.username
         elif field  == "health_insurance_id" and value is not None:
-            user.health_insurance.append(session.get(HealthInsurance, user_form.health_insurance_id))
+            health_insurance_oj = session.get(HealthInsurance, user_form.health_insurance_id)
+            if not health_insurance_oj in user.health_insurance:
+                user.health_insurance.append(health_insurance_oj)
+            else:
+                continue
         else:
             continue
 
@@ -243,7 +248,7 @@ async def update_user(request: Request, user_id: UUID, session: SessionDep, user
             is_superuser=user.is_superuser,
             last_login=user.last_login,
             date_joined=user.date_joined,
-            username=user.username,
+            username=user.name,
             email=user.email,
             first_name=user.first_name,
             last_name=user.last_name,

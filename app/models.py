@@ -28,6 +28,11 @@ load_dotenv()
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+class DoctorStates(str, Enum):
+    available = "available",
+    busy = "busy",
+    offline = "offline"
+
 class DayOfWeek(str, Enum):
     monday = "Monday"
     tuesday = "Tuesday"
@@ -179,11 +184,6 @@ class BaseModelTurns(SQLModel, RenameTurnsStateMixin, table=False):
     doctor_id: Optional[UUID] = Field(
         sa_type=UUID_TYPE,
         foreign_key="doctors.doctor_id",
-        nullable=True,
-    )
-    service_id: Optional[UUID] = Field(
-        sa_type=UUID_TYPE,
-        foreign_key="services.services",
         nullable=True,
     )
 
@@ -484,6 +484,14 @@ class Doctors(BaseUser, table=True):
     )
     turns: List["Turns"] = Relationship(back_populates="doctor")
     appointments: List["Appointments"] = Relationship(back_populates="doctor")
+
+    doctor_state: DoctorStates = Field(
+        sa_type=SQLEnum(DoctorStates),
+        default=DoctorStates.available,
+        nullable=False,
+        max_length=10,
+        sa_column_kwargs={"name":"state"}
+    )
 
 
 class Chat(SQLModel, table=True):

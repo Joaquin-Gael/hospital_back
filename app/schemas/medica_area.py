@@ -151,6 +151,7 @@ class DoctorBase(BaseModel):
     speciality_id: UUID
     address: Optional[str] = None
     blood_type: Optional[str] = None
+    doctor_status: Optional[str] = None
 
 class DoctorCreate(DoctorBase):
     password: constr(min_length=8)
@@ -162,6 +163,8 @@ class DoctorUpdate(BaseModel):
     last_name: Optional[str] = None
     telephone: Optional[str] = None
     email: Optional[str] = None
+    speciality_id: Optional[UUID] = None
+    address: Optional[str] = None
 
     @classmethod
     @field_validator("email", mode="before")
@@ -179,10 +182,10 @@ class DoctorSpecialityUpdate(BaseModel):
 class DoctorResponse(DoctorBase):
     id: UUID
     is_active: bool
-    is_admin: bool
-    is_superuser: bool
+    is_admin: Optional[bool] = None
+    is_superuser: Optional[bool] = None
     last_login: Optional[datetime] = None
-    date_joined: datetime
+    date_joined: Optional[datetime]
     email: Optional[str] = None
 
     #class Config:
@@ -312,8 +315,7 @@ class TurnsUpdate(BaseModel):
 class TurnsResponse(TurnsBase):
     user: Optional["UserRead"] = None
     doctor: Optional["DoctorResponse"] = None
-    service: Optional["ServiceResponse"] = None
-    appointment: Optional["AppointmentResponse"] = None
+    service: Optional[List["ServiceResponse"]] = None
 
 class TurnsDelete(BaseModel):
     id: UUID

@@ -19,6 +19,7 @@ dependencies = [
     "psycopg2>=2.9.10",
     "pydantic>=2.11.2",
     "pyjwt>=2.10.1",
+    "pyrefly>=0.27.0",
     "pytest>=8.3.5",
     "pytest-rich>=0.2.0",
     "python-dotenv>=1.1.0",
@@ -28,3 +29,9 @@ dependencies = [
     "sqlmodel>=0.0.24",
     "stripe>=12.4.0",
 ]
+
+[tool]
+
+[tool.pyrefly]
+project-includes = ["**/*"]
+project-excludes = ['**/*venv/**\*']

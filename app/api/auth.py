@@ -86,6 +86,7 @@ async def doc_login(session: SessionDep, credentials: Annotated[DoctorAuth, Form
                 is_superuser=doc.is_superuser,
                 last_login=doc.last_login,
                 date_joined=doc.date_joined,
+                address=doc.address
             ),
             refresh_token=refresh_token
         ).model_dump()
