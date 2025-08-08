@@ -21,6 +21,8 @@ templates_dir = Path(__file__).parent / "templates"
 
 assets_dir = Path(__file__).parent / "assets"
 
+media_dir = Path(__file__).parent / "media"
+
 templates = Jinja2Templates(directory=templates_dir)
 
 api_name = "Hospital API"

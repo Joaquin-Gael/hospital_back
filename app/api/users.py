@@ -253,7 +253,8 @@ async def update_user(request: Request, user_id: UUID, session: SessionDep, user
             first_name=user.first_name,
             last_name=user.last_name,
             dni=user.dni,
-            blood_type=user.blood_type
+            blood_type=user.blood_type,
+            img_profile=user.url_image_profile,
         ).model_dump()
     )
 

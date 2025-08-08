@@ -20,7 +20,7 @@ from pathlib import Path
 
 from app.db.main import init_db, set_admin, migrate, test_db, db_url
 from app.api import users, medic_area, auth, cashes
-from app.config import api_name, version, debug, cors_host, templates, parser_name, id_prefix, assets_dir
+from app.config import api_name, version, debug, cors_host, templates, parser_name, id_prefix, assets_dir, media_dir
 from app.storage.main import storage
 
 install(show_locals=True)
@@ -206,6 +206,7 @@ class SPAStaticFiles(StaticFiles):
         await response(scope, receive, send)
 
 app.mount("/assets", StaticFiles(directory=assets_dir))
+app.mount("/media", StaticFiles(directory=media_dir))
 
 @app.get("/id_prefix_api_secret/", include_in_schema=debug)
 async def get_secret():
