@@ -159,7 +159,7 @@ class Singleton(metaclass=PurgeMeta):
             items={}
         )
         self.data.tables[table_name] = table
-        console.print(self.data)
+        #console.print(self.data)
         self._mark_dirty()
         return table
 
@@ -171,7 +171,7 @@ class Singleton(metaclass=PurgeMeta):
 
         items_response = []
         for item in items.values():
-            console.print(item)
+            #console.print(item)
             items_response.append(
                 GetItem(
                     key=item.key,
@@ -234,7 +234,7 @@ class Singleton(metaclass=PurgeMeta):
     def get_by_parameter(self, parameter: str, equals: Any, table_name: str) -> GetItem:
         self._load()
         for item in self.data.tables[table_name].items.values():
-            console.print(item)
+            #console.print(item)
             data = item.value.get(parameter, None)
             if data:
                 if type(data) == type(equals) and data == equals:

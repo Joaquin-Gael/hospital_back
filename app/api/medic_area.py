@@ -541,12 +541,10 @@ doctors = APIRouter(
 
 @doctors.get("/", response_model=List[DoctorResponse])
 async def get_doctors(session: SessionDep):
-    statement = select(Doctors)
-    result: List[Doctors] = session.exec(statement).all()
-    doctors = []
-    for doc in result:
-        doctors.append(
-            DoctorResponse(
+    result: List[Doctors] = session.exec(
+        select(Doctors).where(True)
+    ).all()
+    doctors_serialized = [DoctorResponse(
                 id=doc.id,
                 is_active=doc.is_active,
                 is_admin=doc.is_admin,
@@ -562,10 +560,9 @@ async def get_doctors(session: SessionDep):
                 speciality_id=doc.speciality_id,
                 blood_type=doc.blood_type,
                 address=doc.address,
-            ).model_dump()
-        )
+            ).model_dump() for doc in result]
 
-    return ORJSONResponse(doctors)
+    return ORJSONResponse(doctors_serialized)
 
 @doctors.get("/{doctor_id}/", response_model=DoctorResponse)
 async def get_doctor_by_id(doctor_id: UUID, session: SessionDep):
@@ -653,7 +650,8 @@ async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep
             password=doctor.password,
             address=doctor.address,
             blood_type=doctor.blood_type,
-            first_name=doctor.first_name
+            first_name=doctor.first_name,
+            doctor_state=doctor.doctor_state
         )
 
         new_doctor.set_password(doctor.password)
@@ -765,11 +763,13 @@ async def update_doctor(request: Request, doctor_id: UUID, session: SessionDep, 
 
         for field in form_fields:
             value = getattr(doctor, field, None)
-            print(value)
+            console.print(field," = ",value)
             if value is not None and field != "username":
                 setattr(doc, field, value)
             elif value is not None and field == "username":
                 doc.name = value
+            else:
+                continue
 
         session.add(doc)
         session.commit()
@@ -1167,22 +1167,36 @@ services = APIRouter(
 
 @services.get("/", response_model=List[ServiceResponse])
 async def get_services(request: Request, session: SessionDep):
-    statement = select(Services)
-    result: List["Services"] = session.exec(statement).all()
-    services = []
-    for service in result:
-        services.append(
-            ServiceResponse(
-                id=service.id,
-                name=service.name,
-                description=service.description,
-                price=service.price,
-                specialty_id=service.specialty_id,
-                icon_code=service.icon_code
-            ).model_dump()
-        )
+    result: List["Services"] = session.exec(
+        select(Services).where(True)
+    ).all()
+    services_serialized = [
+        ServiceResponse(
+            id=service.id,
+            name=service.name,
+            description=service.description,
+            price=service.price,
+            specialty_id=service.specialty_id,
+            icon_code=service.icon_code
+        ).model_dump() for service in result
+    ]
 
-    return ORJSONResponse(services)
+    return ORJSONResponse(services_serialized, status_code=status.HTTP_200_OK)
+
+@services.get("/{service_id}", response_model=ServiceResponse)
+async def get_service_by_id(request: Request, service_id: UUID, session: SessionDep):
+    service = session.get(Services, service_id)
+    return ORJSONResponse(
+        ServiceResponse(
+            id=service.id,
+            name=service.name,
+            description=service.description,
+            price=service.price,
+            specialty_id=service.specialty_id,
+            icon_code=service.icon_code
+        ).model_dump(),
+        status_code=status.HTTP_200_OK
+    )
 
 @services.post("/add/", response_model=ServiceResponse)
 async def set_service(request: Request, session: SessionDep, service: ServiceCreate):

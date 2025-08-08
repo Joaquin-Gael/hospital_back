@@ -99,8 +99,8 @@ app = FastAPI(
         "name": "MIT",
         "url": "https://opensource.org/licenses/MIT"
     },
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None,
+    redoc_url=None,
     debug=debug,
     redirect_slashes=True
 )
@@ -164,7 +164,7 @@ main_router.include_router(cashes.router)
 app.include_router(main_router)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:4200"] if debug else [cors_host],
+    allow_origins=["http://localhost:4200"], #if debug else [cors_host],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

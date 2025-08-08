@@ -151,7 +151,7 @@ class DoctorBase(BaseModel):
     speciality_id: UUID
     address: Optional[str] = None
     blood_type: Optional[str] = None
-    doctor_status: Optional[str] = None
+    doctor_state: Optional[str] = None
 
 class DoctorCreate(DoctorBase):
     password: constr(min_length=8)
