@@ -66,7 +66,7 @@ async def doc_login(session: SessionDep, credentials: Annotated[DoctorAuth, Form
         doc_data["scopes"].append("active")
 
     token = gen_token(doc_data)
-    refresh_token = gen_token(doc_data)
+    refresh_token = gen_token(doc_data, refresh=True)
 
     return ORJSONResponse(
         TokenDoctorsResponse(

@@ -16,13 +16,13 @@ from app.schemas import UserRead
 
 # Definición del enumerado para los días de la semana
 class DayOfWeek(str, Enum):
-    monday = "Monday"
-    tuesday = "Tuesday"
-    wednesday = "Wednesday"
-    thursday = "Thursday"
-    friday = "Friday"
-    saturday = "Saturday"
-    sunday = "Sunday"
+    monday = "monday"
+    tuesday = "tuesday"
+    wednesday = "wednesday"
+    thursday = "thursday"
+    friday = "friday"
+    saturday = "saturday"
+    sunday = "sunday"
 
 class TurnsState(str, Enum):
     waiting = "waiting"
@@ -163,7 +163,7 @@ class DoctorUpdate(BaseModel):
     last_name: Optional[str] = None
     telephone: Optional[str] = None
     email: Optional[str] = None
-    speciality_id: Optional[UUID] = None
+    #speciality_id: Optional[UUID] = None TODO: hacer un link
     address: Optional[str] = None
     doctor_state: Optional[str] = None
 
@@ -188,6 +188,8 @@ class DoctorResponse(DoctorBase):
     last_login: Optional[datetime] = None
     date_joined: Optional[datetime]
     email: Optional[str] = None
+
+    schedules: Optional[List["MedicalScheduleResponse"]] = None
 
     #class Config:
     #    orm_mode = True
@@ -262,6 +264,12 @@ class MedicalScheduleResponse(MedicalScheduleBase):
 class MedicalScheduleDelete(BaseModel):
     id: UUID
     message: str
+
+class Schedules(MedicalScheduleBase):
+    pass
+
+class AvailableSchedules(BaseModel):
+    available_days: List[MedicalScheduleBase]
 
 # -------------------------- MEDICAL CHATS -------------------------------------
 

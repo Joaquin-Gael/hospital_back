@@ -133,10 +133,10 @@ def gen_token(payload: dict, refresh: bool = False):
     payload.setdefault("iat", datetime.now())
     payload.setdefault("iss", f"{api_name}/{version}")
     if refresh:
-        payload.setdefault("exp", int((datetime.now() + timedelta(minutes=30)).timestamp()))
+        payload["exp"] = int((datetime.now() + timedelta(days=1)).timestamp())
         payload.setdefault("type", "refresh_token")
     else:
-        payload.setdefault("exp", int((datetime.now() + timedelta(minutes=15)).timestamp()))
+        payload["exp"] = int((datetime.now() + timedelta(minutes=15)).timestamp())
     return jwt.encode(payload, token_key, algorithm="HS256")
 
 def decode_token(token: str):

@@ -13,6 +13,7 @@ from fastapi import (
     Form
 )
 from fastapi.responses import ORJSONResponse
+from requests import session
 
 from sqlmodel import select
 
@@ -39,11 +40,14 @@ from app.models import (
     HealthInsurance,
     UserHealthInsuranceLink
 )
+from app.schemas import UserRead
 from app.schemas.medica_area import (
     MedicalScheduleCreate,
     MedicalScheduleDelete,
     MedicalScheduleUpdate,
-    MedicalScheduleResponse
+    MedicalScheduleResponse,
+    AvailableSchedules,
+    Schedules
 )
 from app.schemas.medica_area import (
     DayOfWeek,
@@ -353,6 +357,58 @@ async def get_schedule_by_id(session: SessionDep, schedule_id: UUID):
         console.print_exception(show_locals=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
+@schedules.get("/available/days/{speciality_id}", response_model=AvailableSchedules)
+async def days_by_availability(request: Request, speciality_id: UUID, session: SessionDep):
+    try:
+        speciality = session.get(Specialties, speciality_id)
+
+        dict_days = {}
+
+        for doc in speciality.doctors:
+            for schedule in doc.medical_schedules:
+                if schedule.available :
+                    if dict_days.get(schedule.day.value, None):
+                        match dict_days[schedule.day.value]:
+                            case (start, end) if start > schedule.start_time and end > schedule.end_time:
+                                dict_days[schedule.day.value] = (
+                                    schedule.start_time,
+                                    end
+                                )
+
+                            case (start, end) if start < schedule.start_time and end < schedule.end_time:
+                                dict_days[schedule.day.value] = (
+                                    start,
+                                    schedule.end_time
+                                )
+
+                            case (start, end) if start < schedule.start_time and end > schedule.end_time:
+                                continue
+                    else:
+                        dict_days.setdefault(
+                            schedule.day.value,
+                            (
+                                schedule.start_time,
+                                schedule.end_time
+                            )
+                        )
+
+        return ORJSONResponse(
+            AvailableSchedules(
+                available_days=[
+                    Schedules(
+                        day=k,
+                        start_time=v[0],
+                        end_time=v[1]
+                    ).model_dump() for k, v in dict_days.items()
+                ]
+            ).model_dump(),
+            status_code=status.HTTP_200_OK
+        )
+
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
 @schedules.post("/add/", response_model=MedicalScheduleResponse)
 async def add_schedule(medical_schedule: MedicalScheduleCreate, session: SessionDep):
     schedule = MedicalSchedules(
@@ -566,8 +622,7 @@ async def get_doctors(session: SessionDep):
 
 @doctors.get("/{doctor_id}/", response_model=DoctorResponse)
 async def get_doctor_by_id(doctor_id: UUID, session: SessionDep):
-    statement = select(Doctors).where(Doctors.id == doctor_id)
-    doc = session.exec(statement).first()
+    doc = session.get(Doctors, doctor_id)
 
     if not doc:
         raise HTTPException(status_code=404, detail=f"Doctor {doctor_id} not found")
@@ -588,28 +643,26 @@ async def get_doctor_by_id(doctor_id: UUID, session: SessionDep):
             telephone=doc.telephone,
             speciality_id=doc.speciality_id,
             blood_type=doc.blood_type,
+            schedules=[
+                MedicalScheduleResponse(
+                    id=schedule.id,
+                    day=schedule.day,
+                    start_time=schedule.start_time,
+                    end_time=schedule.end_time,
+                ) for schedule in doc.medical_schedules
+            ]
         ).model_dump()
     )
 
 @doctors.get("/me", response_model=DoctorResponse)
-async def me_doctor(request: Request):
+async def me_doctor(request: Request, session: SessionDep):
     doc: Doctors | User = request.state.user
 
     if isinstance(doc, User):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
 
-    #schedules: List["MedicalScheduleResponse"] = []
-    #for schedule in doc.medical_schedules:
-    #schedules.append(
-    #MedicalScheduleResponse(
-    #id=schedule.id,
-    #time_medic=schedule.time_medic,
-    #day=schedule.day,
-    #start_time=schedule.start_time,
-    #end_time=schedule.end_time,
-    #doctors=schedule.doctors,
-    #)
-    #)
+    doc = session.merge(doc)
+    session.refresh(doc)
 
     return ORJSONResponse({
         "doc":DoctorResponse(
@@ -627,10 +680,55 @@ async def me_doctor(request: Request):
             telephone=doc.telephone,
             speciality_id=doc.speciality_id,
             blood_type=doc.blood_type,
-            address=doc.address
+            address=doc.address,
+            doctor_state=doc.doctor_state,
+            schedules=[
+                MedicalScheduleResponse(
+                    id=schedule.id,
+                    day=schedule.day,
+                    start_time=schedule.start_time,
+                    end_time=schedule.end_time,
+                ) for schedule in doc.medical_schedules
+            ]
         ).model_dump(),
-        #"schedules":schedules
     })
+
+@doctors.get("/{doctor_id}/patients", response_model=List[UserRead])
+async def get_patients_by_doctor(request: Request, doctor_id: UUID, session: SessionDep):
+    try:
+        doc = session.get(Doctors, doctor_id)
+        users_list: List[User] = []
+        for appointment in doc.appointments:
+            users_list.append(
+                appointment.user
+            )
+
+        return ORJSONResponse(
+            [
+                UserRead(
+                    id=user.id,
+                    is_active=user.is_active,
+                    is_admin=user.is_admin,
+                    is_superuser=user.is_superuser,
+                    last_login=user.last_login,
+                    date_joined=user.date_joined,
+                    username=user.name,
+                    email=user.email,
+                    first_name=user.first_name,
+                    last_name=user.last_name,
+                    dni=user.dni,
+                    address=user.address,
+                    telephone=user.telephone,
+                    blood_type=user.blood_type,
+                    img_profile=user.url_image_profile
+                ).model_dump() for user in users_list
+            ],
+            status_code=status.HTTP_200_OK
+        )
+
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @doctors.post("/add/", response_model=DoctorResponse)
 async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep):
@@ -764,9 +862,9 @@ async def update_doctor(request: Request, doctor_id: UUID, session: SessionDep, 
         for field in form_fields:
             value = getattr(doctor, field, None)
             console.print(field," = ",value)
-            if value is not None and field != "username":
+            if value is not None and field != "username" or not value in ["", " "]:
                 setattr(doc, field, value)
-            elif value is not None and field == "username":
+            elif value is not None and field == "username" or not value in ["", " "]:
                 doc.name = value
             else:
                 continue
@@ -779,10 +877,12 @@ async def update_doctor(request: Request, doctor_id: UUID, session: SessionDep, 
             DoctorUpdate(
                 username=doc.name,
                 last_name=doc.last_name,
+                first_name=doc.first_name,
                 telephone=doc.telephone,
                 email=doc.email,
-                speciality_id=doc.speciality_id,
-                address=doc.address
+                #speciality_id=doc.speciality_id,
+                address=doc.address,
+                doctor_state=doc.doctor_state
             ).model_dump()
         )
 
@@ -1355,37 +1455,6 @@ async def get_specialities(request: Request, session: SessionDep):
         specialities_serialized,
         status_code=status.HTTP_200_OK
     )
-
-@specialities.get("/{speciality_id}/schedules/available")
-async def get_available_schedules(request: Request, session: SessionDep, speciality_id: UUID):
-    statement = select(Specialties) \
-        .join(Doctors, Doctors.speciality_id == Specialties.id) \
-        .join(DoctorMedicalScheduleLink, DoctorMedicalScheduleLink.doctor_id == Doctors.id) \
-        .join(MedicalSchedules, MedicalSchedules.id == DoctorMedicalScheduleLink.medical_schedule_id) \
-        .where(Specialties.id == speciality_id,
-               MedicalSchedules.available == True,
-               speciality_id == Specialties.id,
-               Doctors.is_available == True)
-
-    result: List["Specialties"] = session.exec(statement).all()
-
-    serialized_schedules: List = []
-
-    for speciality in result:
-        for doctor in speciality.doctors:
-            for schedule in doctor.medical_schedules:
-                serialized_schedules.append(
-                    {
-                        "id": schedule.id,
-                        "doctor_id": doctor.id,
-                        "doctor_name": doctor.name,
-                        "doctor_speciality": doctor.speciality.name,
-                        "doctor_speciality_id": doctor.speciality.id,
-                        "doctor_department": doctor.speciality.department.name,
-                    }
-                )
-
-    return serialized_schedules
 
 
 @specialities.post("/add/", response_model=SpecialtyResponse)

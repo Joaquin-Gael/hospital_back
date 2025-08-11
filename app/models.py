@@ -34,13 +34,13 @@ class DoctorStates(str, Enum):
     offline = "offline"
 
 class DayOfWeek(str, Enum):
-    monday = "Monday"
-    tuesday = "Tuesday"
-    wednesday = "Wednesday"
-    thursday = "Thursday"
-    friday = "Friday"
-    saturday = "Saturday"
-    sunday = "Sunday"
+    monday = "monday"
+    tuesday = "tuesday"
+    wednesday = "wednesday"
+    thursday = "thursday"
+    friday = "friday"
+    saturday = "saturday"
+    sunday = "sunday"
 
 class TurnsState(str, Enum):
     waiting = "waiting"
@@ -176,6 +176,7 @@ class BaseModelTurns(SQLModel, RenameTurnsStateMixin, table=False):
     date: date_type = Field(nullable=False)
     date_created: date_type = Field(default_factory=date_type.today)
     date_limit: date_type = Field(nullable=False)
+    time: date_type = Field(nullable=False, default=datetime.now().time())
     user_id: Optional[UUID] = Field(
         sa_type=UUID_TYPE,
         foreign_key="users.user_id",
@@ -404,6 +405,7 @@ class Services(SQLModel, table=True):
     name: str = Field(max_length=50)
     description: str = Field(max_length=500)
     price: float = Field(default=0, nullable=False)
+
     speciality: Optional["Specialties"] = Relationship(back_populates="services")
     specialty_id: UUID = Field(foreign_key="specialties.specialty_id", ondelete="CASCADE")
 
@@ -430,8 +432,8 @@ class MedicalSchedules(SQLModel, table=True):
         nullable=False,
         sa_column_kwargs={"name":"day"}
     )
-    start_time: time = Field(nullable=False)
-    end_time: time = Field(nullable=False)
+    start_time: time_type = Field(nullable=False)
+    end_time: time_type = Field(nullable=False)
     available: bool = Field(default=True)
 
 
