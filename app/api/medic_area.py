@@ -1,5 +1,3 @@
-from http.client import responses
-
 from fastapi import (
     APIRouter,
     Request,
@@ -13,7 +11,6 @@ from fastapi import (
     Form
 )
 from fastapi.responses import ORJSONResponse
-from requests import session
 
 from sqlmodel import select
 
