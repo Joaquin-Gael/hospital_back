@@ -1,10 +1,11 @@
 from typing import Tuple
 
+from click import secho
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.schemas.medica_area import TurnsCreate
-from app.models import Turns, Appointments
+from app.models import Turns, Appointments, MedicalSchedules
 
 
 class TurnAndAppointmentRepository:
@@ -28,8 +29,10 @@ class TurnAndAppointmentRepository:
             return False
 
     @staticmethod
-    async def create_turn_and_appointment(session: Session, turn: TurnsCreate) -> Tuple[Turns, Appointments] | None:
+    async def create_turn_and_appointment(session: Session, turn: TurnsCreate) -> Tuple[Turns, Appointments] | Tuple[None, str]:
         try:
+            import locale
+
             with session.begin():
                 new_turn = Turns(
                     reason=turn.reason,
@@ -39,7 +42,8 @@ class TurnAndAppointmentRepository:
                     user_id=turn.user_id,
                     doctor_id=turn.doctor_id,
                     appointment_id=turn.appointment_id,
-                    services=turn.services
+                    services=turn.services,
+                    time=turn.time
                 )
                 session.add(new_turn)
                 session.flush()
@@ -50,6 +54,26 @@ class TurnAndAppointmentRepository:
                     turn_id=new_turn.id,
                 )
 
+                schedules = session.exec(
+                    select(MedicalSchedules).where(
+                        turn.doctor_id in MedicalSchedules.doctors
+                    )
+                ).fetchall()
+
+                locale.setlocale(locale.LC_TIME, "en_US.UTF-8")
+
+                for schedule in schedules:
+                    if schedule.day.value == turn.date.strftime("%A").lower():
+                        if schedule.max_patients > len(schedule.turns):
+                            schedule.turns.append(new_turn)
+                        elif schedule.max_patients == len(schedule.turns):
+                            schedule.turns.append(new_turn)
+                            schedule.available = False
+                        else:
+                            raise IntegrityError
+
+                session.add(schedule)
+
                 session.add(new_appointment)
 
             session.refresh(new_turn)
@@ -58,4 +82,4 @@ class TurnAndAppointmentRepository:
             return new_turn, new_appointment
         except IntegrityError as e:
             session.rollback()
-            return None
+            return None, str(e)

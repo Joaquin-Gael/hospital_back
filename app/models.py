@@ -21,6 +21,8 @@ from enum import Enum
 
 import re
 
+import random
+
 import os
 from dotenv import load_dotenv
 
@@ -217,6 +219,21 @@ class TurnsServicesLink(SQLModel, table=True):
         ondelete='CASCADE'
     )
 
+class TurnsSchedulesLink(SQLModel, table=True):
+    __tablename__ = "turns_schedules_link"
+
+    turn_id: UUID = Field(
+        foreign_key='turns.turn_id',
+        primary_key=True,
+        ondelete='CASCADE'
+    )
+
+    medical_schedule_id: UUID = Field(
+        foreign_key="medical_schedules.medical_schedule_id",
+        primary_key=True,
+        ondelete="CASCADE"
+    )
+
 class UserHealthInsuranceLink(SQLModel, table=True):
     __tablename__ = "user_health_insurance_link"
     user_id: UUID = Field(
@@ -244,6 +261,11 @@ class Turns(BaseModelTurns, table=True):
     services: List["Services"] = Relationship(
         back_populates="turns",
         link_model=TurnsServicesLink
+    )
+
+    schedules: List["MedicalSchedules"] = Relationship(
+        back_populates="turns",
+        link_model=TurnsSchedulesLink
     )
 
     appointment: Optional["Appointments"] = Relationship(back_populates="turn")
@@ -436,6 +458,12 @@ class MedicalSchedules(SQLModel, table=True):
     end_time: time_type = Field(nullable=False)
     available: bool = Field(default=True)
 
+    max_patients: int = Field(nullable=True, ge=1, le=10, default_factory=lambda :random.randint(1,10))
+
+    turns: List["Turns"] = Relationship(
+        back_populates="schedules",
+        link_model=TurnsSchedulesLink
+    )
 
     doctors: List["Doctors"] = Relationship(
         back_populates="medical_schedules",

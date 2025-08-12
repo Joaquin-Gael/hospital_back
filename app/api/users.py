@@ -14,6 +14,7 @@ import logging
 import sys
 
 from app.api.medic_area import health_insurance
+from app.schemas.medica_area import HealthInsuranceBase
 from app.schemas.users import UserRead, UserCreate, UserDelete, UserUpdate, UserPasswordUpdate, \
     UserPetitionPasswordUpdate
 from app.models import User, HealthInsurance
@@ -86,8 +87,7 @@ async def get_users(session: SessionDep):
 
 @private_router.get("/{user_id}/")
 async def get_user_by_id(session: SessionDep, user_id: UUID):
-    statement = select(User).where(User.id == user_id)
-    user: User = session.exec(statement).first()
+    user: User = session.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="Not found")
 
@@ -112,12 +112,15 @@ async def get_user_by_id(session: SessionDep, user_id: UUID):
     )
 
 @private_router.get("/me", response_model=UserRead)
-async def me_user(request: Request):
+async def me_user(request: Request, session: SessionDep):
     user: User = request.state.user
 
     if not isinstance(user, User):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Not authorized: {user}")
 
+    user = session.merge(user)
+    session.commit()
+    session.refresh(user)
 
     return ORJSONResponse({
         "user":UserRead(
@@ -135,12 +138,13 @@ async def me_user(request: Request):
             telephone=user.telephone,
             blood_type=user.blood_type,
             address=user.address,
-            img_profile=user.url_image_profile
+            img_profile=user.url_image_profile,
+            health_insurance_id=[h.id for h in user.health_insurance]
         ).model_dump(),
     })
 
 @public_router.post("/add/", response_model=UserRead)
-async def add_user(session: SessionDep, user: Annotated[UserCreate, Form(..., media_type="multipart/form-data")]):
+async def add_user(session: SessionDep, user: Annotated[UserCreate, Form(...)]):
     try:
         user_db = User(
             email=user.email,
@@ -173,7 +177,8 @@ async def add_user(session: SessionDep, user: Annotated[UserCreate, Form(..., me
                 address=user_db.address,
                 telephone=user_db.telephone,
                 blood_type=user_db.blood_type,
-                img_profile=user_db.url_image_profile
+                img_profile=user_db.url_image_profile,
+                health_insurance_id=[h.id for h in user_db.health_insurance]
             ).model_dump()
         )
     except Exception as e:
@@ -185,8 +190,8 @@ async def delete_user(request: Request, user_id: UUID, session: SessionDep):
     if not request.state.user.is_superuser or str(request.state.user.id) == user_id:
         raise HTTPException(status_code=403, detail="Not authorized")
     try:
-        statement = select(User).where(User.id == user_id)
-        user: User = session.exec(statement).scalar_one_or_none()
+        user: User = session.get(User, user_id)
+
         session.delete(user)
         session.commit()
         user_deleted = UserDelete(
@@ -203,13 +208,12 @@ async def delete_user(request: Request, user_id: UUID, session: SessionDep):
         return ORJSONResponse({"error": "User not found"}, status_code=404)
 
 @private_router.patch("/update/{user_id}/", response_model=UserRead)
-async def update_user(request: Request, user_id: UUID, session: SessionDep, user_form: Annotated[UserUpdate, Form(..., media_type="multipart/form-data")]):
+async def update_user(request: Request, user_id: UUID, session: SessionDep, user_form: Annotated[UserUpdate, Form(...)]):
 
     if not request.state.user.id == user_id and not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un unauthorized")
 
-    statement = select(User).where(User.id == user_id)
-    user: User = session.exec(statement).scalars().first()
+    user: User = session.get(User, user_id)
     
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -218,9 +222,9 @@ async def update_user(request: Request, user_id: UUID, session: SessionDep, user
 
     for field in form_fields:
         value = getattr(user_form, field, None)
-        if not field in ["username", "health_insurance_id", "img_profile"] and value is not None:
+        if not field in ["username", "health_insurance_id", "img_profile"] and value is not None and not value in ["", " "]:
             setattr(user, field, value)
-        elif field == "username" and value is not None:
+        elif field == "username" and value is not None and not value in ["", " "]:
             if not value:
                 raise HTTPException(status_code=400, detail="Username cannot be empty")
             user.name = user_form.username
@@ -255,15 +259,16 @@ async def update_user(request: Request, user_id: UUID, session: SessionDep, user
             dni=user.dni,
             blood_type=user.blood_type,
             img_profile=user.url_image_profile,
+            health_insurance_id=[h.id for h in user.health_insurance]
+
         ).model_dump()
     )
 
 @public_router.post("/update/petition/password")
 async def update_petition_password(session: SessionDep, data: UserPetitionPasswordUpdate):
     try:
-        user = session.exec(
-            select(User)\
-                .where(User.email == data.email)
+        user: User = session.exec(
+            select(User).where(User.email == data.email)
         ).first()
 
         if not user:
@@ -286,11 +291,7 @@ async def update_user_password(request: Request, user_id: UUID, session: Session
     if not request.state.user.id == user_id and not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un unauthorized")
 
-    result = session.exec(
-        select(User).where(User.id == user_id)
-    )
-
-    user: User = result.first()
+    user: User = session.get(User, user_id)
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -316,7 +317,7 @@ async def update_user_password(request: Request, user_id: UUID, session: Session
             blood_type=user.blood_type,
             telephone=user.telephone,
             address=user.address,
-            img_profile=user.url_image_profile
+            img_profile=user.url_image_profile,
         ).model_dump()
     )
 
@@ -325,8 +326,7 @@ async def ban_user(request: Request, user_id: UUID, session: SessionDep):
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    statement = select(User).where(User.id == user_id)
-    user: User = session.exec(statement).scalars().first()
+    user: User = session.get(User, user_id)
 
     user.is_active = True
     session.commit()
@@ -356,8 +356,7 @@ async def unban_user(request: Request, user_id: UUID, session: SessionDep):
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    statement = select(User).where(User.id == user_id)
-    user: User = session.exec(statement).scalars().first()
+    user: User = session.get(User, user_id)
 
     user.is_banned = False
     session.commit()

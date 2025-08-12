@@ -13,6 +13,10 @@ from uuid import UUID
 
 from app.schemas import UserRead
 
+class DoctorStates(str, Enum):
+    available = "available",
+    busy = "busy",
+    offline = "offline"
 
 # Definición del enumerado para los días de la semana
 class DayOfWeek(str, Enum):
@@ -304,6 +308,7 @@ class TurnsBase(BaseModel):
     services: Optional[List[UUID]] = None
     appointment_id: Optional[UUID] = None
     date_limit: date_type
+    time: date_type
 
 class TurnsCreate(BaseModel):
     reason: Optional[str] = None
@@ -313,6 +318,7 @@ class TurnsCreate(BaseModel):
     user_id: Optional[UUID] = None
     doctor_id: Optional[UUID] = None
     services: List[UUID] = []
+    time: date_type
 
 class TurnsUpdate(BaseModel):
     id: Optional[UUID] = None
@@ -320,11 +326,16 @@ class TurnsUpdate(BaseModel):
     state: Optional[TurnsState] = None
     date: Optional[date_type] = None
     date_created: Optional[date_type] = None
+    time: Optional[date_type] = None
 
 class TurnsResponse(TurnsBase):
     user: Optional["UserRead"] = None
     doctor: Optional["DoctorResponse"] = None
     service: Optional[List["ServiceResponse"]] = None
+
+class PayTurnResponse(BaseModel):
+    turn: TurnsResponse
+    payment_url: str
 
 class TurnsDelete(BaseModel):
     id: UUID
