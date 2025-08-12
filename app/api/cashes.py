@@ -35,7 +35,7 @@ async def pay_success(a:str = Query(...)):
 
 
 @router.get("/pay/cancel")
-async def pay_success(b: str = Query(...)):
+async def pay_cansel(b: str = Query(...)):
     try:
         data = decode(
             bytes.fromhex(b)

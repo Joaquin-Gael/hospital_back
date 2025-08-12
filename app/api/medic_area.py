@@ -44,11 +44,12 @@ from app.schemas.medica_area import (
     MedicalScheduleUpdate,
     MedicalScheduleResponse,
     AvailableSchedules,
-    Schedules
+    Schedules, PayTurnResponse
 )
 from app.schemas.medica_area import (
     DayOfWeek,
-    TurnsState
+    TurnsState,
+    DoctorStates
 )
 from app.schemas.medica_area import (
     DoctorResponse,
@@ -363,7 +364,7 @@ async def days_by_availability(request: Request, speciality_id: UUID, session: S
 
         for doc in speciality.doctors:
             for schedule in doc.medical_schedules:
-                if schedule.available :
+                if schedule.available:
                     if dict_days.get(schedule.day.value, None):
                         match dict_days[schedule.day.value]:
                             case (start, end) if start > schedule.start_time and end > schedule.end_time:
@@ -859,10 +860,23 @@ async def update_doctor(request: Request, doctor_id: UUID, session: SessionDep, 
         for field in form_fields:
             value = getattr(doctor, field, None)
             console.print(field," = ",value)
-            if value is not None and field != "username" or not value in ["", " "]:
+            if value is not None and field != "username" and not value in ["", " "]:
                 setattr(doc, field, value)
-            elif value is not None and field == "username" or not value in ["", " "]:
+            elif value is not None and field == "username" and not value in ["", " "]:
                 doc.name = value
+            elif value is not None and field == "doctor_state" and not value in ["", " "]:
+                match value:
+                    case DoctorStates.available.value:
+                        doc.doctor_state = DoctorStates.available.value
+                        doc.is_available = True
+
+                    case DoctorStates.busy.value:
+                        doc.doctor_state = DoctorStates.busy.value
+                        doc.is_available = False
+
+                    case DoctorStates.offline.value:
+                        doc.doctor_state = DoctorStates.offline.value
+                        doc.is_available = False
             else:
                 continue
 
@@ -1807,7 +1821,7 @@ async def get_turn_by_id(request: Request, session: SessionDep, turn_id: UUID):
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-@turns.post("/add/", response_model=Dict[str, TurnsResponse | str])
+@turns.post("/add/", response_model=PayTurnResponse)
 async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
     if "doc" in request.state.scopes and turn.doctor_id == request.user.id:
         if turn.user_id is None:
@@ -1819,11 +1833,14 @@ async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
                 turn=turn
             )
 
+            if not new_turn:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=new_appointment)
+
             response = await StripeServices.proces_payment(price=new_turn.price_total(), details=new_turn.get_details())
 
             return ORJSONResponse(
-                {
-                    "turn":TurnsResponse(
+                PayTurnResponse(
+                    turn=TurnsResponse(
                         id=new_turn.id,
                         reason=turn.reason,
                         state=turn.state,
@@ -1832,8 +1849,8 @@ async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
                         date_created=new_turn.date_created,
                         user_id=new_turn.user_id,
                     ).model_dump(),
-                    "payment_url": response
-                },
+                    payment_url=response
+                ),
                 status_code=status.HTTP_201_CREATED
             )
         except Exception as e:
@@ -1880,11 +1897,12 @@ async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
 async def delete_turn(request: Request, session: SessionDep, turn_id: UUID):
     session_user = request.state.user
     try:
-        turn = session.exec(select(Turns).where(Turns.id == turn_id)).first()
+        turn = session.get(Turns, turn_id)
         if session_user.id != turn.user_id or session_user.id != turn.doctor_id:
             raise HTTPException(status_code=403, detail="You are not authorized")
-        session.delete(turn)
-        session.commit()
+        deleted = TurnAndAppointmentRepository.delete_turn_and_appointment(session, turn)
+        if not deleted:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"the turn: {turn_id} cannot be deleted")
         return ORJSONResponse(
             TurnsDelete(
                 id=turn.id,

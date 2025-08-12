@@ -163,6 +163,8 @@ class JWTBearer:
             raise HTTPException(status_code=401, detail=e.args) from e
 
         if request.scope["route"].name != "refresh_token":
+            console.rule(request.scope["route"].name)
+            console.print(f"Se intento hacer el refresh: {payload}")
             if payload.get("type") == "refresh_token":
                 raise HTTPException(status_code=401, detail="No credentials provided or invalid format")
 
