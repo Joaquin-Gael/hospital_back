@@ -314,11 +314,11 @@ class TurnsCreate(BaseModel):
     reason: Optional[str] = None
     state: TurnsState
     date: date_type
-    date_created: date_type
+    date_created: date_type = datetime.now().date()
     user_id: Optional[UUID] = None
-    doctor_id: Optional[UUID] = None
     services: List[UUID] = []
     time: date_type
+    health_insurance: Optional[UUID] = None
 
 class TurnsUpdate(BaseModel):
     id: Optional[UUID] = None

@@ -1823,72 +1823,49 @@ async def get_turn_by_id(request: Request, session: SessionDep, turn_id: UUID):
 
 @turns.post("/add/", response_model=PayTurnResponse)
 async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
-    if "doc" in request.state.scopes and turn.doctor_id == request.user.id:
+    user: User | None = request.state.user
+
+    if "doc" in request.state.scopes:
         if turn.user_id is None:
             raise HTTPException(status_code=400, detail="user_id is required")
 
-        try:
-            new_turn, new_appointment = await TurnAndAppointmentRepository.create_turn_and_appointment(
-                session=session,
-                turn=turn
-            )
+    elif user:
+        turn.user_id = user.id
 
-            if not new_turn:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=new_appointment)
+    else:
+        raise HTTPException(status_code=500, detail="Internal Error")
 
-            response = await StripeServices.proces_payment(price=new_turn.price_total(), details=new_turn.get_details())
-
-            return ORJSONResponse(
-                PayTurnResponse(
-                    turn=TurnsResponse(
-                        id=new_turn.id,
-                        reason=turn.reason,
-                        state=turn.state,
-                        date=turn.date,
-                        date_limit=turn.date_limit,
-                        date_created=new_turn.date_created,
-                        user_id=new_turn.user_id,
-                    ).model_dump(),
-                    payment_url=response
-                ),
-                status_code=status.HTTP_201_CREATED
-            )
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e))
-
-    session_user = request.state.user
     try:
-        new_turn = Turns(
-            reason=turn.reason,
-            state=turn.state,
-            date=turn.date,
-            date_limit=turn.date_limit,
-            user_id=session_user.id,
-            doctor_id=turn.doctor_id,
-            appointment_id=turn.appointment_id,
-            service_id=turn.services
+        new_turn, new_appointment = await TurnAndAppointmentRepository.create_turn_and_appointment(
+            session=session,
+            turn=turn
         )
-        new_turn.user = session_user
-        new_appointment = Appointments(
-            user_id = new_turn.user_id,
-            doctor_id = new_turn.doctor_id,
-            turn_id = new_turn.id,
+
+        if not new_turn:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=new_appointment)
+
+        response = await StripeServices.proces_payment(
+            price=new_turn.price_total(),
+            details=new_turn.get_details(),
+            h_i=turn.health_insurance,
+            session=session
         )
-        session.add(new_turn)
-        session.add(new_appointment)
-        session.commit()
-        session.refresh(new_turn)
-        session.refresh(new_appointment)
+
         return ORJSONResponse(
-            TurnsResponse(
-                id=new_turn.id,
-                reason=turn.reason,
-                state=turn.state,
-                date=turn.date,
-                date_limit=turn.date_limit,
-                date_created=new_turn.date_created,
-                user_id=new_turn.user_id,
-            ).model_dump()
+            PayTurnResponse(
+                turn=TurnsResponse(
+                    id=new_turn.id,
+                    reason=turn.reason,
+                    state=turn.state,
+                    date=turn.date,
+                    date_limit=turn.date_limit,
+                    date_created=new_turn.date_created,
+                    user_id=new_turn.user_id,
+                    time=new_turn.time
+                ).model_dump(),
+                payment_url=response
+            ),
+            status_code=status.HTTP_201_CREATED
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

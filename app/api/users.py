@@ -107,7 +107,8 @@ async def get_user_by_id(session: SessionDep, user_id: UUID):
             blood_type=user.blood_type,
             address=user.address,
             telephone=user.telephone,
-            img_profile=user.url_image_profile
+            img_profile=user.url_image_profile,
+            health_insurance=user.health_insurance
         ).model_dump()
     )
 
@@ -139,7 +140,7 @@ async def me_user(request: Request, session: SessionDep):
             blood_type=user.blood_type,
             address=user.address,
             img_profile=user.url_image_profile,
-            health_insurance_id=[h.id for h in user.health_insurance]
+            health_insurance=[h.id for h in user.health_insurance]
         ).model_dump(),
     })
 
@@ -178,7 +179,7 @@ async def add_user(session: SessionDep, user: Annotated[UserCreate, Form(...)]):
                 telephone=user_db.telephone,
                 blood_type=user_db.blood_type,
                 img_profile=user_db.url_image_profile,
-                health_insurance_id=[h.id for h in user_db.health_insurance]
+                health_insurance=[h.id for h in user_db.health_insurance]
             ).model_dump()
         )
     except Exception as e:
@@ -222,16 +223,17 @@ async def update_user(request: Request, user_id: UUID, session: SessionDep, user
 
     for field in form_fields:
         value = getattr(user_form, field, None)
-        if not field in ["username", "health_insurance_id", "img_profile"] and value is not None and not value in ["", " "]:
+        if not field in ["username", "health_insurance", "img_profile"] and value is not None and not value in ["", " "]:
             setattr(user, field, value)
         elif field == "username" and value is not None and not value in ["", " "]:
             if not value:
                 raise HTTPException(status_code=400, detail="Username cannot be empty")
             user.name = user_form.username
-        elif field  == "health_insurance_id" and value is not None:
-            health_insurance_oj = session.get(HealthInsurance, user_form.health_insurance_id)
-            if not health_insurance_oj in user.health_insurance:
-                user.health_insurance.append(health_insurance_oj)
+        elif field  == "health_insurance" and value is not None:
+            for health_insurance_i in user_form.health_insurance:
+                health_insurance_oj = session.get(HealthInsurance, health_insurance_i)
+                if not health_insurance_oj in user.health_insurance:
+                    user.health_insurance.append(health_insurance_oj)
             else:
                 continue
         else:
@@ -259,7 +261,7 @@ async def update_user(request: Request, user_id: UUID, session: SessionDep, user
             dni=user.dni,
             blood_type=user.blood_type,
             img_profile=user.url_image_profile,
-            health_insurance_id=[h.id for h in user.health_insurance]
+            health_insurance=[h.id for h in user.health_insurance]
 
         ).model_dump()
     )

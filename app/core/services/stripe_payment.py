@@ -16,7 +16,7 @@ from sqlmodel import Session, select
 
 from rich.console import Console
 
-from app.models import Cashes, CashesDetails, Turns
+from app.models import Cashes, CashDetails, Turns, HealthInsurance
 from app.config import stripe_secret_key, stripe_public_key, cors_host, id_prefix
 from app.core.auth import encode
 
@@ -24,14 +24,16 @@ console = Console()
 
 class StripeServices:
     @staticmethod
-    async def proces_payment(price: float, details: dict) -> str | None:
+    async def proces_payment(price: float, details: dict, h_i: UUID, session: Session) -> str | None:
         line_items:list = []
+
+        health_insurance = session.get(HealthInsurance, h_i)
 
         for detail in details["products_data"]:
             line_items.append({
                 "price_data": {
                     "currency": "USD",
-                    "unit_amount": int(round(detail["price"]*100)),
+                    "unit_amount": int(round(detail["price"]*100))*(1-(health_insurance.discount/100)),
                     "product_data": {
                         "name": detail["name"],
                         "description": detail["description"],
@@ -42,11 +44,22 @@ class StripeServices:
 
         try:
             payload = {
-                "a":encode({"turn_id": details["turn_id"], "total":price, "payment_method": "card"}).hex()
+                "a":encode(
+                    {
+                        "turn_id": details["turn_id"],
+                        "total":price*float(1-(health_insurance.discount/100)),
+                        "payment_method": "card",
+                        "discount":health_insurance.discount
+                    }
+                ).hex()
             }
 
             bad_payload = {
-                "b": encode({"turn_id": details["turn_id"]}).hex()
+                "b": encode(
+                    {
+                        "turn_id": details["turn_id"]
+                    }
+                ).hex()
             }
 
             session = st.checkout.Session.create(
@@ -63,31 +76,45 @@ class StripeServices:
             return None
 
     @staticmethod
-    async def create_cash_detail(session: Session, turn_id: UUID, payment_method: str):
+    async def create_cash_detail(session: Session, turn_id: UUID, payment_method: str, discount: int, total: float):
         try:
             with session.begin():
                 turn = session.exec(
                     select(Turns).where(Turns.id == turn_id)
                 ).first()
 
-                open_cash = Cashes(
-                    date=datetime.now().date()
-                )
-                session.add(open_cash)
-                session.flush()
+                open_cash = session.exec(
+                    select(Cashes).where(
+                        Cashes.date == datetime.now().date()
+                    )
+                ).first()
+
+                if not open_cash:
+                    open_cash = Cashes(
+                        date=datetime.now().date()
+                    )
+                    session.add(open_cash)
+                    session.flush()
+                else:
+                    session.merge(open_cash)
+                    session.refresh(open_cash)
+
                 session.refresh(turn)
 
                 for service in turn.services:
                     open_cash.details.append(
-                        CashesDetails(
+                        CashDetails(
                             cash_id=open_cash.id,
                             service_id=service.id,
                             desciption=f"{service.name}-{payment_method}-{service.speciality}",
-                            amount=service.price
+                            amount=service.price*float(1-(discount/100)),
+                            total=service.price,
+                            date=datetime.now().date(),
+                            appointment_id=turn.appointment.id,
                         )
                     )
 
-                open_cash.income += turn.price_total()
+                open_cash.income += total*float(1-(discount/100))
                 open_cash.make_balance()
 
                 session.add(open_cash)

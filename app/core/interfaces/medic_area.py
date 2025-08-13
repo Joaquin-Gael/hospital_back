@@ -1,11 +1,11 @@
 from typing import Tuple
 
-from click import secho
+import random
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.schemas.medica_area import TurnsCreate
-from app.models import Turns, Appointments, MedicalSchedules
+from app.models import Turns, Appointments, MedicalSchedules, Services, Doctors, User
 
 
 class TurnAndAppointmentRepository:
@@ -34,13 +34,22 @@ class TurnAndAppointmentRepository:
             import locale
 
             with session.begin():
+                service = session.get(Services, turn.services[0])
+
+                if not service:
+                    raise IntegrityError
+
+                speciality = service.speciality
+
+                doctor = speciality.doctors[random.randint(0, len(speciality.doctorsd))]
+
                 new_turn = Turns(
                     reason=turn.reason,
                     state=turn.state,
                     date=turn.date,
                     date_limit=turn.date_limit,
                     user_id=turn.user_id,
-                    doctor_id=turn.doctor_id,
+                    doctor_id=turn.doctor.id,
                     appointment_id=turn.appointment_id,
                     services=turn.services,
                     time=turn.time
@@ -50,13 +59,13 @@ class TurnAndAppointmentRepository:
 
                 new_appointment = Appointments(
                     user_id=new_turn.id,
-                    doctor_id=new_turn.doctor_id,
+                    doctor_id=new_turn.doctor.id,
                     turn_id=new_turn.id,
                 )
 
                 schedules = session.exec(
                     select(MedicalSchedules).where(
-                        turn.doctor_id in MedicalSchedules.doctors
+                        doctor.id in MedicalSchedules.doctors
                     )
                 ).fetchall()
 

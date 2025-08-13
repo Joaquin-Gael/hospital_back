@@ -325,7 +325,9 @@ class Appointments(SQLModel, table=True):
     )
     turn: Optional["Turns"] = Relationship(back_populates="appointment")
 
-    cash: Optional["Cashes"] = Relationship(back_populates="appointments")
+    cash_details: List["CashDetails"] = Relationship(
+        back_populates="appointment"
+    )
 
     def get_monetary_gain(self) -> float:
         pass
@@ -339,16 +341,13 @@ class Cashes(SQLModel, table=True):
         primary_key=True,
         unique=True
     )
-    income: float = Field(default=0, nullable=False)
-    expense: float = Field(default=0, nullable=False)
+    income: float = Field(default=0, nullable=False, ge=0)
+    expense: float = Field(default=0, nullable=False, ge=0)
     date: date_type = Field(nullable=False)
     time_transaction: time_type = Field(nullable=False, default=datetime.now().time())
     balance: float = Field(default=0, nullable=False)
 
-    appointment_id: UUID = Field(foreign_key="appointments.appointment_id")
-    appointments: Optional["Appointments"] = Relationship(back_populates="cash")
-
-    details: List["CashesDetails"] = Relationship(
+    details: List["CashDetails"] = Relationship(
         back_populates="cash",
         cascade_delete=True,
         sa_relationship_kwargs={"lazy": "selectin"}
@@ -357,7 +356,9 @@ class Cashes(SQLModel, table=True):
     def make_balance(self):
         self.balance = self.income - self.expense
 
-class CashesDetails(SQLModel, table=True):
+class CashDetails(SQLModel, table=True):
+    __tablename__ = "cash_details"
+
     id: UUID = Field(
         sa_type=UUID_TYPE,
         sa_column_kwargs={"name":"cash_details_id", "comment": "The primary key of the cash_details table"},
@@ -369,6 +370,18 @@ class CashesDetails(SQLModel, table=True):
     amount: float = Field(default=0, nullable=False)
     date: date_type = Field(nullable=False)
     time_transaction: time_type = Field(nullable=False, default=datetime.now().time())
+    discount: int = Field(nullable=False, le=100, ge=0)
+
+    appointment_id: UUID = Field(
+        sa_type=UUID_TYPE,
+        foreign_key="appointments.appointment_id",
+        nullable=False
+    )
+    appointment: Appointments = Relationship(
+        back_populates="cash_details"
+    )
+
+    total: float = Field(nullable=False, description="this flied is the total of te service, the expense for the benefit of this service")
 
     service_id: UUID = Field(foreign_key="services.service_id")
     service: Optional["Services"] = Relationship(back_populates="details")
@@ -436,7 +449,7 @@ class Services(SQLModel, table=True):
         link_model=TurnsServicesLink
     )
     #appointments: List["Appointments"] = Relationship(back_populates="service")
-    details: List["CashesDetails"] = Relationship(back_populates="service")
+    details: List["CashDetails"] = Relationship(back_populates="service")
 
     # Static Style
     icon_code: Optional[str] = Field(max_length=20)
@@ -583,7 +596,7 @@ MedicalSchedules.model_rebuild()
 Turns.model_rebuild()
 Appointments.model_rebuild()
 Cashes.model_rebuild()
-CashesDetails.model_rebuild()
+CashDetails.model_rebuild()
 Chat.model_rebuild()
 ChatMessages.model_rebuild()
 HealthInsurance.model_rebuild()

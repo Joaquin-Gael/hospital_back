@@ -17,7 +17,7 @@ class UserBase(BaseModel):
     telephone: Optional[str] = None
     address: Optional[str] = None
     blood_type: Optional[str] = None
-    health_insurance_id: Optional[List[UUID]] = []
+    health_insurance: Optional[List[UUID]] = []
 
     @classmethod
     @field_validator("email", mode="before")
@@ -45,7 +45,7 @@ class UserUpdate(BaseModel):
     last_name: Optional[str] = None
     address: Optional[str] = None
     telephone: Optional[str] = None
-    health_insurance_id: Optional[List[UUID]] = []
+    health_insurance: Optional[List[UUID]] = []
     img_profile: Optional[UploadFile] = None
 
 class UserHeathInsuranceUpdate(BaseModel):
