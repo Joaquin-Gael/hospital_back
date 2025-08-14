@@ -1821,7 +1821,7 @@ async def get_turn_by_id(request: Request, session: SessionDep, turn_id: UUID):
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-@turns.post("/add/", response_model=PayTurnResponse)
+@turns.post("/add", response_model=PayTurnResponse)
 async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
     user: User | None = request.state.user
 

@@ -4,6 +4,8 @@ import random
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
+from datetime import datetime, timedelta
+
 from app.schemas.medica_area import TurnsCreate
 from app.models import Turns, Appointments, MedicalSchedules, Services, Doctors, User
 
@@ -29,66 +31,80 @@ class TurnAndAppointmentRepository:
             return False
 
     @staticmethod
-    async def create_turn_and_appointment(session: Session, turn: TurnsCreate) -> Tuple[Turns, Appointments] | Tuple[None, str]:
+    async def create_turn_and_appointment(session: Session, turn: TurnsCreate) -> Tuple[Turns, Appointments] | Tuple[
+        None, str]:
         try:
             import locale
 
             with session.begin():
-                service = session.get(Services, turn.services[0])
+                services = []
+                for service_id in turn.services:
+                    service = session.get(Services, service_id)
+                    if not service:
+                        return None, f"Service with ID {service_id} not found"
+                    services.append(service)
 
-                if not service:
-                    raise IntegrityError
+                speciality = services[0].speciality
 
-                speciality = service.speciality
-
-                doctor = speciality.doctors[random.randint(0, len(speciality.doctorsd))]
+                if not speciality.doctors:
+                    return None, "No doctors available for the selected speciality"
+                doctor = random.choice(speciality.doctors)
 
                 new_turn = Turns(
                     reason=turn.reason,
                     state=turn.state,
                     date=turn.date,
-                    date_limit=turn.date_limit,
+                    date_limit=turn.date + timedelta(days=1),
                     user_id=turn.user_id,
-                    doctor_id=turn.doctor.id,
-                    appointment_id=turn.appointment_id,
-                    services=turn.services,
+                    doctor_id=doctor.id,
+                    services=services,
                     time=turn.time
                 )
                 session.add(new_turn)
                 session.flush()
 
+                # Crear la nueva cita
                 new_appointment = Appointments(
-                    user_id=new_turn.id,
-                    doctor_id=new_turn.doctor.id,
+                    user_id=new_turn.user_id,
+                    doctor_id=doctor.id,
                     turn_id=new_turn.id,
                 )
+                session.add(new_appointment)
+                session.flush()
 
+                # Buscar los horarios médicos
                 schedules = session.exec(
                     select(MedicalSchedules).where(
-                        doctor.id in MedicalSchedules.doctors
+                        MedicalSchedules.doctor_id == doctor.id  # Ajustar la consulta si es necesario
                     )
-                ).fetchall()
+                ).all()
 
                 locale.setlocale(locale.LC_TIME, "en_US.UTF-8")
 
+                # Asignar el turno al horario correspondiente
                 for schedule in schedules:
-                    if schedule.day.value == turn.date.strftime("%A").lower():
+                    if schedule.day.value.lower() == turn.date.strftime("%A").lower():
                         if schedule.max_patients > len(schedule.turns):
                             schedule.turns.append(new_turn)
                         elif schedule.max_patients == len(schedule.turns):
                             schedule.turns.append(new_turn)
                             schedule.available = False
                         else:
-                            raise IntegrityError
+                            return None, "No available slots in the schedule"
+                        session.add(schedule)
+                        break  # Salir del bucle si se asignó el turno
 
-                session.add(schedule)
+                if not schedules:
+                    return None, "No matching schedule found for the selected date"
 
-                session.add(new_appointment)
-
+            # Refrescar los objetos después de confirmar la transacción
             session.refresh(new_turn)
             session.refresh(new_appointment)
 
             return new_turn, new_appointment
         except IntegrityError as e:
             session.rollback()
-            return None, str(e)
+            return None, f"Database integrity error: {str(e)}"
+        except Exception as e:
+            session.rollback()
+            return None, f"Unexpected error: {str(e)}"
