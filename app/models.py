@@ -178,7 +178,7 @@ class BaseModelTurns(SQLModel, RenameTurnsStateMixin, table=False):
     date: date_type = Field(nullable=False)
     date_created: date_type = Field(default_factory=date_type.today)
     date_limit: date_type = Field(nullable=False)
-    time: date_type = Field(nullable=False, default=datetime.now().time())
+    time: time_type = Field(nullable=False, default=datetime.now().time())
     user_id: Optional[UUID] = Field(
         sa_type=UUID_TYPE,
         foreign_key="users.user_id",

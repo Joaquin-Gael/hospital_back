@@ -63,7 +63,6 @@ class TurnAndAppointmentRepository:
                 session.add(new_turn)
                 session.flush()
 
-                # Crear la nueva cita
                 new_appointment = Appointments(
                     user_id=new_turn.user_id,
                     doctor_id=doctor.id,
@@ -72,16 +71,14 @@ class TurnAndAppointmentRepository:
                 session.add(new_appointment)
                 session.flush()
 
-                # Buscar los horarios médicos
                 schedules = session.exec(
                     select(MedicalSchedules).where(
-                        MedicalSchedules.doctor_id == doctor.id  # Ajustar la consulta si es necesario
+                        MedicalSchedules.doctor_id == doctor.id
                     )
                 ).all()
 
                 locale.setlocale(locale.LC_TIME, "en_US.UTF-8")
 
-                # Asignar el turno al horario correspondiente
                 for schedule in schedules:
                     if schedule.day.value.lower() == turn.date.strftime("%A").lower():
                         if schedule.max_patients > len(schedule.turns):
@@ -92,12 +89,11 @@ class TurnAndAppointmentRepository:
                         else:
                             return None, "No available slots in the schedule"
                         session.add(schedule)
-                        break  # Salir del bucle si se asignó el turno
+                        break
 
                 if not schedules:
                     return None, "No matching schedule found for the selected date"
 
-            # Refrescar los objetos después de confirmar la transacción
             session.refresh(new_turn)
             session.refresh(new_appointment)
 
