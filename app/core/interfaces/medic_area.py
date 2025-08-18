@@ -6,6 +6,7 @@ from sqlmodel import Session, select
 
 from datetime import datetime, timedelta
 
+from app.core.interfaces.oauth import console
 from app.schemas.medica_area import TurnsCreate
 from app.models import Turns, Appointments, MedicalSchedules, Services, Doctors, User
 
@@ -36,6 +37,8 @@ class TurnAndAppointmentRepository:
         try:
             import locale
 
+            console.print(f"Serial Turn: {turn}")
+
             with session.begin():
                 services = []
                 for service_id in turn.services:
@@ -49,6 +52,9 @@ class TurnAndAppointmentRepository:
                 if not speciality.doctors:
                     return None, "No doctors available for the selected speciality"
                 doctor = random.choice(speciality.doctors)
+                
+                console.print(f"Doctor: {doctor}")
+
 
                 new_turn = Turns(
                     reason=turn.reason,
@@ -60,6 +66,8 @@ class TurnAndAppointmentRepository:
                     services=services,
                     time=turn.time
                 )
+                
+                console.print(f"Turn: {new_turn}")
                 session.add(new_turn)
                 session.flush()
 
@@ -68,8 +76,11 @@ class TurnAndAppointmentRepository:
                     doctor_id=doctor.id,
                     turn_id=new_turn.id,
                 )
+                console.print(f"Appointment: {new_appointment}")
                 session.add(new_appointment)
                 session.flush()
+                
+                console.print("Despues del flush")
 
                 schedules = session.exec(
                     select(MedicalSchedules).where(
@@ -93,14 +104,18 @@ class TurnAndAppointmentRepository:
 
                 if not schedules:
                     return None, "No matching schedule found for the selected date"
+                
+                session.commit()
 
             session.refresh(new_turn)
             session.refresh(new_appointment)
 
             return new_turn, new_appointment
         except IntegrityError as e:
+            console.print_exception(show_locals=True)
             session.rollback()
             return None, f"Database integrity error: {str(e)}"
         except Exception as e:
+            console.print_exception(show_locals=True)
             session.rollback()
             return None, f"Unexpected error: {str(e)}"

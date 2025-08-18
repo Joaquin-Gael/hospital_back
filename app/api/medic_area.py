@@ -1867,6 +1867,11 @@ async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
             ),
             status_code=status.HTTP_201_CREATED
         )
+        
+    except HTTPExceptiona as e:
+        console.print_exception(show_locals=True)
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

@@ -308,7 +308,7 @@ class TurnsBase(BaseModel):
     services: Optional[List[UUID]] = None
     appointment_id: Optional[UUID] = None
     date_limit: date_type
-    time: date_type
+    time: time_type
 
 class TurnsCreate(BaseModel):
     reason: Optional[str] = None
