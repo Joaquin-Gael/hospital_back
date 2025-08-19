@@ -1,9 +1,5 @@
+import stripe
 import stripe as st
-
-from pydantic import BaseModel
-from typing import Dict
-
-from fastapi.responses import Response
 
 from datetime import datetime
 
@@ -22,6 +18,8 @@ from app.core.auth import encode
 
 console = Console()
 
+stripe.api_key = stripe_secret_key
+
 class StripeServices:
     @staticmethod
     async def proces_payment(price: float, details: dict, h_i: UUID, session: Session) -> str | None:
@@ -33,7 +31,7 @@ class StripeServices:
             line_items.append({
                 "price_data": {
                     "currency": "USD",
-                    "unit_amount": int(round(detail["price"]*100))*(1-(health_insurance.discount/100)),
+                    "unit_amount": int(round(detail["price"]*100)*(1-(health_insurance.discount/100))),
                     "product_data": {
                         "name": detail["name"],
                         "description": detail["description"],
@@ -46,7 +44,7 @@ class StripeServices:
             payload = {
                 "a":encode(
                     {
-                        "turn_id": details["turn_id"],
+                        "turn_id": str(details["turn_id"]),
                         "total":price*float(1-(health_insurance.discount/100)),
                         "payment_method": "card",
                         "discount":health_insurance.discount
@@ -57,7 +55,7 @@ class StripeServices:
             bad_payload = {
                 "b": encode(
                     {
-                        "turn_id": details["turn_id"]
+                        "turn_id": str(details["turn_id"])
                     }
                 ).hex()
             }
@@ -120,4 +118,5 @@ class StripeServices:
                 session.add(open_cash)
                 session.commit()
         except IntegrityError as e:
+            console.print_exception(show_locals=True)
             session.rollback()

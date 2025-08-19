@@ -83,8 +83,11 @@ class TurnAndAppointmentRepository:
                 console.print("Despues del flush")
 
                 schedules = session.exec(
-                    select(MedicalSchedules).where(
-                        MedicalSchedules.doctor_id == doctor.id
+                    select(MedicalSchedules)
+                    .join(
+                        MedicalSchedules.doctors
+                    ).where(
+                        Doctors.id == doctor.id
                     )
                 ).all()
 
@@ -100,6 +103,7 @@ class TurnAndAppointmentRepository:
                         else:
                             return None, "No available slots in the schedule"
                         session.add(schedule)
+                        session.flush()
                         break
 
                 if not schedules:

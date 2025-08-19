@@ -11,6 +11,7 @@ from app.schemas.cashes import CashesRead, CashesCreate, CashesUpdate
 from app.core.auth import decode, JWTBearer
 from app.core.interfaces.medic_area import TurnAndAppointmentRepository
 from app.core.interfaces.emails import EmailService
+from app.core.services.stripe_payment import StripeServices
 from app.db.main import SessionDep
 from app.models import Cashes
 
@@ -23,18 +24,23 @@ router = APIRouter(
 
 auth = JWTBearer()
 
-public_router, private_router = APIRouter(prefix="/cashes"), APIRouter(prefix="/cashes", dependencies=[Depends(auth)])
+public_router, private_router = APIRouter(prefix=""), APIRouter(prefix="", dependencies=[Depends(auth)])
 
 @public_router.get("/pay/success")
-async def pay_success(a:str = Query(...)):
+async def pay_success(session: SessionDep, a:str = Query(...)):
     try:
         data = decode(
             bytes.fromhex(a)
         )
 
         console.print(data)
+        
+        await StripeServices.create_cash_detail(
+            session,
+            **data
+        )
 
-        return True
+        return Response(status_code=302, headers={"Location": "http://localhost:4200/user_panel/appointments"})
 
     except Exception as e:
         console.print_exception(show_locals=True)
@@ -50,7 +56,7 @@ async def pay_cansel(b: str = Query(...)):
 
         console.print(data)
 
-        return True
+        return Response(status_code=302, headers={"Location": "http://localhost:4200/user_panel/appointments"})
 
     except Exception as e:
         console.print_exception(show_locals=True)

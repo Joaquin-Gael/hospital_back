@@ -108,7 +108,7 @@ from app.schemas.medica_area import (
     HealthInsuranceCreate
 )
 from app.db.main import SessionDep
-from app.core.auth import JWTBearer, JWTWebSocket
+from app.core.auth import JWTBearer, JWTWebSocket, time_out
 from app.core.interfaces.medic_area import TurnAndAppointmentRepository
 from app.core.services.stripe_payment import StripeServices
 
@@ -1647,6 +1647,9 @@ async def create_chat(request: Request, session: SessionDep, doc_2_id=Query(...)
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     doc: Doctors = request.state.user
+    
+    console.print(doc)
+    console.print(request.state.scopes)
 
     if isinstance(doc, User):
         raise HTTPException(status_code=403, detail="You are not authorized")
@@ -1670,8 +1673,10 @@ ws_chat = APIRouter(
 
 @ws_chat.websocket("/chat/{chat_id}")
 async def websocket_chat(websocket: WebSocket, session: SessionDep, chat_id, data: tuple = Depends(ws_auth)):
+    #console.print(data)
     if data is None:
-        await websocket.close(1008, reason="Data Error")
+    #    await websocket.close(1008, reason="Data Error")
+        raise WebSocketDisconnect()
 
     if not "doc" in data[1]:
         await websocket.close(1008, reason="Unauthorized")
@@ -1693,12 +1698,15 @@ async def websocket_chat(websocket: WebSocket, session: SessionDep, chat_id, dat
 
     await manager.connect(doc.id, websocket)
     try:
-        await manager.broadcast({"type":"presence","user":str(doc.id),"status":"online"})
+        console.rule("send message")
+        #await manager.broadcast({"type":"presence","user":str(doc.id),"status":"online"})
         while True:
             data = await websocket.receive_json()
             content = data["content"]
 
             chat_db: Chat = session.exec(select(Chat).where(Chat.id == chat_id)).first()
+            
+            console.print(f"Chat: {chat_db}")
 
             message = ChatMessages(
                 sender_id=doc.id,
@@ -1706,26 +1714,30 @@ async def websocket_chat(websocket: WebSocket, session: SessionDep, chat_id, dat
                 content=content,
                 chat=chat_db,
             )
+            
+            console.print(f"Message: {message}")
 
             session.add(message)
             session.commit()
             session.refresh(message)
+            
+            console.rule("Fin Message")
 
             if manager.is_connected(doc.id):
-                await websocket.send_json({
+                await manager.send_personal_message({
                     "type":"message",
                     "message":{
                         "content":message.content,
                         "created_at":message.created_at.strftime("%Y-%m-%d %H:%M:%S")
-                    }
-                })
+                    },
+                }, user_id=chat_db.doc_2_id)
 
     except WebSocketDisconnect:
         pass
 
-    finally:
-        await manager.broadcast({"type":"presence","user":doc.id,"status":"offline"})
-        manager.disconnect(doc.id)
+    #finally:
+    #    await manager.broadcast({"type":"presence","user":str(doc.id),"status":"offline"})
+    #    manager.disconnect(doc.id)
 
 
 turns = APIRouter(
@@ -1756,7 +1768,8 @@ async def get_turns(request: Request, session: SessionDep):
                 date_created=turn.date_created,
                 user_id=turn.user_id,
                 doctor_id=turn.doctor_id,
-                appointment_id=turn.appointment_id,
+                appointment_id=str(turn.appointment.id),
+                time=turn.time,
                 service=[
                     ServiceResponse(
                         id=serv.id,
@@ -1766,7 +1779,7 @@ async def get_turns(request: Request, session: SessionDep):
                         specialty_id=serv.specialty_id
                     ) for serv in turn.services
                 ]
-            )
+            ).model_dump()
         )
 
     return ORJSONResponse(turns_serialized)
@@ -1855,20 +1868,20 @@ async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
             PayTurnResponse(
                 turn=TurnsResponse(
                     id=new_turn.id,
-                    reason=turn.reason,
-                    state=turn.state,
-                    date=turn.date,
-                    date_limit=turn.date_limit,
+                    reason=new_turn.reason,
+                    state=new_turn.state,
+                    date=new_turn.date,
+                    date_limit=new_turn.date_limit,
                     date_created=new_turn.date_created,
                     user_id=new_turn.user_id,
                     time=new_turn.time
                 ).model_dump(),
                 payment_url=response
-            ),
+            ).model_dump(),
             status_code=status.HTTP_201_CREATED
         )
         
-    except HTTPExceptiona as e:
+    except HTTPException as e:
         console.print_exception(show_locals=True)
         raise HTTPException(status_code=e.status_code, detail=e.detail)
     

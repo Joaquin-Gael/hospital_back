@@ -549,6 +549,7 @@ class Chat(SQLModel, table=True):
     )
     messages: List["ChatMessages"] = Relationship(
         back_populates="chat",
+        cascade_delete=True
     )
     doc_1_id: UUID
     doc_2_id: UUID

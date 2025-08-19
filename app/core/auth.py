@@ -2,16 +2,17 @@ import jwt
 from jwt import PyJWTError
 
 from datetime import datetime, timedelta
+import time
 
 from pydantic import BaseModel
 
 from fastapi import Header, HTTPException, status, Request, WebSocket
 
-from functools import singledispatch
+from functools import singledispatch, wraps
 
 from sqlmodel import select
 
-from typing import Optional, Any, Type, TypeVar
+from typing import Optional, Any, Type, TypeVar, Callable, ParamSpec
 
 from cryptography.fernet import Fernet
 
@@ -147,6 +148,20 @@ def decode_token(token: str):
         print(e) if debug else None
         raise ValueError("Value Not Found") from e
 
+P = ParamSpec("P")
+R = TypeVar("R")
+
+def time_out(secons: Optional[float] =  None):
+    def decorator(func : Callable[P, R]) -> Callable[P, R]:
+        @wraps(func)
+        async def wrapper(request: Request, *args: P.args, **kwargs: P.kwargs) -> R:
+            console.print(request)
+            return await func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+
 class JWTBearer:
     async def __call__(self, request: Request, authorization: Optional[str] = Header(None)) -> User | Doctors | None:
         if authorization is None or not authorization.startswith("Bearer"):
@@ -214,20 +229,24 @@ class JWTWebSocket:
     async def __call__(self, websocket: WebSocket) -> tuple[User | Doctors, list[str]] | tuple[None, None] | None:
         query = websocket.query_params
 
-        console.print(query) if debug else None
+        console.print(query)
 
         if not "token" in query.keys() or query.get("token") is None:
+            console.print(f"query: {query}")
             await websocket.close(1008, reason="No credentials provided or invalid format")
             return None
 
         if not query.get("token").startswith("Bearer_"):
+            console.print(f"query: {query}")
             await websocket.close(1008, reason="No credentials provided or invalid format")
             return None
 
         token = query.get("token").split("_")[1]
+        console.print(f"Tokwn jwt websocket: {token}")
 
         try:
             payload = decode_token(token)
+            console.print(f"Payload token: {payload}")
 
             user_id = payload.get("sub")
 
@@ -256,5 +275,6 @@ class JWTWebSocket:
             return user, payload.get("scopes")
 
         except ValueError:
+            console.print_exception(show_locals=True)
             await websocket.close(1008, reason="Invalid o Expired Token")
             return None

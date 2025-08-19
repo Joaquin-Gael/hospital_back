@@ -94,9 +94,11 @@ async def doc_login(session: SessionDep, credentials: Annotated[DoctorAuth, Form
 
 @router.post("/login", response_model=TokenUserResponse)
 async def login(session: SessionDep, credentials: Annotated[UserAuth, Form(...)]):
+    console.print(credentials)
     statement = select(User).where(User.email == credentials.email)
     result = session.exec(statement)
     user: User = result.first()
+    console.print(user)
     if not user:
         raise HTTPException(status_code=404, detail="Invalid credentials payload")
 
