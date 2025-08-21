@@ -1785,8 +1785,8 @@ async def get_turns(request: Request, session: SessionDep):
     return ORJSONResponse(turns_serialized)
 
 @turns.get("/{user_id}", response_model=Optional[List[TurnsResponse]])
-async def get_turn_by_user_id(request: Request, session: SessionDep, user_id: UUID):
-    user = session.get(User, request.state.user.id)
+async def get_turns_by_user_id(request: Request, session: SessionDep, user_id: UUID):
+    user = session.get(User, user_id)
     try:
         turns_serialized = [
             TurnsResponse(
@@ -1797,8 +1797,35 @@ async def get_turn_by_user_id(request: Request, session: SessionDep, user_id: UU
                 date_limit=turn.date_limit,
                 date_created=turn.date_created,
                 user_id=turn.user_id,
+                time=turn.time,
+                doctor=DoctorResponse(
+                    id=turn.doctor.id,
+                    dni=turn.doctor.dni,
+                    username=turn.doctor.name,
+                    speciality_id=turn.doctor.speciality_id,
+                    date_joined=turn.doctor.date_joined,
+                    is_active=turn.doctor.is_active,
+                    email=turn.doctor.email,
+                    first_name=turn.doctor.first_name,
+                    last_name=turn.doctor.last_name,
+                    telephone=turn.doctor.telephone
+                ).model_dump(),
+                service=[
+                    ServiceResponse(
+                        id=service.id,
+                        name=service.name,
+                        description=service.description,
+                        price=service.price,
+                        specialty_id=service.specialty_id
+                    ).model_dump() for service in turn.services
+                ],
             ).model_dump() for turn in user.turns
         ]
+
+        return ORJSONResponse(
+            turns_serialized,
+            status_code=200,
+        )
     except Exception as e:
         console.print_exception(show_locals=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
