@@ -45,7 +45,7 @@ class UserUpdate(BaseModel):
     last_name: Optional[str] = None
     address: Optional[str] = None
     telephone: Optional[str] = None
-    health_insurance: Optional[List[UUID]] = []
+    health_insurance: Optional[List[str]] = []
     img_profile: Optional[UploadFile] = None
 
 class UserHeathInsuranceUpdate(BaseModel):

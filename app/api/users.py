@@ -215,6 +215,8 @@ async def update_user(request: Request, user_id: UUID, session: SessionDep, user
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un unauthorized")
 
     user: User = session.get(User, user_id)
+
+    console.print(user_form.health_insurance)
     
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

@@ -100,8 +100,6 @@ def _(data: type(None)) -> bytes:
     text = dumps(data).encode("utf-8")
     return encoder_f.encrypt(text)
 
-
-
 T = TypeVar("T")
 
 def decode(data: bytes, dtype: Type[T] | None = None) -> T | Any:

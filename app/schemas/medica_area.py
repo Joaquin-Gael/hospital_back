@@ -80,6 +80,8 @@ class DepartmentResponse(DepartmentBase):
     id: UUID
     specialities: Optional[List["SpecialtyResponse"]] = []
 
+    location: Optional["LocationResponse"] = None
+
     #class Config:
     #    orm_mode = True
 
@@ -106,6 +108,8 @@ class SpecialtyResponse(SpecialtyBase):
     id: UUID
     services: Optional[List["ServiceResponse"]] = []
     doctors: Optional[List["DoctorResponse"]] = []
+
+    department: Optional["DepartmentResponse"] = None
 
     #class Config:
     #    orm_mode = True
@@ -135,6 +139,8 @@ class ServiceUpdate(BaseModel):
 
 class ServiceResponse(ServiceBase):
     id: UUID
+
+    specialty: Optional["SpecialtyResponse"] = None
 
     #class Config:
     #   orm_mode = True

@@ -104,7 +104,7 @@ class StripeServices:
                         CashDetails(
                             cash_id=open_cash.id,
                             service_id=service.id,
-                            desciption=f"{service.name}-{payment_method}-{service.speciality}",
+                            description=f"{service.name}-{payment_method}-{service.speciality}",
                             amount=service.price*float(1-(discount/100)),
                             total=service.price,
                             date=datetime.now().date(),

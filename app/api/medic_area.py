@@ -14,7 +14,7 @@ from fastapi.responses import ORJSONResponse
 
 from sqlmodel import select
 
-from typing import List, Optional, Dict, Annotated
+from typing import List, Optional, Dict, Annotated, TypeVar
 
 from rich import print
 from rich.console import Console
@@ -1784,9 +1784,40 @@ async def get_turns(request: Request, session: SessionDep):
 
     return ORJSONResponse(turns_serialized)
 
+Serializer = TypeVar("Serializer")
+
+def serialize_model(model: object, serializer: Serializer, session, refresh: bool = False) -> Serializer:
+    fields = serializer.__fields__.keys()
+    serializer_f = serializer()
+    for i in fields:
+        setattr(serializer_f, i, getattr(model, i))
+
+
 @turns.get("/{user_id}", response_model=Optional[List[TurnsResponse]])
 async def get_turns_by_user_id(request: Request, session: SessionDep, user_id: UUID):
     user = session.get(User, user_id)
+
+    def serialize_departament(d: Departments):
+        session.merge(d)
+        session.refresh(d)
+        return DepartmentResponse(
+            id=d.id,
+            name=d.name,
+            description=d.description,
+            location_id=d.location_id,
+        )
+
+    def serialize_speciality(s: Specialties):
+        session.merge(s)
+        session.refresh(s)
+        return SpecialtyResponse(
+            id=s.id,
+            name=s.name,
+            description=s.description,
+            department_id=s.department_id,
+            department=serialize_departament(s.departament)
+        )
+
     try:
         turns_serialized = [
             TurnsResponse(
@@ -1816,9 +1847,9 @@ async def get_turns_by_user_id(request: Request, session: SessionDep, user_id: U
                         name=service.name,
                         description=service.description,
                         price=service.price,
-                        specialty_id=service.specialty_id
+                        specialty_id=service.specialty_id,
                     ).model_dump() for service in turn.services
-                ],
+                ]
             ).model_dump() for turn in user.turns
         ]
 
@@ -1934,6 +1965,52 @@ async def delete_turn(request: Request, session: SessionDep, turn_id: UUID):
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@turns.patch("/update/state")
+async def update_state(request: Request, turn_id: UUID, new_state: str, session: SessionDep):
+    turn = session.get(Turns, turn_id)
+
+    if not turn:
+        raise HTTPException(404, detail="Turn Not Found")
+
+    if "superuser" not in request.state.scopes:
+        if turn.state.value in ["finished", "rejected", "cancelled"]:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Turn has a not mutable state")
+
+    try:
+
+        match new_state:
+            case "waiting":
+                turn.state = TurnsState.waiting
+
+            case "finished":
+                turn.state = TurnsState.finished
+
+            case "cancelled":
+                turn.state = TurnsState.cancelled
+
+            case "rejected":
+                turn.state = TurnsState.rejected
+
+            case "accepted":
+                turn.state = TurnsState.accepted
+
+            case _:
+                raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail=f"{new_state} isn´t in the valid states")
+
+        session.add(turn)
+        session.commit()
+
+        return ORJSONResponse({
+            "msg":"success"
+        },status_code=200)
+
+    except HTTPException as e:
+        raise HTTPException from e
+
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        raise HTTPException(500, detail=str(e))
 
 # TODO: hacer los patchs
 
