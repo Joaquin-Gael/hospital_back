@@ -20,3 +20,4 @@ app/dist
 
 # Storage
 *.json
+.env
