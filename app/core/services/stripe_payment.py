@@ -47,7 +47,8 @@ class StripeServices:
                         "turn_id": str(details["turn_id"]),
                         "total":price*float(1-(health_insurance.discount/100)),
                         "payment_method": "card",
-                        "discount":health_insurance.discount
+                        "discount":health_insurance.discount,
+                        "services":encode(details["products_data"]).hex()
                     }
                 ).hex()
             }
@@ -74,7 +75,7 @@ class StripeServices:
             return None
 
     @staticmethod
-    async def create_cash_detail(session: Session, turn_id: UUID, payment_method: str, discount: int, total: float):
+    async def create_cash_detail(session: Session, turn_id: UUID, payment_method: str, discount: int, total: float, services: list) -> bool:
         try:
             with session.begin():
                 turn = session.exec(
@@ -109,6 +110,7 @@ class StripeServices:
                             total=service.price,
                             date=datetime.now().date(),
                             appointment_id=turn.appointment.id,
+                            discount=discount,
                         )
                     )
 
@@ -117,6 +119,10 @@ class StripeServices:
 
                 session.add(open_cash)
                 session.commit()
+                
+                return True
         except IntegrityError as e:
             console.print_exception(show_locals=True)
             session.rollback()
+            
+            return False

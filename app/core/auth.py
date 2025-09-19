@@ -185,10 +185,10 @@ class JWTBearer:
 
         ban_token = storage.get(key=payload.get("sub"), table_name="ban-token")
 
-        console.print(">>> ", ban_token, " <<<") if debug else None
+        #console.print(">>> ", ban_token, " <<<") if debug else None
 
         if ban_token is not None:
-            console.print(f"Token banned: {ban_token.value}") if debug else None
+            #console.print(f"Token banned: {ban_token.value}") if debug else None
             if token == ban_token.value:
                 raise HTTPException(status_code=403, detail="Token banned")
 
