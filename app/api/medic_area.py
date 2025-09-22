@@ -109,7 +109,7 @@ from app.schemas.medica_area import (
 )
 from app.db.main import SessionDep
 from app.core.auth import JWTBearer, JWTWebSocket, time_out
-from app.core.interfaces.medic_area import TurnAndAppointmentRepository
+from app.core.interfaces.medic_area import TurnAndAppointmentRepository, DoctorRepository
 from app.core.services.stripe_payment import StripeServices
 
 auth = JWTBearer()
@@ -613,6 +613,7 @@ async def get_doctors(session: SessionDep):
                 telephone=doc.telephone,
                 speciality_id=doc.speciality_id,
                 blood_type=doc.blood_type,
+                doctor_state=doc.doctor_state,
                 address=doc.address,
             ).model_dump() for doc in result]
 
@@ -724,6 +725,20 @@ async def get_patients_by_doctor(request: Request, doctor_id: UUID, session: Ses
             status_code=status.HTTP_200_OK
         )
 
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    
+@doctors.get("/{doctor_id}/stats")
+async def get_doctor_stats_by_id(request: Request, doctor_id: str, session: SessionDep):
+    try:
+        doctor = await DoctorRepository.get_doctor_by_id(session, UUID(doctor_id))
+        metrics = await DoctorRepository.get_doctor_metrics(session, doctor)
+        
+        return ORJSONResponse(
+            metrics,
+            status_code=status.HTTP_200_OK
+        )
     except Exception as e:
         console.print_exception(show_locals=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -1052,7 +1067,7 @@ async def ban_doc(request: Request, doc_id: UUID, session: SessionDep):
             dni=doc.dni,
             telephone=doc.telephone,
             speciality_id=doc.speciality_id
-        ).model_dumb(),
+        ).model_dump(),
         "message":f"User {doc.name} has been banned."
     })
 
@@ -1065,7 +1080,7 @@ async def unban_doc(request: Request, doc_id: UUID, session: SessionDep):
     statement = select(Doctors).where(Doctors.id == doc_id)
     doc: Doctors = session.exec(statement).first()
 
-    doc.is_banned = False
+    doc.is_active = False
     session.add(doc)
     session.commit()
     session.refresh(doc)
@@ -1085,7 +1100,7 @@ async def unban_doc(request: Request, doc_id: UUID, session: SessionDep):
             dni=doc.dni,
             telephone=doc.telephone,
             speciality_id=doc.speciality_id
-        ),
+        ).model_dump(),
         "message":f"User {doc.name} has been unbanned."
     })
 
@@ -1309,7 +1324,7 @@ async def get_service_by_id(request: Request, service_id: UUID, session: Session
         status_code=status.HTTP_200_OK
     )
 
-@services.post("/add/", response_model=ServiceResponse)
+@services.post("/add", response_model=ServiceResponse)
 async def set_service(request: Request, session: SessionDep, service: ServiceCreate):
 
     if not request.state.user.is_superuser:
@@ -1362,39 +1377,39 @@ async def delete_service(request: Request, session: SessionDep, service_id :UUID
         console.print_exception(show_locals=True)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
-@services.patch("/update/{services}/", response_model=ServiceResponse)
-async def update_service(request: Request, session: SessionDep, service_id: UUID, service: ServiceUpdate):
+@services.patch("/update/{service_id}/", response_model=ServiceResponse)
+async def update_service(
+    request: Request,
+    session: SessionDep,
+    service_id: UUID,
+    service: ServiceUpdate
+):
 
     if not request.state.user.is_superuser:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
+        raise HTTPException(status_code=401, detail="Not authorized")
 
-    new_service: Services = session.exec(
-        select(Services)
-        .where(Services.id == service_id)
-    ).first()
+    new_service = session.get(Services, service_id)
+    if not new_service:
+        raise HTTPException(status_code=404, detail="Service not found")
 
-    fields = service.__fields__.keys()
-
-    for field in fields:
-        value = getattr(service, field)
-        if value is None:
-            continue
-        setattr(new_service, field, value)
-
+    update_data = service.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(new_service, key, value)
+    
     session.add(new_service)
     session.commit()
     session.refresh(new_service)
-
-    return ORJSONResponse(
-        ServiceResponse(
-            id=new_service.id,
-            name=new_service.name,
-            description=new_service.description,
-            price=new_service.price,
-            specialty_id=new_service.specialty_id,
-            icon_code=new_service.icon_code
-        ).model_dump()
+    
+    data = ServiceResponse(
+        id=new_service.id,
+        name=new_service.name,
+        description=new_service.description,
+        price=new_service.price,
+        specialty_id=new_service.specialty_id,
     )
+    
+    return data
+
 
 
 
@@ -1499,7 +1514,7 @@ async def add_speciality(request: Request, session: SessionDep, specialty: Speci
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@specialities.delete("/delete/{speciality_id}}/", response_model=SpecialtyDelete)
+@specialities.delete("/delete/{speciality_id}/", response_model=SpecialtyDelete)
 async def delete_speciality(request: Request, session: SessionDep, speciality_id: UUID):
 
     if not request.state.user.is_superuser:

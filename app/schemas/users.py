@@ -52,7 +52,9 @@ class UserHeathInsuranceUpdate(BaseModel):
     heath_insurance_id: Optional[List[UUID]] = []
 
 class UserPasswordUpdate(BaseModel):
-    password: constr(min_length=8)
+    old_password: constr(min_length=8)
+    new_password: constr(min_length=8)
+    new_password_confirm: constr(min_length=8)
 
 class UserPetitionPasswordUpdate(BaseModel):
     email: EmailStr

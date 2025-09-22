@@ -57,6 +57,7 @@ class PurgeMeta(type):
             table_name = kwargs.get("table_name")
             if table_name:
                 self.purge_expired(table_name)
+                self._mark_dirty()
             return method(self, *args, **kwargs)
         return wrapper
 
@@ -95,7 +96,7 @@ class Storage(BaseModel):
 
 class Singleton(metaclass=PurgeMeta):
     _instance = None
-    _cache = TTLCache(maxsize=100, ttl=timedelta(minutes=15).total_seconds())
+    _cache = TTLCache(maxsize=100, ttl=timedelta(minutes=1).total_seconds())
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
@@ -243,15 +244,37 @@ class Singleton(metaclass=PurgeMeta):
                     continue
         raise NoneResultException(f"No exist item whit {parameter} = {equals}")
 
-    def set(self, key = None, value = None, table_name: str = "", long_live: bool = False) -> SetItem:
-        item = SetItem(
-            key=key,
-            value=value,
-            created=datetime.now(),
-            updated=datetime.now(),
-            id=uuid4(),
-            expired=datetime.now() + timedelta(minutes=15) if not long_live else datetime.now() + timedelta(days=30)
-        )
+    def set(self, key = None, value = None, table_name: str = "", long_live: bool = False, short_live: bool = False) -> SetItem:
+        if long_live and short_live:
+            raise ValueError("Only one of long_live or short_live can be True")
+        elif long_live:
+            item = SetItem(
+                key=key,
+                value=value,
+                created=datetime.now(),
+                updated=datetime.now(),
+                id=uuid4(),
+                expired=datetime.now() + timedelta(days=30)
+            )
+        elif short_live:
+            item = SetItem(
+                key=key,
+                value=value,
+                created=datetime.now(),
+                updated=datetime.now(),
+                id=uuid4(),
+                expired=datetime.now() + timedelta(minutes=1)
+            )
+        else:
+            item = SetItem(
+                key=key,
+                value=value,
+                created=datetime.now(),
+                updated=datetime.now(),
+                id=uuid4(),
+                expired=datetime.now() + timedelta(minutes=15)
+            )
+            
         self.data.tables[table_name].items[key] = item
         self._mark_dirty()
         return item

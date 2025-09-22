@@ -7,6 +7,8 @@ from typing import List, Dict, Optional, Tuple
 from rich.console import Console
 from sqlmodel import select
 
+from urllib.parse import urlencode
+
 from app.schemas.cashes import CashesRead, CashesCreate, CashesUpdate
 from app.core.auth import decode, JWTBearer
 from app.core.interfaces.medic_area import TurnAndAppointmentRepository
@@ -35,12 +37,21 @@ async def pay_success(session: SessionDep, a:str = Query(...)):
 
         console.print(data)
         
-        await StripeServices.create_cash_detail(
+        success = await StripeServices.create_cash_detail(
             session,
             **data
         )
+        
+        services_query: List = decode(
+            bytes.fromhex(data["services"])
+        )
 
-        return Response(status_code=302, headers={"Location": "http://localhost:4200/user_panel/appointments"})
+        console.print(services_query)
+        
+        if success:
+            return Response(status_code=302, headers={"Location": "http://localhost:4200/user_panel/appointments?success=true"})
+        else:
+            return Response(status_code=307, headers={"Location": f"http://localhost:4200/user_panel/appointments?success=false&{urlencode({"services":data["services"]})}"})
 
     except Exception as e:
         console.print_exception(show_locals=True)

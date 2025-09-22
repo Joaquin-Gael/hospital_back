@@ -7,13 +7,18 @@ from typing import List, Annotated
 
 from rich.console import Console
 
+from datetime import datetime
+
 from uuid import UUID
 
 import logging
 
 import sys
 
-from app.api.medic_area import health_insurance
+import secrets
+
+import string
+
 from app.schemas.medica_area import HealthInsuranceBase
 from app.schemas.users import UserRead, UserCreate, UserDelete, UserUpdate, UserPasswordUpdate, \
     UserPetitionPasswordUpdate
@@ -21,6 +26,7 @@ from app.models import User, HealthInsurance
 from app.core.auth import JWTBearer
 from app.db.main import SessionDep
 from app.core.interfaces.emails import EmailService
+from app.core.interfaces.users import UserRepository
 from app.core.auth import encode, decode
 from app.storage import storage
 
@@ -184,7 +190,7 @@ async def add_user(session: SessionDep, user: Annotated[UserCreate, Form(...)]):
         )
     except Exception as e:
         console.print_exception(show_locals=True)
-        return ORJSONResponse({"error": str(e)})
+        return ORJSONResponse({"error": str(e)}, status_code=400)
 
 @private_router.delete("/delete/{user_id}/", response_model=UserDelete)
 async def delete_user(request: Request, user_id: UUID, session: SessionDep):
@@ -273,20 +279,74 @@ async def update_petition_password(session: SessionDep, data: UserPetitionPasswo
     try:
         user: User = session.exec(
             select(User).where(User.email == data.email)
-        ).first()
+        ).first()[0]
 
         if not user:
             ORJSONResponse({"detail": "Ok 200"}, status_code=200)
+            
+        code = [secrets.choice(string.ascii_letters + string.digits) for _ in range(6)]
 
-        r_cod = encode({"info":"Tu_mama"}).hex()
+        r_cod = "".join(code)
+        
+        console.print(f"User: {user} - Date Type: {type(user)}")
 
-        storage.set(key=user.email, value=r_cod, table_name="Nose")
+        storage.set(key=user.email, value=r_cod, table_name="recovery-codes", short_live=True)
 
         EmailService.send_password_reset_email(user.email, reset_code=r_cod)
 
     except Exception:
         console.print_exception(show_locals=True)
         return ORJSONResponse({"detail":"Ok 200"}, status_code=200)
+    
+@public_router.post("/update/confirm/password", response_model=UserRead)
+async def update_confirm_password(session: SessionDep, email: str = Form(...), code: str = Form(...), new_password: str = Form(...)):
+    try:
+        user: User = session.exec(
+            select(User).where(User.email == email)
+        ).first()[0]
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        code_storage = storage.get(key=user.email, table_name="recovery-codes")
+
+        if not code_storage or code_storage.value.value != code or code_storage.value.expired <= datetime.now():
+            raise HTTPException(status_code=400, detail="Invalid code")
+
+        user.set_password(new_password)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        
+        EmailService.send_password_changed_notification_email(
+            user.email,
+            help_link="https://support.google.com/accounts/answer/41078?hl=en",
+            contact_email="email@email.com",
+            contact_number="1234567890"
+        )
+
+        return ORJSONResponse(
+            UserRead(
+                id=user.id,
+                is_active=user.is_active,
+                is_admin=user.is_admin,
+                is_superuser=user.is_superuser,
+                last_login=user.last_login,
+                date_joined=user.date_joined,
+                username=user.name,
+                email=user.email,
+                first_name=user.first_name,
+                last_name=user.last_name,
+                dni=user.dni,
+                blood_type=user.blood_type,
+                img_profile=user.url_image_profile
+            ).model_dump()
+        )
+    except HTTPException as he:
+        raise he
+    except Exception:
+        console.print_exception(show_locals=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @private_router.patch("/update/{user_id}/password", response_model=UserRead)
@@ -299,11 +359,21 @@ async def update_user_password(request: Request, user_id: UUID, session: Session
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    
+    if not user.check_password(user_form.old_password) or not user_form.new_password == user_form.new_password_confirm:
+        raise HTTPException(status_code=404, detail="User not found")
 
-    user.set_password(user_form.password)
+    user.set_password(user_form.new_password)
     session.add(user)
     session.commit()
     session.refresh(user)
+    
+    EmailService.send_password_changed_notification_email(
+        user.email,
+        help_link="https://support.google.com/accounts/answer/41078?hl=en",
+        contact_email="email@email.com",
+        contact_number="1234567890"
+    )
 
     return ORJSONResponse(
         UserRead(

@@ -1,9 +1,9 @@
 from pathlib import Path
 
 from fastapi import UploadFile
-from sqlmodel import SQLModel, Field, Relationship
+from sqlmodel import SQLModel, Field, Relationship, Session
 
-from sqlalchemy import Column, UUID as UUID_TYPE, VARCHAR
+from sqlalchemy import Column, UUID as UUID_TYPE, VARCHAR, event
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import declarative_mixin
 
@@ -80,11 +80,18 @@ class BaseUser(SQLModel, table=False):
     is_superuser: bool = Field(default=False)
     last_login: Optional[datetime] = Field(nullable=True)
     date_joined: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default=datetime.now(), nullable=True)
     dni: str = Field(max_length=8)
     telephone: Optional[str] = Field(max_length=50)
     address: Optional[str] = Field(nullable=True)
     blood_type: Optional[str] = Field(nullable=True)
     url_image_profile: Optional[str] = Field(nullable=True)
+    
+    @event.listens_for(Session, "before_flush")
+    def _update_timestamp(session, flush_context, instances):
+        for obj in session.dirty:
+            if isinstance(obj, BaseUser):
+                obj.updated_at = datetime.now()
 
     def set_url_image_profile(self, file_name: str):
         self.url_image_profile = f"{os.getenv("DOMINIO")}/media/{self.__class__.__name__.lower()}/{file_name}"
@@ -97,7 +104,9 @@ class BaseUser(SQLModel, table=False):
         
         try:
             if self.url_image_profile:
-                os.remove(self.url_image_profile)
+                media_index = self.url_image_profile.find("/media")
+                file_path = self.url_image_profile[media_index:]
+                os.remove(file_path)
         except FileNotFoundError:
             pass
         except Exception as e:
@@ -286,7 +295,8 @@ class Turns(BaseModelTurns, table=True):
                     "name": service.name,
                     "description": service.description,
                     "quantity": 1,
-                    "price": service.price
+                    "price": service.price,
+                    "id": str(service.id)
                 }
             )
 
@@ -369,7 +379,7 @@ class CashDetails(SQLModel, table=True):
         primary_key=True,
         unique=True
     )
-    description: str = Field(max_length=50)
+    description: str = Field(max_length=255, nullable=False)
     amount: float = Field(default=0, nullable=False)
     date: date_type = Field(nullable=False)
     time_transaction: time_type = Field(nullable=False, default=datetime.now().time())

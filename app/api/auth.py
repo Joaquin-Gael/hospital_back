@@ -67,6 +67,8 @@ async def doc_login(session: SessionDep, credentials: Annotated[DoctorAuth, Form
 
     token = gen_token(doc_data)
     refresh_token = gen_token(doc_data, refresh=True)
+    
+    doc.last_login = datetime.now()
 
     return ORJSONResponse(
         TokenDoctorsResponse(

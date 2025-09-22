@@ -18,7 +18,7 @@ from typing import List, Tuple
 from app.config import debug, admin_user, User, db_url
 
 
-engine = create_engine(db_url, echo=debug, future=True, pool_pre_ping=True)
+engine = create_engine(db_url, echo=False, future=True, pool_pre_ping=True)
 
 console = Console()
 
