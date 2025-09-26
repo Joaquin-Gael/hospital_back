@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends, HTTPException, status, Form
+from fastapi import APIRouter, Request, Depends, HTTPException, status, Form, UploadFile
 from fastapi.responses import ORJSONResponse
 
 from sqlalchemy import select
@@ -9,19 +9,37 @@ from rich.console import Console
 
 from datetime import datetime
 
+from collections import defaultdict
+
+from pathlib import Path
+
 from uuid import UUID
+
+import asyncio   
 
 import logging
 
 import sys
 
+import tempfile
+
+import re
+
 import secrets
 
 import string
 
+import PIL
+
+import pytesseract
+
+import numpy as np
+
+import cv2
+
 from app.schemas.medica_area import HealthInsuranceBase
 from app.schemas.users import UserRead, UserCreate, UserDelete, UserUpdate, UserPasswordUpdate, \
-    UserPetitionPasswordUpdate
+    UserPetitionPasswordUpdate, DniForm
 from app.models import User, HealthInsurance
 from app.core.auth import JWTBearer
 from app.db.main import SessionDep
@@ -29,6 +47,7 @@ from app.core.interfaces.emails import EmailService
 from app.core.interfaces.users import UserRepository
 from app.core.auth import encode, decode
 from app.storage import storage
+from app.config import cors_host, email_host_user, binaries_dir
 
 logger = logging.getLogger("uvicorn.error")
 logger.setLevel(logging.DEBUG)
@@ -40,6 +59,10 @@ formatter = logging.Formatter(
 handler.setFormatter(formatter)
 
 logger.addHandler(handler)
+
+TESS_DIGITS = "-c tessedit_char_whitelist=0123456789 --oem 3"
+
+pytesseract.pytesseract.tesseract_cmd = binaries_dir / "tesseract.exe"
 
 console = Console()
 
@@ -191,6 +214,109 @@ async def add_user(session: SessionDep, user: Annotated[UserCreate, Form(...)]):
     except Exception as e:
         console.print_exception(show_locals=True)
         return ORJSONResponse({"error": str(e)}, status_code=400)
+    
+@private_router.post("/verify/dni")
+async def verify_dni(dni_form: Annotated[DniForm, Form(...)]):
+    """
+    Endpoint para extraer número de DNI de fotos del frente y dorso.
+    
+    Recibe dos imágenes (frente y dorso del DNI) y devuelve el número
+    encontrado usando OCR con múltiples estrategias de extracción.
+    
+    Args:
+        dni_form: Form con campos 'front' y 'back' (archivos de imagen)
+        
+    Returns:
+        dict: {
+            "dni": str o None - El DNI más confiable encontrado,
+        }
+    """
+    try:        
+        console.print(dni_form.front.content_type, dni_form.back.content_type)
+
+        b1 = await dni_form.front.read()
+        b2 = await dni_form.back.read()
+        
+        img_size = (1500, 1000)
+
+        def bytes_to_cv2(b):
+            """Convierte bytes de imagen a formato OpenCV."""
+            arr = np.frombuffer(b, np.uint8)
+            img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            if img is None:
+                raise ValueError("cv2 no pudo decodificar la imagen")
+            return img
+
+        img1 = bytes_to_cv2(b1)
+        img2 = bytes_to_cv2(b2)
+
+        def extract_from_mrz(img_color, size: tuple[int, int]):
+            """
+            Busca en la zona MRZ (Machine Readable Zone) del DNI.
+            
+            La MRZ son esas líneas de abajo con caracteres raros y '<<'.
+            Suele tener el DNI de forma más confiable que el texto impreso normal.
+            
+            Returns:
+                tuple: (lista de DNIs encontrados, texto MRZ completo)
+            """
+            img = cv2.resize(img_color, size)
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            
+            matriz = np.array([
+                [0,-1,0],
+                [-1,5,-1],
+                [0,-1,0]
+            ])
+            
+            gray = cv2.filter2D(src=gray, ddepth=0, kernel=matriz)
+            
+            # OCR sin restricciones para capturar toda la MRZ
+            mrz_text = pytesseract.image_to_string(gray, config="--psm 6")
+            
+            # Buscar líneas típicas de MRZ (tienen '<<' y son largas)
+            mrz_candidates = re.findall(r'.{10,}\<\<.{2,}', mrz_text.replace('\n',' '))
+            digits = []
+            
+            # En las líneas MRZ buscar secuencias de 8 dígitos
+            for m in mrz_candidates:
+                digits += re.findall(r'\d{8}', m)
+                
+            if not digits:
+                for m in mrz_candidates:
+                    digits += re.findall(r'\d{2}\.\d{3}\.\d{3}')
+                
+            # Si no encontramos nada específico, buscar en todo el texto
+            if not digits:
+                digits += re.findall(r'\d{8}', mrz_text)
+                
+            # Eliminar duplicados manteniendo el orden
+            return list(dict.fromkeys(digits)), mrz_text
+
+        mrz1, mrz_text1 = extract_from_mrz(img1, img_size)
+        mrz2, mrz_text2 = extract_from_mrz(img2, img_size)
+        
+        
+        if not mrz1:
+            console.print(f"lista de valores 1: {mrz1}")
+            for _ in range(5):
+                mrz1, mrz_text1 = extract_from_mrz(img1, img_size)
+                
+        if not mrz2:
+            console.print(f"lista de valores 2: {mrz2}")
+            for _ in range(5):
+                mrz2, mrz_text2 = extract_from_mrz(img2, img_size)
+                
+                
+        console.print(mrz_text1)
+
+        return {
+            "dni":[mrz1, mrz2],
+        }
+
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        raise HTTPException(status_code=400, detail=f"Invalid images or OCR error: {str(e)}")
 
 @private_router.delete("/delete/{user_id}/", response_model=UserDelete)
 async def delete_user(request: Request, user_id: UUID, session: SessionDep):
@@ -275,7 +401,7 @@ async def update_user(request: Request, user_id: UUID, session: SessionDep, user
     )
 
 @public_router.post("/update/petition/password")
-async def update_petition_password(session: SessionDep, data: UserPetitionPasswordUpdate):
+async def update_petition_password(session: SessionDep, data: Annotated[UserPetitionPasswordUpdate, Form(...)]):
     try:
         user: User = session.exec(
             select(User).where(User.email == data.email)
@@ -289,14 +415,43 @@ async def update_petition_password(session: SessionDep, data: UserPetitionPasswo
         r_cod = "".join(code)
         
         console.print(f"User: {user} - Date Type: {type(user)}")
+        
+        r_code_data = {
+            "user": str(user.id),
+            "r_cod": r_cod,
+            "state": False
+        }
 
-        storage.set(key=user.email, value=r_cod, table_name="recovery-codes", short_live=True)
+        storage.set(key=user.email, value=r_code_data, table_name="recovery-codes", short_live=True)
 
         EmailService.send_password_reset_email(user.email, reset_code=r_cod)
 
     except Exception:
         console.print_exception(show_locals=True)
         return ORJSONResponse({"detail":"Ok 200"}, status_code=200)
+    
+@public_router.post("update/verify/code")
+async def verify_code(session: SessionDep, email: str = Form(...), code: str = Form(...)):
+   try:
+        user: User = session.exec(
+            select(User).where(User.email == email)
+        ).first()[0]
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        code_storage = storage.get(key=user.email, table_name="recovery-codes")
+        
+        if not code_storage or code_storage.value.value["r_code"] != code or code_storage.value.expired <= datetime.now():
+            raise HTTPException(status_code=400, detail="Invalid code")
+        
+        code_storage.value.value["state"] = True
+        
+        return HTTPException(status_code=200, detail="OK")
+    
+   except Exception as e:
+        console.print_exception(show_locals=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
     
 @public_router.post("/update/confirm/password", response_model=UserRead)
 async def update_confirm_password(session: SessionDep, email: str = Form(...), code: str = Form(...), new_password: str = Form(...)):
@@ -309,8 +464,11 @@ async def update_confirm_password(session: SessionDep, email: str = Form(...), c
             raise HTTPException(status_code=404, detail="User not found")
 
         code_storage = storage.get(key=user.email, table_name="recovery-codes")
+        
+        if not code_storage.value.value["state"]:
+            raise HTTPException(status_code=401, detail="Unautorized")
 
-        if not code_storage or code_storage.value.value != code or code_storage.value.expired <= datetime.now():
+        if not code_storage or code_storage.value.value["r_code"] != code or code_storage.value.expired <= datetime.now():
             raise HTTPException(status_code=400, detail="Invalid code")
 
         user.set_password(new_password)
@@ -320,8 +478,8 @@ async def update_confirm_password(session: SessionDep, email: str = Form(...), c
         
         EmailService.send_password_changed_notification_email(
             user.email,
-            help_link="https://support.google.com/accounts/answer/41078?hl=en",
-            contact_email="email@email.com",
+            help_link=f"{cors_host}/support",
+            contact_email=email_host_user,
             contact_number="1234567890"
         )
 

@@ -105,7 +105,7 @@ class BaseUser(SQLModel, table=False):
         try:
             if self.url_image_profile:
                 media_index = self.url_image_profile.find("/media")
-                file_path = self.url_image_profile[media_index:]
+                file_path = Path("app").joinpath(self.url_image_profile[media_index+1:]).resolve()
                 os.remove(file_path)
         except FileNotFoundError:
             pass
@@ -580,7 +580,6 @@ class ChatMessages(SQLModel, table=True):
     created_at: datetime = Field(nullable=False, default=datetime.now())
     deleted_at: datetime = Field(nullable=False, default=datetime.fromtimestamp((datetime.now() + timedelta(days=1)).timestamp()))
 
-#TODO: completar este tabla con datos importantes
 class HealthInsurance(SQLModel, table=True):
     __tablename__ = "health_insurance"
     id: UUID = Field(
@@ -598,6 +597,27 @@ class HealthInsurance(SQLModel, table=True):
         back_populates="health_insurance",
         link_model=UserHealthInsuranceLink
     )
+    
+    
+class PasswordResetToken(SQLModel, table=True):
+    __tablename__ = "password_reset_tokens"
+    id: UUID = Field(
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"password_reset_token_id"},
+        default_factory=uuid4, 
+        primary_key=True,
+        unique=True)
+    user_id: Optional[UUID] = Field(
+        sa_type=UUID_TYPE,
+        foreign_key="users.user_id",
+        nullable=True,
+    )
+    token_hash: str = Field(nullable=False, index=True)
+    created_at: datetime = Field(default_factory=datetime.now, nullable=False)
+    expires_at: datetime = Field(nullable=False)
+    used: bool = Field(default=False, nullable=False)
+    attempts: int = Field(default=0, nullable=False)
+    request_ip: str = Field(nullable=True)
 
 
 User.model_rebuild()
