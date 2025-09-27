@@ -432,24 +432,28 @@ async def update_petition_password(session: SessionDep, data: Annotated[UserPeti
     
 @public_router.post("update/verify/code")
 async def verify_code(session: SessionDep, email: str = Form(...), code: str = Form(...)):
-   try:
-        user: User = session.exec(
+    try:
+        # Usar scalar_one_or_none para obtener un objeto User directo o None
+        user = session.scalar(
             select(User).where(User.email == email)
-        ).first()[0]
+        )
         
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
         code_storage = storage.get(key=user.email, table_name="recovery-codes")
         
-        if not code_storage or code_storage.value.value["r_code"] != code or code_storage.value.expired <= datetime.now():
+        if not code_storage or code_storage.value.value["r_cod"] != code or code_storage.value.expired <= datetime.now():
             raise HTTPException(status_code=400, detail="Invalid code")
         
         code_storage.value.value["state"] = True
         
-        return HTTPException(status_code=200, detail="OK")
+        return {"message": "Code verified successfully", "success": True}
     
-   except Exception as e:
+    except HTTPException:
+        # Re-lanzar HTTPExceptions (404, 400) sin modificar
+        raise
+    except Exception as e:
         console.print_exception(show_locals=True)
         raise HTTPException(status_code=500, detail="Internal server error")
     
@@ -468,7 +472,7 @@ async def update_confirm_password(session: SessionDep, email: str = Form(...), c
         if not code_storage.value.value["state"]:
             raise HTTPException(status_code=401, detail="Unautorized")
 
-        if not code_storage or code_storage.value.value["r_code"] != code or code_storage.value.expired <= datetime.now():
+        if not code_storage or code_storage.value.value["r_cod"] != code or code_storage.value.expired <= datetime.now():
             raise HTTPException(status_code=400, detail="Invalid code")
 
         user.set_password(new_password)
