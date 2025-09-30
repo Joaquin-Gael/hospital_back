@@ -40,6 +40,7 @@ async def lifespan(app: FastAPI):
     storage.create_table("ban-token")
     storage.create_table("google-user-data")
     storage.create_table("recovery-codes")
+    storage.create_table("ip-time-out")
     console.rule("[green]Server Opened[/green]")
     if debug:
         # Línea destacada con título
@@ -174,6 +175,8 @@ app.add_middleware(
 
 app.include_router(auth.oauth_router)
 
+# TODO: hacer los servicios MCP y agregar gpt mediante hugginface para hacer el asistente
+
 class SPAStaticFiles(StaticFiles):
     def __init__(self, directory: str="dist/hospital-sdlg/browser", html: bool=True, check_dir: bool=True, api_prefix: UUID=id_prefix, index_file: str="index.html"):
         super().__init__(directory=directory, html=html, check_dir=check_dir)
@@ -214,22 +217,6 @@ app.mount("/media", StaticFiles(directory=media_dir))
 async def get_secret():
     return {"id_prefix_api_secret": str(id_prefix)}
 
-@app.get("/test/oauth/")
-async def oauth_index(request: Request):
-    return templates.TemplateResponse(request, name=parser_name(folders=["test", "oauth"], name="index"))
-
-@app.get("/test/oauth/login")
-async def oauth_index(request: Request):
-    return templates.TemplateResponse(request, name=parser_name(folders=["test", "oauth"], name="login"))
-
-@app.get("/user_panel")
-async def user_panel(request:Request):
-    return templates.TemplateResponse(request, name=parser_name(folders=["test", "oauth"], name="panel"))
-
-@app.get("/admin")
-async def user_panel(request:Request):
-    return templates.TemplateResponse(request, name=parser_name(folders=["test", "admin"], name="admin"))
-
 @app.websocket("/{secret}/ws")
 async def websocket_endpoint(websocket: WebSocket, secret: str):
     await websocket.accept()
@@ -248,3 +235,12 @@ async def websocket_endpoint(websocket: WebSocket, secret: str):
         console.print(f"Error en WebSocket: {str(e)}")
 
 #app.mount("/", SPAStaticFiles(), name="spa")
+
+app.mount(
+    "/admin", 
+    StaticFiles(
+        directory=Path(__file__).parent.joinpath("templates", "admin", "dist").resolve(),
+        html=True
+    ), 
+    name="admin"
+)

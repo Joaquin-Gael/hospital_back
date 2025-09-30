@@ -27,6 +27,7 @@ from app.models import Doctors, User
 from app.db.main import Session, engine
 from app.storage import storage
 from app.core.interfaces.emails import EmailService
+from app.storage import storage
 
 encoder_key = Fernet.generate_key()
 
@@ -149,12 +150,46 @@ def decode_token(token: str):
 P = ParamSpec("P")
 R = TypeVar("R")
 
-def time_out(secons: Optional[float] =  None):
-    def decorator(func : Callable[P, R]) -> Callable[P, R]:
+def time_out(seconds: Optional[float] = 1.0, max_trys: Optional[int] = 5) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    def decorator(func: Callable[P, R]) -> Callable[P, R]:
+        # Diccionario para almacenar el último tiempo de acceso por IP
+        last_access = {}
+        
         @wraps(func)
         async def wrapper(request: Request, *args: P.args, **kwargs: P.kwargs) -> R:
-            console.print(request)
-            return await func(*args, **kwargs)
+            # Obtener la IP del cliente
+            client_ip = request.client.host
+            current_time = time.time()
+            current_try = storage.get(key=client_ip, table_name="ip-time-out")
+            
+            if current_try is not None:
+                storage.set(key=client_ip, value={"current_try": 1, "max_trys": max_trys}, table_name="ip-time-out")
+            elif isinstance(current_try, dict):
+                if current_try.get("current_try", 0) >= current_try.get("max_trys", max_trys):
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail=f"Has excedido el número máximo de intentos. Por favor espera {seconds} segundos antes de intentar de nuevo."
+                    )
+                else:
+                    current_try["current_try"] += 1
+                    storage.set(key=client_ip, value=current_try, table_name="ip-time-out")
+            
+            # Verificar si existe un acceso previo para esta IP
+            if client_ip in last_access:
+                time_elapsed = current_time - last_access[client_ip]
+                # Si no ha pasado suficiente tiempo, lanzar una excepción
+                if time_elapsed < seconds:
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail=f"Por favor espera {seconds - time_elapsed:.1f} segundos antes de hacer otra petición"
+                    )
+            
+            # Actualizar el tiempo de último acceso
+            last_access[client_ip] = current_time
+            
+            # Ejecutar la función original
+            return await func(request, *args, **kwargs)
+        
         return wrapper
     return decorator
 
@@ -176,8 +211,8 @@ class JWTBearer:
             raise HTTPException(status_code=401, detail=e.args) from e
 
         if request.scope["route"].name != "refresh_token":
-            console.rule(request.scope["route"].name)
-            console.print(f"Se intento hacer el refresh: {payload}")
+            #console.rule(request.scope["route"].name)
+            #console.print(f"Se intento hacer el refresh: {payload}")
             if payload.get("type") == "refresh_token":
                 raise HTTPException(status_code=401, detail="No credentials provided or invalid format")
 
@@ -227,29 +262,29 @@ class JWTWebSocket:
     async def __call__(self, websocket: WebSocket) -> tuple[User | Doctors, list[str]] | tuple[None, None] | None:
         query = websocket.query_params
 
-        console.print(query)
+        #console.print(query)
 
         if not "token" in query.keys() or query.get("token") is None:
-            console.print(f"query: {query}")
+            #console.print(f"query: {query}")
             await websocket.close(1008, reason="No credentials provided or invalid format")
             return None
 
         if not query.get("token").startswith("Bearer_"):
-            console.print(f"query: {query}")
+            #console.print(f"query: {query}")
             await websocket.close(1008, reason="No credentials provided or invalid format")
             return None
 
         token = query.get("token").split("_")[1]
-        console.print(f"Tokwn jwt websocket: {token}")
+        #console.print(f"Tokwn jwt websocket: {token}")
 
         try:
             payload = decode_token(token)
-            console.print(f"Payload token: {payload}")
+            #console.print(f"Payload token: {payload}")
 
             user_id = payload.get("sub")
 
             if user_id is None:
-                console.print("user id: ", user_id)
+                #console.print("user id: ", user_id)
                 await websocket.close(1008, reason="Invalid token payload")
                 return None
 

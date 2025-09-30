@@ -37,6 +37,8 @@ import numpy as np
 
 import cv2
 
+import magic
+
 from app.schemas.medica_area import HealthInsuranceBase
 from app.schemas.users import UserRead, UserCreate, UserDelete, UserUpdate, UserPasswordUpdate, \
     UserPetitionPasswordUpdate, DniForm
@@ -231,11 +233,20 @@ async def verify_dni(dni_form: Annotated[DniForm, Form(...)]):
             "dni": str o None - El DNI más confiable encontrado,
         }
     """
-    try:        
-        console.print(dni_form.front.content_type, dni_form.back.content_type)
+    try:    
+        #console.print(dni_form.front.content_type, dni_form.back.content_type)
+        
+        if not dni_form.front.content_type.startswith("image/") or not dni_form.back.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="Files must be images")
 
         b1 = await dni_form.front.read()
         b2 = await dni_form.back.read()
+        
+        if len(b1) > 8_000_000 or len(b2) > 8_000_000:
+            raise HTTPException(status_code=400, detail="Images must be smaller than 8MB")
+        
+        if not magic.from_buffer(b1, mime=True) in ['image/jpeg', 'image/png'] or not magic.from_buffer(b2, mime=True) in ['image/jpeg', 'image/png']:
+            raise HTTPException(status_code=400, detail="Files must be JPEG or PNG images")
         
         img_size = (1500, 1000)
 

@@ -11,7 +11,7 @@ from datetime import datetime
 
 from app.models import Doctors, User
 from app.db.main import SessionDep
-from app.core.auth import gen_token, JWTBearer, decode
+from app.core.auth import gen_token, JWTBearer, decode, time_out
 from app.core.interfaces.oauth import OauthRepository
 from app.core.interfaces.users import UserRepository
 from app.core.interfaces.emails import EmailService
@@ -47,6 +47,7 @@ async def decode_hex(data: OauthCodeInput):
     return decode(bytes_code, dict)
 
 @router.post("/doc/login", response_model=TokenDoctorsResponse)
+@time_out(10)
 async def doc_login(session: SessionDep, credentials: Annotated[DoctorAuth, Form(...)]):
     statement = select(Doctors).where(Doctors.email == credentials.email)
     result = session.exec(statement)
@@ -95,6 +96,7 @@ async def doc_login(session: SessionDep, credentials: Annotated[DoctorAuth, Form
     )
 
 @router.post("/login", response_model=TokenUserResponse)
+@time_out(10)
 async def login(session: SessionDep, credentials: Annotated[UserAuth, Form(...)]):
     console.print(credentials)
     statement = select(User).where(User.email == credentials.email)
@@ -164,8 +166,8 @@ async def google_callback(request: Request):
                 last_name=data.get("family_name")
             )
             EmailService.send_google_account_linked_password(email=data.get("email"), first_name=data.get("given_name"),
-                                                             last_name=data.get("family_name"),
-                                                             raw_password=data.get("id"))
+                                                            last_name=data.get("family_name"),
+                                                            raw_password=data.get("id"))
 
         return response
     except Exception as e:
@@ -175,7 +177,6 @@ async def google_callback(request: Request):
 
 @router.get("/refresh", response_model=TokenUserResponse, name="refresh_token")
 async def refresh(request: Request, user: User = Depends(auth)):
-
     if isinstance(user, Doctors):
         doc_data = {
             "sub":str(user.id),
