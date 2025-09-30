@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Request, Depends, HTTPException, Header, status
+from fastapi import APIRouter, Request, Depends, HTTPException, Header, status, Form
 from fastapi.responses import ORJSONResponse
 
 from rich.console import Console
 
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Annotated
 
 from sqlmodel import select
 
@@ -47,7 +47,7 @@ async def decode_hex(data: OauthCodeInput):
     return decode(bytes_code, dict)
 
 @router.post("/doc/login", response_model=TokenDoctorsResponse)
-async def doc_login(session: SessionDep, credentials: DoctorAuth):
+async def doc_login(session: SessionDep, credentials: Annotated[DoctorAuth, Form(...)]):
     statement = select(Doctors).where(Doctors.email == credentials.email)
     result = session.exec(statement)
     doc: Doctors = result.first()
@@ -66,7 +66,9 @@ async def doc_login(session: SessionDep, credentials: DoctorAuth):
         doc_data["scopes"].append("active")
 
     token = gen_token(doc_data)
-    refresh_token = gen_token(doc_data)
+    refresh_token = gen_token(doc_data, refresh=True)
+    
+    doc.last_login = datetime.now()
 
     return ORJSONResponse(
         TokenDoctorsResponse(
@@ -86,16 +88,19 @@ async def doc_login(session: SessionDep, credentials: DoctorAuth):
                 is_superuser=doc.is_superuser,
                 last_login=doc.last_login,
                 date_joined=doc.date_joined,
+                address=doc.address
             ),
             refresh_token=refresh_token
         ).model_dump()
     )
 
 @router.post("/login", response_model=TokenUserResponse)
-async def login(session: SessionDep, credentials: UserAuth):
+async def login(session: SessionDep, credentials: Annotated[UserAuth, Form(...)]):
+    console.print(credentials)
     statement = select(User).where(User.email == credentials.email)
     result = session.exec(statement)
     user: User = result.first()
+    console.print(user)
     if not user:
         raise HTTPException(status_code=404, detail="Invalid credentials payload")
 
@@ -169,7 +174,7 @@ async def google_callback(request: Request):
     
 
 @router.get("/refresh", response_model=TokenUserResponse, name="refresh_token")
-async def refresh(user: User = Depends(auth)):
+async def refresh(request: Request, user: User = Depends(auth)):
 
     if isinstance(user, Doctors):
         doc_data = {
@@ -222,6 +227,9 @@ async def refresh(user: User = Depends(auth)):
 
     if user.is_active:
         user_data["scopes"].append("active")
+        
+    if "google" in request.state.scopes:
+        user_data["scopes"].append("google")
 
     token = gen_token(user_data)
     refresh_token = gen_token(user_data, refresh=True)

@@ -7,13 +7,14 @@ from fastapi import (
     HTTPException,
     WebSocket,
     WebSocketDisconnect,
-    WebSocketException
+    WebSocketException,
+    Form
 )
 from fastapi.responses import ORJSONResponse
 
 from sqlmodel import select
 
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Annotated, TypeVar
 
 from rich import print
 from rich.console import Console
@@ -36,15 +37,19 @@ from app.models import (
     HealthInsurance,
     UserHealthInsuranceLink
 )
+from app.schemas import UserRead
 from app.schemas.medica_area import (
     MedicalScheduleCreate,
     MedicalScheduleDelete,
     MedicalScheduleUpdate,
-    MedicalScheduleResponse
+    MedicalScheduleResponse,
+    AvailableSchedules,
+    Schedules, PayTurnResponse
 )
 from app.schemas.medica_area import (
     DayOfWeek,
-    TurnsState
+    TurnsState,
+    DoctorStates
 )
 from app.schemas.medica_area import (
     DoctorResponse,
@@ -103,8 +108,8 @@ from app.schemas.medica_area import (
     HealthInsuranceCreate
 )
 from app.db.main import SessionDep
-from app.core.auth import JWTBearer, JWTWebSocket
-from app.core.interfaces.medic_area import TurnAndAppointmentRepository
+from app.core.auth import JWTBearer, JWTWebSocket, time_out
+from app.core.interfaces.medic_area import TurnAndAppointmentRepository, DoctorRepository
 from app.core.services.stripe_payment import StripeServices
 
 auth = JWTBearer()
@@ -319,6 +324,89 @@ async def get_medical_schedules(request: Request, session: SessionDep):
         schedules
     )
 
+@schedules.get("/{schedule_id}", response_model=MedicalScheduleResponse)
+async def get_schedule_by_id(session: SessionDep, schedule_id: UUID):
+    try:
+        schedule = session.get(MedicalSchedules, schedule_id)
+        doctors_by_schedule_serialized: List[DoctorResponse] = [
+            DoctorResponse(
+                username=doc.name,
+                dni=doc.dni,
+                id=doc.id,
+                email=doc.email,
+                speciality_id=doc.speciality_id,
+                is_active=doc.is_active,
+                doctor_status=doc.doctor_state,
+                date_joined=doc.date_joined
+            ) for doc in schedule.doctors
+        ]
+
+        return ORJSONResponse(
+            MedicalScheduleResponse(
+                id=schedule.id,
+                day=schedule.day,
+                start_time=schedule.start_time,
+                end_time=schedule.end_time,
+                doctors=doctors_by_schedule_serialized
+            ).model_dump(),
+            status_code=status.HTTP_200_OK
+        )
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+@schedules.get("/available/days/{speciality_id}", response_model=AvailableSchedules)
+async def days_by_availability(request: Request, speciality_id: UUID, session: SessionDep):
+    try:
+        speciality = session.get(Specialties, speciality_id)
+
+        dict_days = {}
+
+        for doc in speciality.doctors:
+            for schedule in doc.medical_schedules:
+                if schedule.available:
+                    if dict_days.get(schedule.day.value, None):
+                        match dict_days[schedule.day.value]:
+                            case (start, end) if start > schedule.start_time and end > schedule.end_time:
+                                dict_days[schedule.day.value] = (
+                                    schedule.start_time,
+                                    end
+                                )
+
+                            case (start, end) if start < schedule.start_time and end < schedule.end_time:
+                                dict_days[schedule.day.value] = (
+                                    start,
+                                    schedule.end_time
+                                )
+
+                            case (start, end) if start < schedule.start_time and end > schedule.end_time:
+                                continue
+                    else:
+                        dict_days.setdefault(
+                            schedule.day.value,
+                            (
+                                schedule.start_time,
+                                schedule.end_time
+                            )
+                        )
+
+        return ORJSONResponse(
+            AvailableSchedules(
+                available_days=[
+                    Schedules(
+                        day=k,
+                        start_time=v[0],
+                        end_time=v[1]
+                    ).model_dump() for k, v in dict_days.items()
+                ]
+            ).model_dump(),
+            status_code=status.HTTP_200_OK
+        )
+
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
 @schedules.post("/add/", response_model=MedicalScheduleResponse)
 async def add_schedule(medical_schedule: MedicalScheduleCreate, session: SessionDep):
     schedule = MedicalSchedules(
@@ -507,12 +595,10 @@ doctors = APIRouter(
 
 @doctors.get("/", response_model=List[DoctorResponse])
 async def get_doctors(session: SessionDep):
-    statement = select(Doctors)
-    result: List[Doctors] = session.exec(statement).all()
-    doctors = []
-    for doc in result:
-        doctors.append(
-            DoctorResponse(
+    result: List[Doctors] = session.exec(
+        select(Doctors).where(True)
+    ).all()
+    doctors_serialized = [DoctorResponse(
                 id=doc.id,
                 is_active=doc.is_active,
                 is_admin=doc.is_admin,
@@ -527,16 +613,15 @@ async def get_doctors(session: SessionDep):
                 telephone=doc.telephone,
                 speciality_id=doc.speciality_id,
                 blood_type=doc.blood_type,
+                doctor_state=doc.doctor_state,
                 address=doc.address,
-            ).model_dump()
-        )
+            ).model_dump() for doc in result]
 
-    return ORJSONResponse(doctors)
+    return ORJSONResponse(doctors_serialized)
 
 @doctors.get("/{doctor_id}/", response_model=DoctorResponse)
 async def get_doctor_by_id(doctor_id: UUID, session: SessionDep):
-    statement = select(Doctors).where(Doctors.id == doctor_id)
-    doc = session.exec(statement).first()
+    doc = session.get(Doctors, doctor_id)
 
     if not doc:
         raise HTTPException(status_code=404, detail=f"Doctor {doctor_id} not found")
@@ -557,28 +642,26 @@ async def get_doctor_by_id(doctor_id: UUID, session: SessionDep):
             telephone=doc.telephone,
             speciality_id=doc.speciality_id,
             blood_type=doc.blood_type,
+            schedules=[
+                MedicalScheduleResponse(
+                    id=schedule.id,
+                    day=schedule.day,
+                    start_time=schedule.start_time,
+                    end_time=schedule.end_time,
+                ) for schedule in doc.medical_schedules
+            ]
         ).model_dump()
     )
 
 @doctors.get("/me", response_model=DoctorResponse)
-async def me_doctor(request: Request):
+async def me_doctor(request: Request, session: SessionDep):
     doc: Doctors | User = request.state.user
 
     if isinstance(doc, User):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
 
-    #schedules: List["MedicalScheduleResponse"] = []
-    #for schedule in doc.medical_schedules:
-    #schedules.append(
-    #MedicalScheduleResponse(
-    #id=schedule.id,
-    #time_medic=schedule.time_medic,
-    #day=schedule.day,
-    #start_time=schedule.start_time,
-    #end_time=schedule.end_time,
-    #doctors=schedule.doctors,
-    #)
-    #)
+    doc = session.merge(doc)
+    session.refresh(doc)
 
     return ORJSONResponse({
         "doc":DoctorResponse(
@@ -596,9 +679,69 @@ async def me_doctor(request: Request):
             telephone=doc.telephone,
             speciality_id=doc.speciality_id,
             blood_type=doc.blood_type,
+            address=doc.address,
+            doctor_state=doc.doctor_state,
+            schedules=[
+                MedicalScheduleResponse(
+                    id=schedule.id,
+                    day=schedule.day,
+                    start_time=schedule.start_time,
+                    end_time=schedule.end_time,
+                ) for schedule in doc.medical_schedules
+            ]
         ).model_dump(),
-        #"schedules":schedules
     })
+
+@doctors.get("/{doctor_id}/patients", response_model=List[UserRead])
+async def get_patients_by_doctor(request: Request, doctor_id: UUID, session: SessionDep):
+    try:
+        doc = session.get(Doctors, doctor_id)
+        users_list: List[User] = []
+        for appointment in doc.appointments:
+            users_list.append(
+                appointment.user
+            )
+
+        return ORJSONResponse(
+            [
+                UserRead(
+                    id=user.id,
+                    is_active=user.is_active,
+                    is_admin=user.is_admin,
+                    is_superuser=user.is_superuser,
+                    last_login=user.last_login,
+                    date_joined=user.date_joined,
+                    username=user.name,
+                    email=user.email,
+                    first_name=user.first_name,
+                    last_name=user.last_name,
+                    dni=user.dni,
+                    address=user.address,
+                    telephone=user.telephone,
+                    blood_type=user.blood_type,
+                    img_profile=user.url_image_profile
+                ).model_dump() for user in users_list
+            ],
+            status_code=status.HTTP_200_OK
+        )
+
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    
+@doctors.get("/{doctor_id}/stats")
+async def get_doctor_stats_by_id(request: Request, doctor_id: str, session: SessionDep):
+    try:
+        doctor = await DoctorRepository.get_doctor_by_id(session, UUID(doctor_id))
+        metrics = await DoctorRepository.get_doctor_metrics(session, doctor)
+        
+        return ORJSONResponse(
+            metrics,
+            status_code=status.HTTP_200_OK
+        )
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @doctors.post("/add/", response_model=DoctorResponse)
 async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep):
@@ -618,7 +761,8 @@ async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep
             password=doctor.password,
             address=doctor.address,
             blood_type=doctor.blood_type,
-            first_name=doctor.first_name
+            first_name=doctor.first_name,
+            doctor_state=doctor.doctor_state
         )
 
         new_doctor.set_password(doctor.password)
@@ -712,7 +856,7 @@ async def delete_doctor_schedule_by_id(request: Request, schedule_id: UUID, doct
     )
 
 @doctors.patch("/update/{doctor_id}/", response_model=DoctorUpdate)
-async def update_doctor(request: Request, doctor_id: UUID, session: SessionDep, doctor: DoctorUpdate):
+async def update_doctor(request: Request, doctor_id: UUID, session: SessionDep, doctor: Annotated[DoctorUpdate, Form(...)]):
 
     if not "doc" in request.state.scopes and not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
@@ -730,11 +874,26 @@ async def update_doctor(request: Request, doctor_id: UUID, session: SessionDep, 
 
         for field in form_fields:
             value = getattr(doctor, field, None)
-            print(value)
-            if value is not None and field != "username":
+            console.print(field," = ",value)
+            if value is not None and field != "username" and not value in ["", " "]:
                 setattr(doc, field, value)
-            elif value is not None and field == "username":
+            elif value is not None and field == "username" and not value in ["", " "]:
                 doc.name = value
+            elif value is not None and field == "doctor_state" and not value in ["", " "]:
+                match value:
+                    case DoctorStates.available.value:
+                        doc.doctor_state = DoctorStates.available.value
+                        doc.is_available = True
+
+                    case DoctorStates.busy.value:
+                        doc.doctor_state = DoctorStates.busy.value
+                        doc.is_available = False
+
+                    case DoctorStates.offline.value:
+                        doc.doctor_state = DoctorStates.offline.value
+                        doc.is_available = False
+            else:
+                continue
 
         session.add(doc)
         session.commit()
@@ -744,9 +903,12 @@ async def update_doctor(request: Request, doctor_id: UUID, session: SessionDep, 
             DoctorUpdate(
                 username=doc.name,
                 last_name=doc.last_name,
+                first_name=doc.first_name,
                 telephone=doc.telephone,
                 email=doc.email,
-                speciality_id=doc.speciality_id
+                #speciality_id=doc.speciality_id,
+                address=doc.address,
+                doctor_state=doc.doctor_state
             ).model_dump()
         )
 
@@ -755,7 +917,7 @@ async def update_doctor(request: Request, doctor_id: UUID, session: SessionDep, 
         raise HTTPException(status_code=404, detail=f"Doctor {doctor_id} not found")
 
 @doctors.patch("/update/{doctor_id}/speciality", response_model=DoctorResponse)
-async def update_speciality(request: Request, doctor_id: UUID, session: SessionDep, doctor_form: DoctorSpecialityUpdate):
+async def update_speciality(request: Request, doctor_id: UUID, session: SessionDep, doctor_form: Annotated[DoctorSpecialityUpdate, Form(...)]):
     if not "doc" in request.state.scopes and not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un un unauthorized")
 
@@ -799,7 +961,7 @@ async def update_speciality(request: Request, doctor_id: UUID, session: SessionD
         raise HTTPException(status_code=404, detail=f"Doctor {doctor_id} not found")
 
 @doctors.patch("/update/{doctor_id}/password")
-async def update_doctor_password(request: Request, doctor_id: UUID, session: SessionDep, password: DoctorPasswordUpdate):
+async def update_doctor_password(request: Request, doctor_id: UUID, session: SessionDep, password: Annotated[DoctorPasswordUpdate, Form()]):
     if not "doc" in request.state.scopes and not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
 
@@ -905,7 +1067,7 @@ async def ban_doc(request: Request, doc_id: UUID, session: SessionDep):
             dni=doc.dni,
             telephone=doc.telephone,
             speciality_id=doc.speciality_id
-        ).model_dumb(),
+        ).model_dump(),
         "message":f"User {doc.name} has been banned."
     })
 
@@ -918,7 +1080,7 @@ async def unban_doc(request: Request, doc_id: UUID, session: SessionDep):
     statement = select(Doctors).where(Doctors.id == doc_id)
     doc: Doctors = session.exec(statement).first()
 
-    doc.is_banned = False
+    doc.is_active = False
     session.add(doc)
     session.commit()
     session.refresh(doc)
@@ -938,7 +1100,7 @@ async def unban_doc(request: Request, doc_id: UUID, session: SessionDep):
             dni=doc.dni,
             telephone=doc.telephone,
             speciality_id=doc.speciality_id
-        ),
+        ).model_dump(),
         "message":f"User {doc.name} has been unbanned."
     })
 
@@ -1131,24 +1293,38 @@ services = APIRouter(
 
 @services.get("/", response_model=List[ServiceResponse])
 async def get_services(request: Request, session: SessionDep):
-    statement = select(Services)
-    result: List["Services"] = session.exec(statement).all()
-    services = []
-    for service in result:
-        services.append(
-            ServiceResponse(
-                id=service.id,
-                name=service.name,
-                description=service.description,
-                price=service.price,
-                specialty_id=service.specialty_id,
-                icon_code=service.icon_code
-            ).model_dump()
-        )
+    result: List["Services"] = session.exec(
+        select(Services).where(True)
+    ).all()
+    services_serialized = [
+        ServiceResponse(
+            id=service.id,
+            name=service.name,
+            description=service.description,
+            price=service.price,
+            specialty_id=service.specialty_id,
+            icon_code=service.icon_code
+        ).model_dump() for service in result
+    ]
 
-    return ORJSONResponse(services)
+    return ORJSONResponse(services_serialized, status_code=status.HTTP_200_OK)
 
-@services.post("/add/", response_model=ServiceResponse)
+@services.get("/{service_id}", response_model=ServiceResponse)
+async def get_service_by_id(request: Request, service_id: UUID, session: SessionDep):
+    service = session.get(Services, service_id)
+    return ORJSONResponse(
+        ServiceResponse(
+            id=service.id,
+            name=service.name,
+            description=service.description,
+            price=service.price,
+            specialty_id=service.specialty_id,
+            icon_code=service.icon_code
+        ).model_dump(),
+        status_code=status.HTTP_200_OK
+    )
+
+@services.post("/add", response_model=ServiceResponse)
 async def set_service(request: Request, session: SessionDep, service: ServiceCreate):
 
     if not request.state.user.is_superuser:
@@ -1183,7 +1359,7 @@ async def set_service(request: Request, session: SessionDep, service: ServiceCre
             "error": str(e),
         }, status_code=status.HTTP_400_BAD_REQUEST)
 
-@services.delete("/delete/{services}/", response_model=ServiceDelete)
+@services.delete("/delete/{service_id}", response_model=ServiceDelete)
 async def delete_service(request: Request, session: SessionDep, service_id :UUID):
     try:
         service = session.exec(select(Services).where(Services.id == service_id)).first()
@@ -1201,39 +1377,39 @@ async def delete_service(request: Request, session: SessionDep, service_id :UUID
         console.print_exception(show_locals=True)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
-@services.patch("/update/{services}/", response_model=ServiceResponse)
-async def update_service(request: Request, session: SessionDep, service_id: UUID, service: ServiceUpdate):
+@services.patch("/update/{service_id}/", response_model=ServiceResponse)
+async def update_service(
+    request: Request,
+    session: SessionDep,
+    service_id: UUID,
+    service: ServiceUpdate
+):
 
     if not request.state.user.is_superuser:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
+        raise HTTPException(status_code=401, detail="Not authorized")
 
-    new_service: Services = session.exec(
-        select(Services)
-        .where(Services.id == service_id)
-    ).first()
+    new_service = session.get(Services, service_id)
+    if not new_service:
+        raise HTTPException(status_code=404, detail="Service not found")
 
-    fields = service.__fields__.keys()
-
-    for field in fields:
-        value = getattr(service, field)
-        if value is None:
-            continue
-        setattr(new_service, field, value)
-
+    update_data = service.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(new_service, key, value)
+    
     session.add(new_service)
     session.commit()
     session.refresh(new_service)
-
-    return ORJSONResponse(
-        ServiceResponse(
-            id=new_service.id,
-            name=new_service.name,
-            description=new_service.description,
-            price=new_service.price,
-            specialty_id=new_service.specialty_id,
-            icon_code=new_service.icon_code
-        ).model_dump()
+    
+    data = ServiceResponse(
+        id=new_service.id,
+        name=new_service.name,
+        description=new_service.description,
+        price=new_service.price,
+        specialty_id=new_service.specialty_id,
     )
+    
+    return data
+
 
 
 
@@ -1250,14 +1426,13 @@ async def get_specialities(request: Request, session: SessionDep):
     statement = select(Specialties)
     result: List["Specialties"] = session.exec(statement).all()
 
-    specialities: List[SpecialtyResponse] = []
+    specialities_serialized: List[SpecialtyResponse] = []
     for speciality in result:
-        statement = select(Services).where(Services.specialty_id == speciality.id)
-        result: List["Services"] = session.exec(statement).all()
+        result: List["Services"] = speciality.services
 
-        services: List[ServiceResponse] = []
+        services_serialized: List[ServiceResponse] = []
         for service in result:
-            services.append(
+            services_serialized.append(
                 ServiceResponse(
                     id=service.id,
                     name=service.name,
@@ -1271,9 +1446,9 @@ async def get_specialities(request: Request, session: SessionDep):
         statement = select(Doctors).where(Doctors.speciality_id == speciality.id)
         result: List["Doctors"] = session.exec(statement).all()
 
-        doctors: List[DoctorResponse] = []
+        doctors_serialized: List[DoctorResponse] = []
         for doc in result:
-            doctors.append(
+            doctors_serialized.append(
                 DoctorResponse(
                     id=doc.id,
                     is_active=doc.is_active,
@@ -1291,52 +1466,21 @@ async def get_specialities(request: Request, session: SessionDep):
                 )
             )
 
-        specialities.append(
+        specialities_serialized.append(
             SpecialtyResponse(
                 id=speciality.id,
                 name=speciality.name,
                 description=speciality.description,
                 department_id=speciality.department_id,
-                doctors=doctors,
-                services=services
+                doctors=doctors_serialized,
+                services=services_serialized
             ).model_dump()
         )
 
     return ORJSONResponse(
-        specialities,
+        specialities_serialized,
         status_code=status.HTTP_200_OK
     )
-
-@specialities.get("/{speciality_id}/schedules/available")
-async def get_available_schedules(request: Request, session: SessionDep, speciality_id: UUID):
-    statement = select(Specialties) \
-        .join(Doctors, Doctors.speciality_id == Specialties.id) \
-        .join(DoctorMedicalScheduleLink, DoctorMedicalScheduleLink.doctor_id == Doctors.id) \
-        .join(MedicalSchedules, MedicalSchedules.id == DoctorMedicalScheduleLink.medical_schedule_id) \
-        .where(Specialties.id == speciality_id,
-               MedicalSchedules.available == True,
-               speciality_id == Specialties.id,
-               Doctors.is_available == True)
-
-    result: List["Specialties"] = session.exec(statement).all()
-
-    serialized_schedules: List = []
-
-    for speciality in result:
-        for doctor in speciality.doctors:
-            for schedule in doctor.medical_schedules:
-                serialized_schedules.append(
-                    {
-                        "id": schedule.id,
-                        "doctor_id": doctor.id,
-                        "doctor_name": doctor.name,
-                        "doctor_speciality": doctor.speciality.name,
-                        "doctor_speciality_id": doctor.speciality.id,
-                        "doctor_department": doctor.speciality.department.name,
-                    }
-                )
-
-    return serialized_schedules
 
 
 @specialities.post("/add/", response_model=SpecialtyResponse)
@@ -1370,7 +1514,7 @@ async def add_speciality(request: Request, session: SessionDep, specialty: Speci
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@specialities.delete("/delete/{speciality_id}}/", response_model=SpecialtyDelete)
+@specialities.delete("/delete/{speciality_id}/", response_model=SpecialtyDelete)
 async def delete_speciality(request: Request, session: SessionDep, speciality_id: UUID):
 
     if not request.state.user.is_superuser:
@@ -1518,6 +1662,9 @@ async def create_chat(request: Request, session: SessionDep, doc_2_id=Query(...)
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     doc: Doctors = request.state.user
+    
+    console.print(doc)
+    console.print(request.state.scopes)
 
     if isinstance(doc, User):
         raise HTTPException(status_code=403, detail="You are not authorized")
@@ -1541,8 +1688,10 @@ ws_chat = APIRouter(
 
 @ws_chat.websocket("/chat/{chat_id}")
 async def websocket_chat(websocket: WebSocket, session: SessionDep, chat_id, data: tuple = Depends(ws_auth)):
+    #console.print(data)
     if data is None:
-        await websocket.close(1008, reason="Data Error")
+    #    await websocket.close(1008, reason="Data Error")
+        raise WebSocketDisconnect()
 
     if not "doc" in data[1]:
         await websocket.close(1008, reason="Unauthorized")
@@ -1564,12 +1713,15 @@ async def websocket_chat(websocket: WebSocket, session: SessionDep, chat_id, dat
 
     await manager.connect(doc.id, websocket)
     try:
-        await manager.broadcast({"type":"presence","user":str(doc.id),"status":"online"})
+        console.rule("send message")
+        #await manager.broadcast({"type":"presence","user":str(doc.id),"status":"online"})
         while True:
             data = await websocket.receive_json()
             content = data["content"]
 
             chat_db: Chat = session.exec(select(Chat).where(Chat.id == chat_id)).first()
+            
+            console.print(f"Chat: {chat_db}")
 
             message = ChatMessages(
                 sender_id=doc.id,
@@ -1577,26 +1729,30 @@ async def websocket_chat(websocket: WebSocket, session: SessionDep, chat_id, dat
                 content=content,
                 chat=chat_db,
             )
+            
+            console.print(f"Message: {message}")
 
             session.add(message)
             session.commit()
             session.refresh(message)
+            
+            console.rule("Fin Message")
 
             if manager.is_connected(doc.id):
-                await websocket.send_json({
+                await manager.send_personal_message({
                     "type":"message",
                     "message":{
                         "content":message.content,
                         "created_at":message.created_at.strftime("%Y-%m-%d %H:%M:%S")
-                    }
-                })
+                    },
+                }, user_id=chat_db.doc_2_id)
 
     except WebSocketDisconnect:
         pass
 
-    finally:
-        await manager.broadcast({"type":"presence","user":doc.id,"status":"offline"})
-        manager.disconnect(doc.id)
+    #finally:
+    #    await manager.broadcast({"type":"presence","user":str(doc.id),"status":"offline"})
+    #    manager.disconnect(doc.id)
 
 
 turns = APIRouter(
@@ -1627,16 +1783,56 @@ async def get_turns(request: Request, session: SessionDep):
                 date_created=turn.date_created,
                 user_id=turn.user_id,
                 doctor_id=turn.doctor_id,
-                appointment_id=turn.appointment_id,
-                service=turn.service_id
-            )
+                appointment_id=str(turn.appointment.id),
+                time=turn.time,
+                service=[
+                    ServiceResponse(
+                        id=serv.id,
+                        name=serv.name,
+                        description=serv.description,
+                        price=serv.price,
+                        specialty_id=serv.specialty_id
+                    ) for serv in turn.services
+                ]
+            ).model_dump()
         )
 
     return ORJSONResponse(turns_serialized)
 
+Serializer = TypeVar("Serializer")
+
+def serialize_model(model: object, serializer: Serializer, session, refresh: bool = False) -> Serializer:
+    fields = serializer.__fields__.keys()
+    serializer_f = serializer()
+    for i in fields:
+        setattr(serializer_f, i, getattr(model, i))
+
+
 @turns.get("/{user_id}", response_model=Optional[List[TurnsResponse]])
-async def get_turn_by_user_id(request: Request, session: SessionDep, user_id: UUID):
-    user = session.get(User, request.state.user.id)
+async def get_turns_by_user_id(request: Request, session: SessionDep, user_id: UUID):
+    user = session.get(User, user_id)
+
+    def serialize_departament(d: Departments):
+        session.merge(d)
+        session.refresh(d)
+        return DepartmentResponse(
+            id=d.id,
+            name=d.name,
+            description=d.description,
+            location_id=d.location_id,
+        )
+
+    def serialize_speciality(s: Specialties):
+        session.merge(s)
+        session.refresh(s)
+        return SpecialtyResponse(
+            id=s.id,
+            name=s.name,
+            description=s.description,
+            department_id=s.department_id,
+            department=serialize_departament(s.departament)
+        )
+
     try:
         turns_serialized = [
             TurnsResponse(
@@ -1647,15 +1843,42 @@ async def get_turn_by_user_id(request: Request, session: SessionDep, user_id: UU
                 date_limit=turn.date_limit,
                 date_created=turn.date_created,
                 user_id=turn.user_id,
+                time=turn.time,
+                doctor=DoctorResponse(
+                    id=turn.doctor.id,
+                    dni=turn.doctor.dni,
+                    username=turn.doctor.name,
+                    speciality_id=turn.doctor.speciality_id,
+                    date_joined=turn.doctor.date_joined,
+                    is_active=turn.doctor.is_active,
+                    email=turn.doctor.email,
+                    first_name=turn.doctor.first_name,
+                    last_name=turn.doctor.last_name,
+                    telephone=turn.doctor.telephone
+                ).model_dump(),
+                service=[
+                    ServiceResponse(
+                        id=service.id,
+                        name=service.name,
+                        description=service.description,
+                        price=service.price,
+                        specialty_id=service.specialty_id,
+                    ).model_dump() for service in turn.services
+                ]
             ).model_dump() for turn in user.turns
         ]
+
+        return ORJSONResponse(
+            turns_serialized,
+            status_code=200,
+        )
     except Exception as e:
         console.print_exception(show_locals=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 @turns.get("/{turn_id}", response_model=TurnsResponse)
-async def get_turn(request: Request, session: SessionDep, turn_id: UUID):
+async def get_turn_by_id(request: Request, session: SessionDep, turn_id: UUID):
     user = request.state.user
 
     try:
@@ -1684,72 +1907,57 @@ async def get_turn(request: Request, session: SessionDep, turn_id: UUID):
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-@turns.post("/add/", response_model=Dict[str, TurnsResponse | str])
+@turns.post("/add", response_model=PayTurnResponse)
 async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
-    if "doc" in request.state.scopes and turn.doctor_id == request.user.id:
+    user: User | None = request.state.user
+
+    if "doc" in request.state.scopes:
         if turn.user_id is None:
             raise HTTPException(status_code=400, detail="user_id is required")
 
-        try:
-            new_turn, new_appointment = await TurnAndAppointmentRepository.create_turn_and_appointment(
-                session=session,
-                turn=turn
-            )
+    elif user:
+        turn.user_id = user.id
 
-            response = await StripeServices.proces_payment(price=new_turn.price_total(), details=new_turn.get_details())
+    else:
+        raise HTTPException(status_code=500, detail="Internal Error")
 
-            return ORJSONResponse(
-                {
-                    "turn":TurnsResponse(
-                        id=new_turn.id,
-                        reason=turn.reason,
-                        state=turn.state,
-                        date=turn.date,
-                        date_limit=turn.date_limit,
-                        date_created=new_turn.date_created,
-                        user_id=new_turn.user_id,
-                    ).model_dump(),
-                    "payment_url": response
-                },
-                status_code=status.HTTP_201_CREATED
-            )
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e))
-
-    session_user = request.state.user
     try:
-        new_turn = Turns(
-            reason=turn.reason,
-            state=turn.state,
-            date=turn.date,
-            date_limit=turn.date_limit,
-            user_id=session_user.id,
-            doctor_id=turn.doctor_id,
-            appointment_id=turn.appointment_id,
-            service_id=turn.services
+        new_turn, new_appointment = await TurnAndAppointmentRepository.create_turn_and_appointment(
+            session=session,
+            turn=turn
         )
-        new_turn.user = session_user
-        new_appointment = Appointments(
-            user_id = new_turn.user_id,
-            doctor_id = new_turn.doctor_id,
-            turn_id = new_turn.id,
+
+        if not new_turn:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=new_appointment)
+
+        response = await StripeServices.proces_payment(
+            price=new_turn.price_total(),
+            details=new_turn.get_details(),
+            h_i=turn.health_insurance,
+            session=session
         )
-        session.add(new_turn)
-        session.add(new_appointment)
-        session.commit()
-        session.refresh(new_turn)
-        session.refresh(new_appointment)
+
         return ORJSONResponse(
-            TurnsResponse(
-                id=new_turn.id,
-                reason=turn.reason,
-                state=turn.state,
-                date=turn.date,
-                date_limit=turn.date_limit,
-                date_created=new_turn.date_created,
-                user_id=new_turn.user_id,
-            ).model_dump()
+            PayTurnResponse(
+                turn=TurnsResponse(
+                    id=new_turn.id,
+                    reason=new_turn.reason,
+                    state=new_turn.state,
+                    date=new_turn.date,
+                    date_limit=new_turn.date_limit,
+                    date_created=new_turn.date_created,
+                    user_id=new_turn.user_id,
+                    time=new_turn.time
+                ).model_dump(),
+                payment_url=response
+            ).model_dump(),
+            status_code=status.HTTP_201_CREATED
         )
+        
+    except HTTPException as e:
+        console.print_exception(show_locals=True)
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -1757,11 +1965,12 @@ async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
 async def delete_turn(request: Request, session: SessionDep, turn_id: UUID):
     session_user = request.state.user
     try:
-        turn = session.exec(select(Turns).where(Turns.id == turn_id)).first()
+        turn = session.get(Turns, turn_id)
         if session_user.id != turn.user_id or session_user.id != turn.doctor_id:
             raise HTTPException(status_code=403, detail="You are not authorized")
-        session.delete(turn)
-        session.commit()
+        deleted = TurnAndAppointmentRepository.delete_turn_and_appointment(session, turn)
+        if not deleted:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"the turn: {turn_id} cannot be deleted")
         return ORJSONResponse(
             TurnsDelete(
                 id=turn.id,
@@ -1771,6 +1980,52 @@ async def delete_turn(request: Request, session: SessionDep, turn_id: UUID):
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@turns.patch("/update/state")
+async def update_state(request: Request, turn_id: UUID, new_state: str, session: SessionDep):
+    turn = session.get(Turns, turn_id)
+
+    if not turn:
+        raise HTTPException(404, detail="Turn Not Found")
+
+    if "superuser" not in request.state.scopes:
+        if turn.state.value in ["finished", "rejected", "cancelled"]:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Turn has a not mutable state")
+
+    try:
+
+        match new_state:
+            case "waiting":
+                turn.state = TurnsState.waiting
+
+            case "finished":
+                turn.state = TurnsState.finished
+
+            case "cancelled":
+                turn.state = TurnsState.cancelled
+
+            case "rejected":
+                turn.state = TurnsState.rejected
+
+            case "accepted":
+                turn.state = TurnsState.accepted
+
+            case _:
+                raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail=f"{new_state} isn´t in the valid states")
+
+        session.add(turn)
+        session.commit()
+
+        return ORJSONResponse({
+            "msg":"success"
+        },status_code=200)
+
+    except HTTPException as e:
+        raise HTTPException from e
+
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        raise HTTPException(500, detail=str(e))
 
 # TODO: hacer los patchs
 

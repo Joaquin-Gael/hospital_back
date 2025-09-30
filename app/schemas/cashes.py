@@ -36,7 +36,6 @@ class CashesBase(BaseModel):
     date: date_type
     time_transaction: time_type = Field(default_factory=lambda: datetime.now().time())
     balance: float = 0
-    appointment_id: UUID
 
 class CashesCreate(CashesBase):
     pass
@@ -47,7 +46,6 @@ class CashesUpdate(BaseModel):
     date: Optional[date_type] = None
     time_transaction: Optional[time_type] = None
     balance: Optional[float] = None
-    appointment_id: Optional[UUID] = None
 
 class CashesRead(CashesBase):
     id: UUID

@@ -21,10 +21,14 @@ templates_dir = Path(__file__).parent / "templates"
 
 assets_dir = Path(__file__).parent / "assets"
 
+media_dir = Path(__file__).parent / "media"
+
 templates = Jinja2Templates(directory=templates_dir)
 
+binaries_dir = Path(__file__).parent / "core" / "binaries"
+
 api_name = "Hospital API"
-version = "0.2.7"
+version = "0.10.7"
 
 db_url = os.getenv("DB_URL")
 

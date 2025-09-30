@@ -1,7 +1,8 @@
-from fastapi import FastAPI, APIRouter, Request
+from fastapi import FastAPI, APIRouter, Request, WebSocket
 from fastapi.responses import ORJSONResponse, FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.websockets import WebSocketDisconnect
 
 from scalar_fastapi import get_scalar_api_reference
 
@@ -20,7 +21,7 @@ from pathlib import Path
 
 from app.db.main import init_db, set_admin, migrate, test_db, db_url
 from app.api import users, medic_area, auth, cashes
-from app.config import api_name, version, debug, cors_host, templates, parser_name, id_prefix, assets_dir
+from app.config import api_name, version, debug, cors_host, templates, parser_name, id_prefix, assets_dir, media_dir
 from app.storage.main import storage
 
 install(show_locals=True)
@@ -38,6 +39,7 @@ async def lifespan(app: FastAPI):
     set_admin()
     storage.create_table("ban-token")
     storage.create_table("google-user-data")
+    storage.create_table("recovery-codes")
     console.rule("[green]Server Opened[/green]")
     if debug:
         # Línea destacada con título
@@ -164,7 +166,7 @@ main_router.include_router(cashes.router)
 app.include_router(main_router)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:4200"] if debug else [cors_host],
+    allow_origins=["*"], #if debug else [cors_host],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -206,6 +208,7 @@ class SPAStaticFiles(StaticFiles):
         await response(scope, receive, send)
 
 app.mount("/assets", StaticFiles(directory=assets_dir))
+app.mount("/media", StaticFiles(directory=media_dir))
 
 @app.get("/id_prefix_api_secret/", include_in_schema=debug)
 async def get_secret():
@@ -226,5 +229,22 @@ async def user_panel(request:Request):
 @app.get("/admin")
 async def user_panel(request:Request):
     return templates.TemplateResponse(request, name=parser_name(folders=["test", "admin"], name="admin"))
+
+@app.websocket("/{secret}/ws")
+async def websocket_endpoint(websocket: WebSocket, secret: str):
+    await websocket.accept()
+    # Enviar mensaje de bienvenida
+    await websocket.send_json({"message": "Hello WebSocket"})
+    
+    try:
+        while True:
+            # Recibir y hacer eco del mensaje
+            data = await websocket.receive_json()
+            await websocket.send_json(data)
+    except WebSocketDisconnect:
+        console.print("Cliente desconectado")
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        console.print(f"Error en WebSocket: {str(e)}")
 
 #app.mount("/", SPAStaticFiles(), name="spa")

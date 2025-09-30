@@ -1,9 +1,9 @@
 from pathlib import Path
 
 from fastapi import UploadFile
-from sqlmodel import SQLModel, Field, Relationship
+from sqlmodel import SQLModel, Field, Relationship, Session
 
-from sqlalchemy import Column, UUID as UUID_TYPE, VARCHAR
+from sqlalchemy import Column, UUID as UUID_TYPE, VARCHAR, event
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import declarative_mixin
 
@@ -21,6 +21,8 @@ from enum import Enum
 
 import re
 
+import random
+
 import os
 from dotenv import load_dotenv
 
@@ -28,14 +30,19 @@ load_dotenv()
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+class DoctorStates(str, Enum):
+    available = "available",
+    busy = "busy",
+    offline = "offline"
+
 class DayOfWeek(str, Enum):
-    monday = "Monday"
-    tuesday = "Tuesday"
-    wednesday = "Wednesday"
-    thursday = "Thursday"
-    friday = "Friday"
-    saturday = "Saturday"
-    sunday = "Sunday"
+    monday = "monday"
+    tuesday = "tuesday"
+    wednesday = "wednesday"
+    thursday = "thursday"
+    friday = "friday"
+    saturday = "saturday"
+    sunday = "sunday"
 
 class TurnsState(str, Enum):
     waiting = "waiting"
@@ -73,20 +80,37 @@ class BaseUser(SQLModel, table=False):
     is_superuser: bool = Field(default=False)
     last_login: Optional[datetime] = Field(nullable=True)
     date_joined: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default=datetime.now(), nullable=True)
     dni: str = Field(max_length=8)
     telephone: Optional[str] = Field(max_length=50)
     address: Optional[str] = Field(nullable=True)
     blood_type: Optional[str] = Field(nullable=True)
     url_image_profile: Optional[str] = Field(nullable=True)
+    
+    @event.listens_for(Session, "before_flush")
+    def _update_timestamp(session, flush_context, instances):
+        for obj in session.dirty:
+            if isinstance(obj, BaseUser):
+                obj.updated_at = datetime.now()
 
     def set_url_image_profile(self, file_name: str):
         self.url_image_profile = f"{os.getenv("DOMINIO")}/media/{self.__class__.__name__.lower()}/{file_name}"
 
-    async def save_profile_image(self, file: UploadFile, media_root: str = "media"):
+    async def save_profile_image(self, file: UploadFile | None, media_root: str = "media"):
+        if file is None:
+            return
+        
         cls_name = self.__class__.__name__.lower()
-
-        if self.url_image_profile:
-            os.remove(self.url_image_profile)
+        
+        try:
+            if self.url_image_profile:
+                media_index = self.url_image_profile.find("/media")
+                file_path = Path("app").joinpath(self.url_image_profile[media_index+1:]).resolve()
+                os.remove(file_path)
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            print(f"Error removing old profile image: {e}")
 
         folder_path = Path(media_root) / cls_name
         folder_path.mkdir(parents=True, exist_ok=True)
@@ -173,10 +197,9 @@ class BaseModelTurns(SQLModel, RenameTurnsStateMixin, table=False):
         foreign_key="doctors.doctor_id",
         nullable=True,
     )
-    service_id: Optional[UUID] = Field(
-        sa_type=UUID_TYPE,
-        foreign_key="services.services",
-        nullable=True,
+    time: time_type = Field(
+        nullable=False,
+        default=datetime.now().time()
     )
 
 # LINKS ---------------------------------------------------------------
@@ -203,9 +226,24 @@ class TurnsServicesLink(SQLModel, table=True):
     )
 
     service_id: UUID = Field(
-        foreign_key='services.services',
+        foreign_key='services.service_id',
         primary_key=True,
         ondelete='CASCADE'
+    )
+
+class TurnsSchedulesLink(SQLModel, table=True):
+    __tablename__ = "turns_schedules_link"
+
+    turn_id: UUID = Field(
+        foreign_key='turns.turn_id',
+        primary_key=True,
+        ondelete='CASCADE'
+    )
+
+    medical_schedule_id: UUID = Field(
+        foreign_key="medical_schedules.medical_schedule_id",
+        primary_key=True,
+        ondelete="CASCADE"
     )
 
 class UserHealthInsuranceLink(SQLModel, table=True):
@@ -237,6 +275,11 @@ class Turns(BaseModelTurns, table=True):
         link_model=TurnsServicesLink
     )
 
+    schedules: List["MedicalSchedules"] = Relationship(
+        back_populates="turns",
+        link_model=TurnsSchedulesLink
+    )
+
     appointment: Optional["Appointments"] = Relationship(back_populates="turn")
 
     def get_details(self) -> dict[str, list]:
@@ -252,7 +295,8 @@ class Turns(BaseModelTurns, table=True):
                     "name": service.name,
                     "description": service.description,
                     "quantity": 1,
-                    "price": service.price
+                    "price": service.price,
+                    "id": str(service.id)
                 }
             )
 
@@ -294,7 +338,9 @@ class Appointments(SQLModel, table=True):
     )
     turn: Optional["Turns"] = Relationship(back_populates="appointment")
 
-    cash: Optional["Cashes"] = Relationship(back_populates="appointments")
+    cash_details: List["CashDetails"] = Relationship(
+        back_populates="appointment"
+    )
 
     def get_monetary_gain(self) -> float:
         pass
@@ -308,16 +354,13 @@ class Cashes(SQLModel, table=True):
         primary_key=True,
         unique=True
     )
-    income: float = Field(default=0, nullable=False)
-    expense: float = Field(default=0, nullable=False)
+    income: float = Field(default=0, nullable=False, ge=0)
+    expense: float = Field(default=0, nullable=False, ge=0)
     date: date_type = Field(nullable=False)
     time_transaction: time_type = Field(nullable=False, default=datetime.now().time())
     balance: float = Field(default=0, nullable=False)
 
-    appointment_id: UUID = Field(foreign_key="appointments.appointment_id")
-    appointments: Optional["Appointments"] = Relationship(back_populates="cash")
-
-    details: List["CashesDetails"] = Relationship(
+    details: List["CashDetails"] = Relationship(
         back_populates="cash",
         cascade_delete=True,
         sa_relationship_kwargs={"lazy": "selectin"}
@@ -326,7 +369,9 @@ class Cashes(SQLModel, table=True):
     def make_balance(self):
         self.balance = self.income - self.expense
 
-class CashesDetails(SQLModel, table=True):
+class CashDetails(SQLModel, table=True):
+    __tablename__ = "cash_details"
+
     id: UUID = Field(
         sa_type=UUID_TYPE,
         sa_column_kwargs={"name":"cash_details_id", "comment": "The primary key of the cash_details table"},
@@ -334,12 +379,24 @@ class CashesDetails(SQLModel, table=True):
         primary_key=True,
         unique=True
     )
-    description: str = Field(max_length=50)
+    description: str = Field(max_length=255, nullable=False)
     amount: float = Field(default=0, nullable=False)
     date: date_type = Field(nullable=False)
     time_transaction: time_type = Field(nullable=False, default=datetime.now().time())
+    discount: int = Field(nullable=False, le=100, ge=0)
 
-    service_id: UUID = Field(foreign_key="services.services")
+    appointment_id: UUID = Field(
+        sa_type=UUID_TYPE,
+        foreign_key="appointments.appointment_id",
+        nullable=False
+    )
+    appointment: Appointments = Relationship(
+        back_populates="cash_details"
+    )
+
+    total: float = Field(nullable=False, description="this flied is the total of te service, the expense for the benefit of this service")
+
+    service_id: UUID = Field(foreign_key="services.service_id")
     service: Optional["Services"] = Relationship(back_populates="details")
 
     cash_id: UUID = Field(foreign_key="cashes.cash_id")
@@ -389,13 +446,14 @@ class Specialties(SQLModel, table=True):
 class Services(SQLModel, table=True):
     id: UUID = Field(
         sa_type=UUID_TYPE,
-        sa_column_kwargs={"name":"services"},
+        sa_column_kwargs={"name":"service_id"},
         default_factory=uuid.uuid4,
         primary_key=True
     )
     name: str = Field(max_length=50)
     description: str = Field(max_length=500)
     price: float = Field(default=0, nullable=False)
+
     speciality: Optional["Specialties"] = Relationship(back_populates="services")
     specialty_id: UUID = Field(foreign_key="specialties.specialty_id", ondelete="CASCADE")
 
@@ -404,7 +462,7 @@ class Services(SQLModel, table=True):
         link_model=TurnsServicesLink
     )
     #appointments: List["Appointments"] = Relationship(back_populates="service")
-    details: List["CashesDetails"] = Relationship(back_populates="service")
+    details: List["CashDetails"] = Relationship(back_populates="service")
 
     # Static Style
     icon_code: Optional[str] = Field(max_length=20)
@@ -422,10 +480,16 @@ class MedicalSchedules(SQLModel, table=True):
         nullable=False,
         sa_column_kwargs={"name":"day"}
     )
-    start_time: time = Field(nullable=False)
-    end_time: time = Field(nullable=False)
+    start_time: time_type = Field(nullable=False)
+    end_time: time_type = Field(nullable=False)
     available: bool = Field(default=True)
 
+    max_patients: int = Field(nullable=True, ge=1, le=10, default_factory=lambda :random.randint(1,10))
+
+    turns: List["Turns"] = Relationship(
+        back_populates="schedules",
+        link_model=TurnsSchedulesLink
+    )
 
     doctors: List["Doctors"] = Relationship(
         back_populates="medical_schedules",
@@ -477,6 +541,14 @@ class Doctors(BaseUser, table=True):
     turns: List["Turns"] = Relationship(back_populates="doctor")
     appointments: List["Appointments"] = Relationship(back_populates="doctor")
 
+    doctor_state: DoctorStates = Field(
+        sa_type=SQLEnum(DoctorStates),
+        default=DoctorStates.available,
+        nullable=False,
+        max_length=10,
+        sa_column_kwargs={"name":"state"}
+    )
+
 
 class Chat(SQLModel, table=True):
     id: UUID = Field(
@@ -487,6 +559,7 @@ class Chat(SQLModel, table=True):
     )
     messages: List["ChatMessages"] = Relationship(
         back_populates="chat",
+        cascade_delete=True
     )
     doc_1_id: UUID
     doc_2_id: UUID
@@ -507,7 +580,6 @@ class ChatMessages(SQLModel, table=True):
     created_at: datetime = Field(nullable=False, default=datetime.now())
     deleted_at: datetime = Field(nullable=False, default=datetime.fromtimestamp((datetime.now() + timedelta(days=1)).timestamp()))
 
-#TODO: completar este tabla con datos importantes
 class HealthInsurance(SQLModel, table=True):
     __tablename__ = "health_insurance"
     id: UUID = Field(
@@ -525,6 +597,27 @@ class HealthInsurance(SQLModel, table=True):
         back_populates="health_insurance",
         link_model=UserHealthInsuranceLink
     )
+    
+    
+class PasswordResetToken(SQLModel, table=True):
+    __tablename__ = "password_reset_tokens"
+    id: UUID = Field(
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"password_reset_token_id"},
+        default_factory=uuid4, 
+        primary_key=True,
+        unique=True)
+    user_id: Optional[UUID] = Field(
+        sa_type=UUID_TYPE,
+        foreign_key="users.user_id",
+        nullable=True,
+    )
+    token_hash: str = Field(nullable=False, index=True)
+    created_at: datetime = Field(default_factory=datetime.now, nullable=False)
+    expires_at: datetime = Field(nullable=False)
+    used: bool = Field(default=False, nullable=False)
+    attempts: int = Field(default=0, nullable=False)
+    request_ip: str = Field(nullable=True)
 
 
 User.model_rebuild()
@@ -537,7 +630,7 @@ MedicalSchedules.model_rebuild()
 Turns.model_rebuild()
 Appointments.model_rebuild()
 Cashes.model_rebuild()
-CashesDetails.model_rebuild()
+CashDetails.model_rebuild()
 Chat.model_rebuild()
 ChatMessages.model_rebuild()
 HealthInsurance.model_rebuild()

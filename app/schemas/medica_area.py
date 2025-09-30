@@ -13,16 +13,20 @@ from uuid import UUID
 
 from app.schemas import UserRead
 
+class DoctorStates(str, Enum):
+    available = "available",
+    busy = "busy",
+    offline = "offline"
 
 # Definición del enumerado para los días de la semana
 class DayOfWeek(str, Enum):
-    monday = "Monday"
-    tuesday = "Tuesday"
-    wednesday = "Wednesday"
-    thursday = "Thursday"
-    friday = "Friday"
-    saturday = "Saturday"
-    sunday = "Sunday"
+    monday = "monday"
+    tuesday = "tuesday"
+    wednesday = "wednesday"
+    thursday = "thursday"
+    friday = "friday"
+    saturday = "saturday"
+    sunday = "sunday"
 
 class TurnsState(str, Enum):
     waiting = "waiting"
@@ -76,6 +80,8 @@ class DepartmentResponse(DepartmentBase):
     id: UUID
     specialities: Optional[List["SpecialtyResponse"]] = []
 
+    location: Optional["LocationResponse"] = None
+
     #class Config:
     #    orm_mode = True
 
@@ -102,6 +108,8 @@ class SpecialtyResponse(SpecialtyBase):
     id: UUID
     services: Optional[List["ServiceResponse"]] = []
     doctors: Optional[List["DoctorResponse"]] = []
+
+    department: Optional["DepartmentResponse"] = None
 
     #class Config:
     #    orm_mode = True
@@ -132,6 +140,8 @@ class ServiceUpdate(BaseModel):
 class ServiceResponse(ServiceBase):
     id: UUID
 
+    specialty: Optional["SpecialtyResponse"] = None
+
     #class Config:
     #   orm_mode = True
 
@@ -151,6 +161,7 @@ class DoctorBase(BaseModel):
     speciality_id: UUID
     address: Optional[str] = None
     blood_type: Optional[str] = None
+    doctor_state: Optional[str] = None
 
 class DoctorCreate(DoctorBase):
     password: constr(min_length=8)
@@ -162,6 +173,9 @@ class DoctorUpdate(BaseModel):
     last_name: Optional[str] = None
     telephone: Optional[str] = None
     email: Optional[str] = None
+    #speciality_id: Optional[UUID] = None TODO: hacer un link
+    address: Optional[str] = None
+    doctor_state: Optional[str] = None
 
     @classmethod
     @field_validator("email", mode="before")
@@ -179,11 +193,13 @@ class DoctorSpecialityUpdate(BaseModel):
 class DoctorResponse(DoctorBase):
     id: UUID
     is_active: bool
-    is_admin: bool
-    is_superuser: bool
+    is_admin: Optional[bool] = None
+    is_superuser: Optional[bool] = None
     last_login: Optional[datetime] = None
-    date_joined: datetime
+    date_joined: Optional[datetime]
     email: Optional[str] = None
+
+    schedules: Optional[List["MedicalScheduleResponse"]] = None
 
     #class Config:
     #    orm_mode = True
@@ -194,7 +210,14 @@ class DoctorDelete(BaseModel):
 
 class DoctorAuth(BaseModel):
     email: EmailStr
-    password: str
+    password: constr(min_length=8)
+
+    @classmethod
+    @field_validator("email", mode="before")
+    def email_validator(cls, v: EmailStr):
+        if "ñ" in v or "Ñ" in v:
+            raise ValueError("El valor de email no puede contener ñ.")
+        return v
 
 # ------------------------ MEDICAL SCHEDULES ------------------------
 
@@ -252,6 +275,12 @@ class MedicalScheduleDelete(BaseModel):
     id: UUID
     message: str
 
+class Schedules(MedicalScheduleBase):
+    pass
+
+class AvailableSchedules(BaseModel):
+    available_days: List[MedicalScheduleBase]
+
 # -------------------------- MEDICAL CHATS -------------------------------------
 
 class MessageBase(BaseModel):
@@ -285,15 +314,17 @@ class TurnsBase(BaseModel):
     services: Optional[List[UUID]] = None
     appointment_id: Optional[UUID] = None
     date_limit: date_type
+    time: time_type
 
 class TurnsCreate(BaseModel):
     reason: Optional[str] = None
     state: TurnsState
     date: date_type
-    date_created: date_type
+    date_created: date_type = datetime.now().date()
     user_id: Optional[UUID] = None
-    doctor_id: Optional[UUID] = None
     services: List[UUID] = []
+    time: time_type
+    health_insurance: Optional[UUID] = None
 
 class TurnsUpdate(BaseModel):
     id: Optional[UUID] = None
@@ -301,12 +332,16 @@ class TurnsUpdate(BaseModel):
     state: Optional[TurnsState] = None
     date: Optional[date_type] = None
     date_created: Optional[date_type] = None
+    time: Optional[date_type] = None
 
 class TurnsResponse(TurnsBase):
     user: Optional["UserRead"] = None
     doctor: Optional["DoctorResponse"] = None
-    service: Optional["ServiceResponse"] = None
-    appointment: Optional["AppointmentResponse"] = None
+    service: Optional[List["ServiceResponse"]] = None
+
+class PayTurnResponse(BaseModel):
+    turn: TurnsResponse
+    payment_url: str
 
 class TurnsDelete(BaseModel):
     id: UUID

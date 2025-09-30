@@ -25,7 +25,7 @@ from app.models import (
     Locations,
     Turns,
     Appointments,
-    CashesDetails,
+    CashDetails,
     Cashes,
     User,
     BaseUser

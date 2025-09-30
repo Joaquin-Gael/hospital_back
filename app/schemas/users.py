@@ -1,10 +1,13 @@
 from datetime import datetime
 
-from typing import Optional
+from fastapi import UploadFile
+
+from typing import Optional, List
 
 from pydantic import BaseModel, EmailStr, constr, field_validator
 
 from uuid import UUID
+
 
 class UserBase(BaseModel):
     username: str
@@ -15,7 +18,7 @@ class UserBase(BaseModel):
     telephone: Optional[str] = None
     address: Optional[str] = None
     blood_type: Optional[str] = None
-    health_insurance_id: Optional[UUID] = None
+    health_insurance: Optional[List[UUID]] = []
 
     @classmethod
     @field_validator("email", mode="before")
@@ -26,6 +29,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: constr(min_length=8)
+    img_profile: Optional[UploadFile] = None
 
 class UserRead(UserBase):
     id: UUID
@@ -40,12 +44,18 @@ class UserUpdate(BaseModel):
     username: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    address: Optional[str] = None
+    telephone: Optional[str] = None
+    health_insurance: Optional[List[str]] = []
+    img_profile: Optional[UploadFile] = None
 
 class UserHeathInsuranceUpdate(BaseModel):
-    heath_insurance_id: Optional[UUID] = None
+    heath_insurance_id: Optional[List[UUID]] = []
 
 class UserPasswordUpdate(BaseModel):
-    password: constr(min_length=8)
+    old_password: constr(min_length=8)
+    new_password: constr(min_length=8)
+    new_password_confirm: constr(min_length=8)
 
 class UserPetitionPasswordUpdate(BaseModel):
     email: EmailStr
@@ -57,3 +67,20 @@ class UserDelete(UserBase):
 class UserAuth(BaseModel):
     email: EmailStr
     password: constr(min_length=8)
+    
+class DniForm(BaseModel):
+    front: UploadFile
+    back: UploadFile
+    
+class VerifyResetIn(BaseModel):
+    email: EmailStr
+    code: str
+    
+class VerifyResetOut(BaseModel):
+    reset_session_id: UUID
+    ttl_seconds: int
+
+class ConfirmResetIn(BaseModel):
+    reset_session_id: UUID
+    new_password: constr(min_length=8)
+    new_password_confirm: constr(min_length=8)    

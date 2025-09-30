@@ -70,6 +70,20 @@ class EmailService:
         send_email(email, subject, html_content, None)
         
     @staticmethod
+    def send_password_changed_notification_email(email: str, help_link: str, contact_number: str, contact_email: str):
+        subject = "Notificación de cambio de contraseña"
+        context = {
+            "help_link": help_link,
+            "contact_number": contact_number,
+            "contact_email": contact_email
+        }
+        html_content = templates.TemplateResponse(
+            parser_name(folders=["emails"], name=r"password_changed_notification_email"), {"request": {}, **context}
+        ).body.decode("utf-8")
+        
+        send_email(email, subject, html_content, None)
+        
+    @staticmethod
     def send_verification_email(email: str, verification_code: str):
         subject = "Verificación de correo electrónico"
         context = {

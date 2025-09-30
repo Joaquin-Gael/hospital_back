@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 
 from uuid import UUID, uuid4
 
@@ -57,6 +57,7 @@ class PurgeMeta(type):
             table_name = kwargs.get("table_name")
             if table_name:
                 self.purge_expired(table_name)
+                self._mark_dirty()
             return method(self, *args, **kwargs)
         return wrapper
 
@@ -95,7 +96,7 @@ class Storage(BaseModel):
 
 class Singleton(metaclass=PurgeMeta):
     _instance = None
-    _cache = TTLCache(maxsize=100, ttl=timedelta(minutes=15).total_seconds())
+    _cache = TTLCache(maxsize=100, ttl=timedelta(minutes=1).total_seconds())
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
@@ -106,11 +107,13 @@ class Singleton(metaclass=PurgeMeta):
         return cls._instance
 
     def purge_expired(self, table_name: str) -> None:
-        items = self.data.tables[table_name].items
+        items = self._get_internal_all(table_name=table_name)
+        if items is None:
+            return
         now = datetime.now()
         self.data.tables[table_name].items = {
-            k: v for k, v in items.items()
-            if v.expired > now
+            item.key: item.value for item in items
+            if item.value.expired > now
         }
 
     def __init_storage(self):
@@ -157,14 +160,59 @@ class Singleton(metaclass=PurgeMeta):
             items={}
         )
         self.data.tables[table_name] = table
-        console.print(self.data)
+        #console.print(self.data)
         self._mark_dirty()
         return table
 
-    @cached(_cache)
-    def get_all(self, table_name: str = None) -> Dict[Any, Any]:
+    def _get_internal_all(self, table_name: str):
         self._load()
-        return self.data.tables.get(table_name, {}).items
+        items = self.data.tables.get(table_name, {}).items
+        if not items:
+            return None
+
+        items_response = []
+        for item in items.values():
+            #console.print(item)
+            items_response.append(
+                GetItem(
+                    key=item.key,
+                    value=Response(
+                        key=item.key,
+                        value=item.value,
+                        expired=item.expired,
+                        created=item.created,
+                        updated=item.updated,
+                        id=item.id
+                    )
+                )
+            )
+
+        return items_response
+
+    @cached(_cache)
+    def get_all(self, table_name: str = None) -> List[GetItem] | None:
+        self._load()
+        items = self.data.tables.get(table_name, {}).items
+        if not items:
+            return None
+
+        items_response = []
+        for item in items.values():
+            items_response.append(
+                GetItem(
+                    key=item.key,
+                    value=Response(
+                        key=item.key,
+                        value=item.value,
+                        expired=item.expired,
+                        created=item.created,
+                        updated=item.updated,
+                        id=item.id
+                    )
+                )
+            )
+
+        return items_response
 
     @cached(_cache)
     def get(self, key: str, table_name: str) -> GetItem | None:
@@ -187,7 +235,7 @@ class Singleton(metaclass=PurgeMeta):
     def get_by_parameter(self, parameter: str, equals: Any, table_name: str) -> GetItem:
         self._load()
         for item in self.data.tables[table_name].items.values():
-            console.print(item)
+            #console.print(item)
             data = item.value.get(parameter, None)
             if data:
                 if type(data) == type(equals) and data == equals:
@@ -196,15 +244,37 @@ class Singleton(metaclass=PurgeMeta):
                     continue
         raise NoneResultException(f"No exist item whit {parameter} = {equals}")
 
-    def set(self, key = None, value = None, table_name: str = "", long_live: bool = False) -> SetItem:
-        item = SetItem(
-            key=key,
-            value=value,
-            created=datetime.now(),
-            updated=datetime.now(),
-            id=uuid4(),
-            expired=datetime.now() + timedelta(minutes=15) if not long_live else datetime.now() + timedelta(days=30)
-        )
+    def set(self, key = None, value = None, table_name: str = "", long_live: bool = False, short_live: bool = False) -> SetItem:
+        if long_live and short_live:
+            raise ValueError("Only one of long_live or short_live can be True")
+        elif long_live:
+            item = SetItem(
+                key=key,
+                value=value,
+                created=datetime.now(),
+                updated=datetime.now(),
+                id=uuid4(),
+                expired=datetime.now() + timedelta(days=30)
+            )
+        elif short_live:
+            item = SetItem(
+                key=key,
+                value=value,
+                created=datetime.now(),
+                updated=datetime.now(),
+                id=uuid4(),
+                expired=datetime.now() + timedelta(minutes=1)
+            )
+        else:
+            item = SetItem(
+                key=key,
+                value=value,
+                created=datetime.now(),
+                updated=datetime.now(),
+                id=uuid4(),
+                expired=datetime.now() + timedelta(minutes=15)
+            )
+            
         self.data.tables[table_name].items[key] = item
         self._mark_dirty()
         return item
@@ -218,12 +288,17 @@ class Singleton(metaclass=PurgeMeta):
         self._mark_dirty()
 
     def update(self, key, value, table_name, long_live: bool = False) -> None:
-        item: GetItem = self.get(key, table_name)
+        item = self.get(key, table_name)
         if item is None:
             self.set(key, value, table_name)
             return
-        item.value.value = value
-        item.value.updated = datetime.now()
-        item.value.expired = datetime.now() + timedelta(minutes=15) if not long_live else datetime.now() + timedelta(days=30)
+        item = SetItem(
+            key=item.key,
+            value=item.value,
+            created=item.value.created,
+            updated=datetime.now(),
+            id=uuid4(),
+            expired=datetime.now() + timedelta(minutes=15) if not long_live else datetime.now() + timedelta(days=30)
+        )
         self.data.tables[table_name].items[key] = item
         self._mark_dirty()

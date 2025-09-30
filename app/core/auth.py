@@ -2,16 +2,17 @@ import jwt
 from jwt import PyJWTError
 
 from datetime import datetime, timedelta
+import time
 
 from pydantic import BaseModel
 
 from fastapi import Header, HTTPException, status, Request, WebSocket
 
-from functools import singledispatch
+from functools import singledispatch, wraps
 
 from sqlmodel import select
 
-from typing import Optional, Any, Type, TypeVar
+from typing import Optional, Any, Type, TypeVar, Callable, ParamSpec
 
 from cryptography.fernet import Fernet
 
@@ -21,26 +22,11 @@ from uuid import UUID
 
 from rich.console import Console
 
-import logging
-
-import sys
-
-from app.config import token_key, api_name, version
+from app.config import token_key, api_name, version, debug
 from app.models import Doctors, User
 from app.db.main import Session, engine
 from app.storage import storage
 from app.core.interfaces.emails import EmailService
-
-logger = logging.getLogger("uvicorn.error")
-logger.setLevel(logging.DEBUG)
-
-handler = logging.StreamHandler(sys.stdout)
-formatter = logging.Formatter(
-    "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
-handler.setFormatter(formatter)
-
-logger.addHandler(handler)
 
 encoder_key = Fernet.generate_key()
 
@@ -114,15 +100,13 @@ def _(data: type(None)) -> bytes:
     text = dumps(data).encode("utf-8")
     return encoder_f.encrypt(text)
 
-
-
 T = TypeVar("T")
 
 def decode(data: bytes, dtype: Type[T] | None = None) -> T | Any:
     try:
         plaintext: bytes = encoder_f.decrypt(data)
     except Exception as e:
-        console.print_exception(show_locals=True)
+        console.print_exception(show_locals=True) if debug else None
         raise ValueError("Token inválido o expirado") from e
 
 
@@ -148,10 +132,10 @@ def gen_token(payload: dict, refresh: bool = False):
     payload.setdefault("iat", datetime.now())
     payload.setdefault("iss", f"{api_name}/{version}")
     if refresh:
-        payload.setdefault("exp", int((datetime.now() + timedelta(minutes=30)).timestamp()))
+        payload["exp"] = int((datetime.now() + timedelta(days=1)).timestamp())
         payload.setdefault("type", "refresh_token")
     else:
-        payload.setdefault("exp", int((datetime.now() + timedelta(minutes=15)).timestamp()))
+        payload["exp"] = int((datetime.now() + timedelta(minutes=15)).timestamp())
     return jwt.encode(payload, token_key, algorithm="HS256")
 
 def decode_token(token: str):
@@ -159,8 +143,22 @@ def decode_token(token: str):
         payload = jwt.decode(token, key=token_key, algorithms=["HS256"], leeway=20)
         return payload
     except PyJWTError as e:
-        print(e)
+        print(e) if debug else None
         raise ValueError("Value Not Found") from e
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
+def time_out(secons: Optional[float] =  None):
+    def decorator(func : Callable[P, R]) -> Callable[P, R]:
+        @wraps(func)
+        async def wrapper(request: Request, *args: P.args, **kwargs: P.kwargs) -> R:
+            console.print(request)
+            return await func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
 
 class JWTBearer:
     async def __call__(self, request: Request, authorization: Optional[str] = Header(None)) -> User | Doctors | None:
@@ -178,6 +176,8 @@ class JWTBearer:
             raise HTTPException(status_code=401, detail=e.args) from e
 
         if request.scope["route"].name != "refresh_token":
+            console.rule(request.scope["route"].name)
+            console.print(f"Se intento hacer el refresh: {payload}")
             if payload.get("type") == "refresh_token":
                 raise HTTPException(status_code=401, detail="No credentials provided or invalid format")
 
@@ -185,10 +185,10 @@ class JWTBearer:
 
         ban_token = storage.get(key=payload.get("sub"), table_name="ban-token")
 
-        console.print(">>> ", ban_token, " <<<")
+        #console.print(">>> ", ban_token, " <<<") if debug else None
 
         if ban_token is not None:
-            console.print(f"Token banned: {ban_token.value}")
+            #console.print(f"Token banned: {ban_token.value}") if debug else None
             if token == ban_token.value:
                 raise HTTPException(status_code=403, detail="Token banned")
 
@@ -220,7 +220,7 @@ class JWTBearer:
             return user
 
         except Exception as e:
-            console.print(e)
+            console.print(e) if debug else None
             raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 class JWTWebSocket:
@@ -230,17 +230,21 @@ class JWTWebSocket:
         console.print(query)
 
         if not "token" in query.keys() or query.get("token") is None:
+            console.print(f"query: {query}")
             await websocket.close(1008, reason="No credentials provided or invalid format")
             return None
 
         if not query.get("token").startswith("Bearer_"):
+            console.print(f"query: {query}")
             await websocket.close(1008, reason="No credentials provided or invalid format")
             return None
 
         token = query.get("token").split("_")[1]
+        console.print(f"Tokwn jwt websocket: {token}")
 
         try:
             payload = decode_token(token)
+            console.print(f"Payload token: {payload}")
 
             user_id = payload.get("sub")
 
@@ -269,5 +273,6 @@ class JWTWebSocket:
             return user, payload.get("scopes")
 
         except ValueError:
+            console.print_exception(show_locals=True)
             await websocket.close(1008, reason="Invalid o Expired Token")
             return None
