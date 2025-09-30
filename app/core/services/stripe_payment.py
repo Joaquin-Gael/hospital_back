@@ -53,7 +53,7 @@ class StripeServices:
                 payment_method_types=["card"],
                 line_items=line_items,
                 mode="payment",
-                success_url=f"{cors_host}/{id_prefix}/cashes/pay/success?{urlencode(payload)}",
+                success_url=f"{cors_host}/{id_prefix}/cashes/pay/success?session_id={{CHECKOUT_SESSION_ID}}&{urlencode(payload)}",
                 cancel_url=f"{cors_host}/{id_prefix}/cashes/pay/cancel?{urlencode(bad_payload)}",
             )
 
