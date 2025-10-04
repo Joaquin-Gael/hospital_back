@@ -20,7 +20,7 @@ from uuid import UUID
 from pathlib import Path
 
 from app.db.main import init_db, set_admin, migrate, test_db, db_url
-from app.api import users, medic_area, auth, cashes
+from app.api import users, medic_area, auth, cashes, ai_assistant
 from app.config import api_name, version, debug, cors_host, templates, parser_name, id_prefix, assets_dir, media_dir
 from app.storage.main import storage
 
@@ -34,6 +34,22 @@ main_router = APIRouter(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """
+    Gestiona el ciclo de vida de la aplicación FastAPI.
+    
+    Inicializa la base de datos, ejecuta migraciones, configura el usuario administrador
+    y crea las tablas de almacenamiento necesarias. En modo debug, también limpia
+    recursos al cerrar la aplicación.
+    
+    Args:
+        app: Instancia de la aplicación FastAPI
+        
+    Yields:
+        None: Punto de ejecución de la aplicación
+        
+    Note:
+        En modo debug, intenta eliminar la base de datos SQLite al cerrar.
+    """
     init_db()
     migrate()
     set_admin()
@@ -110,6 +126,20 @@ app = FastAPI(
 
 @main_router.get("/_health_check/")
 async def health_check():
+    """
+    Endpoint de verificación de salud del sistema.
+    
+    Realiza una prueba de conectividad con la base de datos y mide el tiempo
+    de respuesta para determinar el estado de salud del sistema.
+    
+    Returns:
+        ORJSONResponse: Diccionario con tiempo de respuesta y estado de la BD
+            - time (float): Tiempo de respuesta en segundos
+            - status (bool): True si la BD responde correctamente
+            
+    Todo:
+        Implementar verificaciones más complejas de la base de datos
+    """
     # TODO: hacer la comprobacion de la base de datos un una compleja
     result = test_db()
     return ORJSONResponse({"time": result[0],"status": result[1]})
@@ -150,6 +180,18 @@ class SearchHotKey(Enum):
 if debug:
     @main_router.get("/scalar", include_in_schema=False)
     async def scalar_html():
+        """
+        Sirve la documentación interactiva Scalar de la API.
+        
+        Proporciona una interfaz moderna y atractiva para explorar la documentación
+        de la API. Solo disponible en modo debug.
+        
+        Returns:
+            HTMLResponse: Página HTML con la interfaz Scalar
+            
+        Note:
+            Esta función solo se registra cuando debug=True
+        """
         return get_scalar_api_reference(
             openapi_url=app.openapi_url,
             title=app.title,
@@ -163,6 +205,7 @@ main_router.include_router(users.router)
 main_router.include_router(medic_area.router)
 main_router.include_router(auth.router)
 main_router.include_router(cashes.router)
+main_router.include_router(ai_assistant.router)
 
 app.include_router(main_router)
 app.add_middleware(
@@ -178,7 +221,29 @@ app.include_router(auth.oauth_router)
 # TODO: hacer los servicios MCP y agregar gpt mediante hugginface para hacer el asistente
 
 class SPAStaticFiles(StaticFiles):
+    """
+    Manejador de archivos estáticos para Single Page Applications.
+    
+    Extiende StaticFiles para manejar el routing de SPAs, sirviendo archivos
+    estáticos cuando existen y redirigiendo a index.html para rutas de SPA.
+    Evita conflictos con las rutas de la API.
+    
+    Attributes:
+        api_prefix (str): Prefijo de las rutas de API a evitar
+        index_file (str): Archivo index a servir para rutas SPA
+    """
+    
     def __init__(self, directory: str="dist/hospital-sdlg/browser", html: bool=True, check_dir: bool=True, api_prefix: UUID=id_prefix, index_file: str="index.html"):
+        """
+        Inicializa el manejador de archivos estáticos SPA.
+        
+        Args:
+            directory (str): Directorio base de archivos estáticos
+            html (bool): Si servir archivos HTML
+            check_dir (bool): Si verificar que el directorio existe
+            api_prefix (UUID): Prefijo de rutas de API a evitar
+            index_file (str): Archivo index para rutas SPA
+        """
         super().__init__(directory=directory, html=html, check_dir=check_dir)
         self.api_prefix = str(api_prefix)
         self.index_file = index_file
@@ -187,6 +252,17 @@ class SPAStaticFiles(StaticFiles):
 
 
     async def __call__(self, scope, receive, send):
+        """
+        Maneja requests HTTP y WebSocket.
+        
+        Para HTTP: sirve archivos estáticos si existen, si no redirige a index.html
+        para permitir el routing del SPA. Las rutas de API se pasan al handler padre.
+        
+        Args:
+            scope: Scope ASGI de la conexión
+            receive: Callable para recibir mensajes ASGI
+            send: Callable para enviar mensajes ASGI
+        """
 
         if scope["type"] == "websocket":
             return await self.app(scope, receive, send)
@@ -215,10 +291,41 @@ app.mount("/media", StaticFiles(directory=media_dir))
 
 @app.get("/id_prefix_api_secret/", include_in_schema=debug)
 async def get_secret():
+    """
+    Obtiene el prefijo secreto de la API.
+    
+    Proporciona el ID del prefijo utilizado en las rutas de la API para
+    configuración de clientes y herramientas de desarrollo.
+    
+    Returns:
+        dict: Diccionario con el prefijo secreto de la API
+            - id_prefix_api_secret (str): UUID del prefijo de la API
+            
+    Note:
+        Solo incluido en el schema cuando debug=True
+    """
     return {"id_prefix_api_secret": str(id_prefix)}
 
 @app.websocket("/{secret}/ws")
 async def websocket_endpoint(websocket: WebSocket, secret: str):
+    """
+    Endpoint WebSocket para comunicación en tiempo real.
+    
+    Establece una conexión WebSocket que acepta mensajes JSON y los devuelve
+    como eco. Maneja desconexiones y errores de manera robusta.
+    
+    Args:
+        websocket (WebSocket): Instancia de la conexión WebSocket
+        secret (str): Parámetro de ruta (no validado actualmente)
+        
+    Raises:
+        WebSocketDisconnect: Cuando el cliente se desconecta
+        Exception: Para cualquier otro error en la comunicación
+        
+    Note:
+        Actualmente implementa funcionalidad de eco básica.
+        El parámetro 'secret' no se valida.
+    """
     await websocket.accept()
     # Enviar mensaje de bienvenida
     await websocket.send_json({"message": "Hello WebSocket"})
@@ -236,11 +343,65 @@ async def websocket_endpoint(websocket: WebSocket, secret: str):
 
 #app.mount("/", SPAStaticFiles(), name="spa")
 
+class AdminSPAStaticFiles(StaticFiles):
+    """
+    Manejador de archivos estáticos para el panel de administración SPA.
+    
+    Similar a SPAStaticFiles pero específico para el panel de administración.
+    Maneja rutas /admin/* sirviendo archivos estáticos cuando existen o
+    index.html para rutas del React Router.
+    
+    Attributes:
+        index_file (str): Archivo index para rutas del admin SPA
+    """
+    
+    def __init__(self, directory: str, html: bool=True, check_dir: bool=True, index_file: str="index.html"):
+        """
+        Inicializa el manejador para el admin SPA.
+        
+        Args:
+            directory (str): Directorio de archivos del admin
+            html (bool): Si servir archivos HTML
+            check_dir (bool): Si verificar que el directorio existe
+            index_file (str): Archivo index del admin SPA
+        """
+        super().__init__(directory=directory, html=html, check_dir=check_dir)
+        self.index_file = index_file
+
+    async def __call__(self, scope, receive, send):
+        """
+        Maneja requests para el panel de administración.
+        
+        Sirve archivos estáticos si existen, si no sirve index.html para
+        permitir el routing del admin SPA (React Router).
+        
+        Args:
+            scope: Scope ASGI de la conexión
+            receive: Callable para recibir mensajes ASGI
+            send: Callable para enviar mensajes ASGI
+        """
+        if scope["type"] == "websocket":
+            return await super().__call__(scope, receive, send)
+
+        assert scope["type"] == "http"
+
+        request = Request(scope, receive)
+        path = request.url.path
+
+        # If it's a request for a file that exists, serve it directly
+        full_path = (Path(self.directory) / path.lstrip("/admin/")).resolve()
+        if full_path.exists() and full_path.is_file():
+            return await super().__call__(scope, receive, send)
+
+        # For all other routes (React Router routes), serve index.html
+        index_path = Path(self.directory) / self.index_file
+        response = FileResponse(index_path)
+        await response(scope, receive, send)
+
 app.mount(
     "/admin", 
-    StaticFiles(
-        directory=Path(__file__).parent.joinpath("templates", "admin", "dist").resolve(),
-        html=True
+    AdminSPAStaticFiles(
+        directory=Path(__file__).parent.joinpath("templates", "admin").resolve()
     ), 
     name="admin"
 )

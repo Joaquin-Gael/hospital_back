@@ -37,6 +37,25 @@ console = Console()
 
 @singledispatch
 def encode(data: object) -> bytes:
+    """
+    Codifica datos de forma segura usando encriptación simétrica.
+    
+    Función polimórfica que puede manejar diferentes tipos de datos,
+    serializándolos a JSON cuando sea necesario y encriptándolos con Fernet.
+    
+    Args:
+        data (object): Datos a codificar (cualquier tipo Python)
+        
+    Returns:
+        bytes: Datos encriptados
+        
+    Raises:
+        TypeError: Si el tipo de datos no es serializable
+        
+    Note:
+        Esta es la implementación base que usa singledispatch.
+        Hay implementaciones específicas para cada tipo de dato.
+    """
     try:
         text = dumps(data, default=lambda o: o.__dict__, sort_keys=True)
     except TypeError:
@@ -104,6 +123,28 @@ def _(data: type(None)) -> bytes:
 T = TypeVar("T")
 
 def decode(data: bytes, dtype: Type[T] | None = None) -> T | Any:
+    """
+    Decodifica datos encriptados con tipo específico opcional.
+    
+    Desencripta datos usando Fernet y opcionalmente los convierte al tipo
+    especificado, incluyendo validación con Pydantic para modelos.
+    
+    Args:
+        data (bytes): Datos encriptados a decodificar
+        dtype (Type[T], optional): Tipo esperado del resultado
+        
+    Returns:
+        T | Any: Datos decodificados, opcionalmente convertidos al tipo especificado
+        
+    Raises:
+        ValueError: Si el token es inválido o ha expirado
+        ValidationError: Si la validación de Pydantic falla
+        
+    Note:
+        - Si dtype es None, retorna el objeto Python nativo
+        - Para BaseModel, usa model_validate() de Pydantic
+        - Para tipos básicos (dict, list, etc.), hace casting directo
+    """
     try:
         plaintext: bytes = encoder_f.decrypt(data)
     except Exception as e:
@@ -130,6 +171,25 @@ def decode(data: bytes, dtype: Type[T] | None = None) -> T | Any:
     return dtype(obj)
 
 def gen_token(payload: dict, refresh: bool = False):
+    """
+    Genera tokens JWT para autenticación del sistema.
+    
+    Crea tokens JWT con payload personalizado, configurando automáticamente
+    campos estándar como emisor, tiempo de emisión y expiración.
+    
+    Args:
+        payload (dict): Datos del usuario y scopes a incluir en el token
+        refresh (bool): Si True, genera token de larga duración para refresh
+        
+    Returns:
+        str: Token JWT codificado
+        
+    Note:
+        - Tokens normales: 15 minutos de duración
+        - Refresh tokens: 24 horas de duración  
+        - Incluye automáticamente iat (issued at) e iss (issuer)
+        - Usa algoritmo HS256 con clave secreta del sistema
+    """
     payload.setdefault("iat", datetime.now())
     payload.setdefault("iss", f"{api_name}/{version}")
     if refresh:
@@ -140,6 +200,26 @@ def gen_token(payload: dict, refresh: bool = False):
     return jwt.encode(payload, token_key, algorithm="HS256")
 
 def decode_token(token: str):
+    """
+    Decodifica y valida tokens JWT del sistema.
+    
+    Verifica la firma, validez temporal y formato de tokens JWT,
+    extrayendo el payload si es válido.
+    
+    Args:
+        token (str): Token JWT a decodificar
+        
+    Returns:
+        dict: Payload del token con datos del usuario y scopes
+        
+    Raises:
+        ValueError: Si el token es inválido, expirado o malformado
+        
+    Note:
+        - Usa leeway de 20 segundos para tolerancia de tiempo
+        - Valida con la clave secreta del sistema
+        - Solo acepta algoritmo HS256
+    """
     try:
         payload = jwt.decode(token, key=token_key, algorithms=["HS256"], leeway=20)
         return payload
@@ -151,6 +231,33 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 def time_out(seconds: Optional[float] = 1.0, max_trys: Optional[int] = 5) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    """
+    Decorador para implementar rate limiting por IP en endpoints.
+    
+    Limita la frecuencia de requests por dirección IP, previniendo ataques
+    de fuerza bruta y abuso del sistema.
+    
+    Args:
+        seconds (float): Tiempo mínimo en segundos entre requests
+        max_trys (int): Número máximo de intentos permitidos
+        
+    Returns:
+        Callable: Función decoradora que aplica rate limiting
+        
+    Raises:
+        HTTPException: 429 Too Many Requests si se exceden los límites
+        
+    Note:
+        - Rastrea último acceso por IP en memoria
+        - Usa storage temporal para contar intentos fallidos
+        - Cada IP tiene límites independientes
+        - Útil para endpoints de login y operaciones sensibles
+        
+    Example:
+        @time_out(10, 3)  # Max 3 intentos cada 10 segundos
+        async def login_endpoint():
+            pass
+    """
     def decorator(func: Callable[P, R]) -> Callable[P, R]:
         # Diccionario para almacenar el último tiempo de acceso por IP
         last_access = {}
@@ -196,7 +303,48 @@ def time_out(seconds: Optional[float] = 1.0, max_trys: Optional[int] = 5) -> Cal
 
 
 class JWTBearer:
+    """
+    Clase de autenticación JWT para requests HTTP.
+    
+    Maneja la extracción, validación y procesamiento de tokens JWT
+    desde headers Authorization, cargando los datos del usuario
+    autenticado en el estado de la request.
+    
+    Attributes:
+        Ninguno - funciona como dependency callable
+        
+    Note:
+        - Funciona como FastAPI Dependency
+        - Soporta tanto usuarios como médicos
+        - Valida tokens baneados
+        - Establece user y scopes en request.state
+    """
+    
     async def __call__(self, request: Request, authorization: Optional[str] = Header(None)) -> User | Doctors | None:
+        """
+        Procesa autenticación JWT para una request HTTP.
+        
+        Extrae el token del header Authorization, lo valida, y carga
+        los datos del usuario correspondiente en el estado de la request.
+        
+        Args:
+            request (Request): Request HTTP de FastAPI
+            authorization (str, optional): Header "Authorization: Bearer {token}"
+            
+        Returns:
+            User | Doctors | None: Usuario o médico autenticado
+            
+        Raises:
+            HTTPException: 403 si no hay credenciales o formato inválido
+            HTTPException: 401 si token inválido, expirado o usuario no existe
+            HTTPException: 403 si token está baneado
+            
+        Note:
+            - Valida formato "Bearer {token}"
+            - Previene uso de refresh tokens en endpoints normales
+            - Maneja warnings para cuentas Google
+            - Establece request.state.user y request.state.scopes
+        """
         if authorization is None or not authorization.startswith("Bearer"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

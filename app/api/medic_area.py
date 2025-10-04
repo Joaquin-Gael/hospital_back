@@ -1571,26 +1571,78 @@ chat = APIRouter(
 )
 
 class ConnectionManager:
+    """
+    Gestor de conexiones WebSocket para chat en tiempo real entre médicos.
+    
+    Mantiene registro de conexiones activas, permite envío de mensajes
+    personales y broadcast, y gestiona el ciclo de vida de las conexiones.
+    
+    Attributes:
+        active_connections (dict): Mapeo de user_id a WebSocket activos
+    """
+    
     def __init__(self):
+        """Inicializa el gestor con diccionario vacío de conexiones."""
         self.active_connections: dict[UUID, WebSocket] = {}  # user_id → WebSocket
 
     async def connect(self, user_id: UUID, websocket: WebSocket):
+        """
+        Establece una nueva conexión WebSocket.
+        
+        Acepta el handshake WebSocket y registra la conexión activa
+        para el usuario especificado.
+        
+        Args:
+            user_id (UUID): ID del usuario que se conecta
+            websocket (WebSocket): Instancia de la conexión WebSocket
+        """
         await websocket.accept()  # Handshake HTTP→WS :contentReference[officiate:4]{index=4}
         self.active_connections[user_id] = websocket
 
     def disconnect(self, user_id: UUID):
+        """
+        Cierra y elimina una conexión WebSocket.
+        
+        Args:
+            user_id (UUID): ID del usuario a desconectar
+        """
         self.active_connections.pop(user_id, None)
 
     async def send_personal_message(self, message: dict, user_id: UUID):
+        """
+        Envía mensaje directo a un usuario específico.
+        
+        Args:
+            message (dict): Mensaje en formato JSON a enviar
+            user_id (UUID): ID del usuario destinatario
+            
+        Note:
+            Si el usuario no está conectado, el mensaje se pierde.
+        """
         ws = self.active_connections.get(user_id)
         if ws:
             await ws.send_json(message)  # envía JSON → cliente :contentReference[officiate:5]{index=5}
 
     async def broadcast(self, message: dict):
+        """
+        Envía mensaje a todas las conexiones activas.
+        
+        Args:
+            message (dict): Mensaje en formato JSON para broadcast
+        """
         for ws in self.active_connections.values():
             await ws.send_json(message)
 
     def is_connected(self, doc_id) -> bool:
+        """
+        Verifica si un médico está conectado.
+        
+        Args:
+            doc_id: ID del médico a verificar
+            
+        Returns:
+            bool: True si está conectado, False en caso contrario
+        """
         return doc_id in self.active_connections
 
 
@@ -1802,6 +1854,26 @@ async def get_turns(request: Request, session: SessionDep):
 Serializer = TypeVar("Serializer")
 
 def serialize_model(model: object, serializer: Serializer, session, refresh: bool = False) -> Serializer:
+    """
+    Serializa un modelo de base de datos usando un schema específico.
+    
+    Función helper para convertir modelos SQLModel en schemas Pydantic,
+    copiando campos automáticamente entre el modelo y el serializer.
+    
+    Args:
+        model (object): Instancia del modelo de base de datos
+        serializer (Serializer): Clase del schema Pydantic
+        session: Sesión de base de datos para refresh opcional
+        refresh (bool): Si refrescar el modelo desde la BD
+        
+    Returns:
+        Serializer: Instancia del schema con datos del modelo
+        
+    Note:
+        - Copia todos los campos definidos en el serializer
+        - Útil para automatizar conversión modelo → schema
+        - TypeVar Serializer mantiene type safety
+    """
     fields = serializer.__fields__.keys()
     serializer_f = serializer()
     for i in fields:
