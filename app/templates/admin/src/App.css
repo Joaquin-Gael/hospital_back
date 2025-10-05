@@ -1,21 +1,23 @@
-/* Hospital Admin Styles - CSS Only Version */
-
+/* Variables y configuración global */
 :root {
-  /* Colors */
-  --color-primary: #3b82f6;
+  /* Colores */
+  --color-primary: #0284c7;
   --color-primary-foreground: #ffffff;
-  --color-secondary: #f3f4f6;
-  --color-secondary-foreground: #1f2937;
-  --color-accent: #f9fafb;
-  --color-accent-foreground: #111827;
-  --color-muted: #f3f4f6;
-  --color-muted-foreground: #6b7280;
-  --color-card: #ffffff;
-  --color-card-foreground: #1f2937;
-  --color-border: #e5e7eb;
-  --color-ring: #3b82f6;
+  --color-secondary: #f1f5f9;
+  --color-secondary-foreground: #0f172a;
   --color-background: #ffffff;
-  --color-foreground: #1f2937;
+  --color-foreground: #0f172a;
+  --color-card: #ffffff;
+  --color-card-foreground: #0f172a;
+  --color-border: #e2e8f0;
+  --color-input: #f8fafc;
+  --color-ring: #94a3b8;
+  --color-muted: #64748b;
+  --color-muted-foreground: #64748b;
+  --color-accent: #f1f5f9;
+  --color-accent-foreground: #0f172a;
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
   
   /* Status Colors */
   --color-green-400: #4ade80;
@@ -23,12 +25,12 @@
   --color-red-500: #ef4444;
   --color-yellow-500: #eab308;
   
-  /* Shadows */
+  /* Sombras */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   
-  /* Spacing */
+  /* Espaciado */
   --spacing-1: 0.25rem;
   --spacing-2: 0.5rem;
   --spacing-3: 0.75rem;
@@ -38,14 +40,14 @@
   --spacing-8: 2rem;
   --spacing-16: 4rem;
   
-  /* Font Sizes */
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.25rem;
-  --text-2xl: 1.5rem;
-  --text-3xl: 1.875rem;
+  /* Tamaños de fuente */
+  --font-xs: 0.75rem;
+  --font-sm: 0.875rem;
+  --font-base: 1rem;
+  --font-lg: 1.125rem;
+  --font-xl: 1.25rem;
+  --font-2xl: 1.5rem;
+  --font-3xl: 1.875rem;
 }
 
 /* Global Styles */
@@ -333,6 +335,271 @@ a {
   color: var(--color-muted-foreground);
 }
 
+/* AI Chat Styles */
+.ai-chat-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.ai-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ai-chat-title-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ai-chat-title {
+  font-size: 1.875rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  display: flex;
+  align-items: center;
+}
+
+.ai-chat-title-icon {
+  margin-right: 0.75rem;
+  height: 2rem;
+  width: 2rem;
+}
+
+.ai-chat-subtitle {
+  color: var(--color-muted-foreground);
+}
+
+.ai-chat-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ai-chat-action-button {
+  display: flex;
+  align-items: center;
+}
+
+.ai-chat-action-icon {
+  margin-right: 0.5rem;
+  height: 1rem;
+  width: 1rem;
+}
+
+.ai-chat-layout {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 1024px) {
+  .ai-chat-layout {
+    grid-template-columns: 1fr 3fr;
+  }
+}
+
+.ai-chat-queries-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ai-chat-query-button {
+  width: 100%;
+  height: auto;
+  justify-content: flex-start;
+  padding: 1rem;
+  text-align: left;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  transition: background-color 0.2s;
+}
+
+.ai-chat-query-button:hover {
+  background-color: rgba(var(--color-accent-rgb), 0.5);
+}
+
+.ai-chat-query-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ai-chat-query-title {
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.ai-chat-query-text {
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ai-chat-query-category {
+  font-size: 0.75rem;
+  color: var(--color-primary);
+  text-transform: capitalize;
+}
+
+.ai-chat-conversation {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+  height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background-color: var(--color-card);
+}
+
+.chat-message-container {
+  display: flex;
+}
+
+.chat-message-container-user {
+  justify-content: flex-end;
+}
+
+.chat-message-container-ai {
+  justify-content: flex-start;
+}
+
+.chat-message {
+  max-width: 80%;
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.chat-message-user {
+  background-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+
+.chat-message-ai {
+  background-color: var(--color-secondary);
+  color: var(--color-secondary-foreground);
+}
+
+.chat-message-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.chat-message-avatar {
+  width: 1.5rem;
+  height: 1.5rem;
+  background-color: var(--color-accent);
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-message-avatar-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.chat-message-name {
+  font-size: 0.75rem;
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+.chat-message-text {
+  font-size: 0.875rem;
+  white-space: pre-line;
+}
+
+.chat-message-time {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.ai-chat-input-container {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.ai-chat-input {
+  flex: 1;
+}
+
+.ai-chat-input-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ai-chat-input-icon {
+  height: 1rem;
+  width: 1rem;
+}
+
+.ai-capabilities-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(1, 1fr);
+  margin-top: 1rem;
+}
+
+@media (min-width: 768px) {
+  .ai-capabilities-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.ai-capability-card {
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background-color: var(--color-card);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ai-capability-icon-container {
+  width: 2.5rem;
+  height: 2.5rem;
+  background-color: rgba(var(--color-primary-rgb), 0.1);
+  color: var(--color-primary);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ai-capability-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.ai-capability-title {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.ai-capability-description {
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground);
+  line-height: 1.5;
+}
+
 /* Animations */
 @keyframes ping {
   75%, 100% {
@@ -358,6 +625,70 @@ a {
   50% {
     opacity: 0.7;
     transform: scale(1.05);
+  }
+}
+
+/* Dashboard Styles */
+.dashboard-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dashboard-title-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.dashboard-title {
+  font-size: 1.875rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.dashboard-subtitle {
+  color: var(--color-muted-foreground);
+}
+
+.dashboard-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.dashboard-button {
+  display: flex;
+  align-items: center;
+}
+
+.dashboard-button-icon {
+  margin-right: 0.5rem;
+  height: 1rem;
+  width: 1rem;
+}
+
+.dashboard-stats-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(1, 1fr);
+}
+
+@media (min-width: 768px) {
+  .dashboard-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .dashboard-stats-grid {
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
@@ -391,12 +722,25 @@ a {
 }
 
 .card-hover {
-  transition: all 0.3s ease;
+  transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .card-hover:hover {
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-0.25rem);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.active {
+  background-color: var(--color-accent);
+  color: var(--color-accent-foreground);
+}
+
+.pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.ping {
+  animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 
 /* Status Indicators */

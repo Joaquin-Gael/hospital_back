@@ -15,7 +15,6 @@ import {
   Activity,
   Download
 } from 'lucide-react';
-import { cn } from '../lib/utils';
 
 const predefinedQueries = [
   {
@@ -99,13 +98,13 @@ function QueryCard({ query, onSelect }) {
   return (
     <Button
       variant="ghost"
-      className="w-full h-auto justify-start p-4 text-left border border-border hover:bg-accent/50"
+      className="ai-chat-query-button"
       onClick={() => onSelect(query.query)}
     >
-      <div className="space-y-2">
-        <div className="font-medium text-sm">{query.title}</div>
-        <div className="text-xs text-muted-foreground line-clamp-2">{query.query}</div>
-        <div className="text-xs text-primary capitalize">{query.category}</div>
+      <div className="ai-chat-query-content">
+        <div className="ai-chat-query-title">{query.title}</div>
+        <div className="ai-chat-query-text">{query.query}</div>
+        <div className="ai-chat-query-category">{query.category}</div>
       </div>
     </Button>
   );
@@ -115,23 +114,18 @@ function ChatMessage({ message }) {
   const isUser = message.type === 'user';
   
   return (
-    <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
-      <div className={cn(
-        "max-w-[80%] rounded-lg px-4 py-3 space-y-2",
-        isUser 
-          ? "bg-primary text-primary-foreground" 
-          : "bg-secondary text-secondary-foreground"
-      )}>
+    <div className={isUser ? "chat-message-container chat-message-container-user" : "chat-message-container chat-message-container-ai"}>
+      <div className={isUser ? "chat-message chat-message-user" : "chat-message chat-message-ai"}>
         {!isUser && (
-          <div className="flex items-center space-x-2 mb-2">
-            <div className="w-6 h-6 bg-accent rounded-full flex items-center justify-center">
-              <Brain className="w-4 h-4" />
+          <div className="chat-message-header">
+            <div className="chat-message-avatar">
+              <Brain className="chat-message-avatar-icon" />
             </div>
-            <span className="text-xs font-medium opacity-70">Medical AI Assistant</span>
+            <span className="chat-message-name">Medical AI Assistant</span>
           </div>
         )}
-        <div className="text-sm whitespace-pre-line">{message.message}</div>
-        <div className="text-xs opacity-70">{message.timestamp}</div>
+        <div className="chat-message-text">{message.message}</div>
+        <div className="chat-message-time">{message.timestamp}</div>
       </div>
     </div>
   );
@@ -162,163 +156,121 @@ export function AIChat() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="ai-chat-container">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight flex items-center">
-            <Brain className="mr-3 h-8 w-8" />
+      <div className="ai-chat-header">
+        <div className="ai-chat-title-container">
+          <h1 className="ai-chat-title">
+            <Brain className="ai-chat-title-icon" />
             AI Medical Assistant
           </h1>
-          <p className="text-muted-foreground">
+          <p className="ai-chat-subtitle">
             Advanced medical AI for clinical decision support, diagnostics, and hospital operations.
           </p>
         </div>
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" as={Link} to="/">
-            <Activity className="mr-2 h-4 w-4" />
+        <div className="ai-chat-actions">
+          <Button variant="outline" size="sm" as={Link} to="/" className="ai-chat-action-button">
+            <Activity className="ai-chat-action-icon" />
             Dashboard
           </Button>
-          <Button variant="outline" size="sm">
-            <RotateCcw className="mr-2 h-4 w-4" />
+          <Button variant="outline" size="sm" className="ai-chat-action-button">
+            <RotateCcw className="ai-chat-action-icon" />
             New Session
           </Button>
-          <Button variant="outline" size="sm">
-            <Download className="mr-2 h-4 w-4" />
+          <Button variant="outline" size="sm" className="ai-chat-action-button">
+            <Download className="ai-chat-action-icon" />
             Export Chat
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-4">
+      <div className="ai-chat-layout">
         {/* Sidebar with Quick Queries */}
-        <Card className="lg:col-span-1">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Quick Medical Queries</CardTitle>
+            <CardTitle className="card-title-with-icon">
+              <MessageSquare className="card-title-icon" />
+              Quick Medical Queries
+            </CardTitle>
             <CardDescription>
               Common clinical and administrative questions
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="ai-chat-queries-container">
             {predefinedQueries.map((query, index) => (
-              <QueryCard
-                key={index}
-                query={query}
-                onSelect={handlePredefinedQuery}
-              />
+              <QueryCard key={index} query={query} onSelect={handlePredefinedQuery} />
             ))}
           </CardContent>
         </Card>
 
-        {/* Main Chat Interface */}
-        <div className="lg:col-span-3 space-y-6">
+        {/* Main Chat Area */}
+        <div>
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Brain className="h-5 w-5" />
-                  <span>Medical AI Assistant</span>
-                </div>
-                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                  <div className="status-dot status-online" />
-                  <span>Connected to Hospital MCP</span>
-                </div>
+              <CardTitle className="card-title-with-icon">
+                <Brain className="card-title-icon" />
+                Medical AI Conversation
               </CardTitle>
               <CardDescription>
-                Real-time access to patient data, medical knowledge base, and clinical decision support
+                Ask medical questions, request patient analysis, or get clinical guidance
               </CardDescription>
             </CardHeader>
-            
-            {/* Chat Messages */}
-            <CardContent className="space-y-6">
-              <div className="h-96 overflow-y-auto space-y-4 p-4 border rounded-lg bg-background/50">
+            <CardContent>
+              {/* Chat Messages */}
+              <div className="ai-chat-conversation">
                 {chatHistory.map((msg) => (
                   <ChatMessage key={msg.id} message={msg} />
                 ))}
-                
-                {isLoading && (
-                  <div className="flex justify-start">
-                    <div className="bg-secondary text-secondary-foreground rounded-lg px-4 py-3">
-                      <div className="flex items-center space-x-2">
-                        <div className="loading-dots">
-                          <div></div>
-                          <div></div>
-                          <div></div>
-                        </div>
-                        <span className="text-sm">AI is analyzing...</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
-
+              
               {/* Input Area */}
-              <div className="flex space-x-2">
-                <div className="flex-1 relative">
-                  <Input
-                    placeholder="Ask about patients, medications, procedures, protocols, or clinical guidelines..."
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                    className="pr-12"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-2 top-1/2 -translate-y-1/2"
-                    onClick={toggleVoiceInput}
-                  >
-                    {isListening ? (
-                      <MicOff className="h-4 w-4 text-red-500" />
-                    ) : (
-                      <Mic className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
+              <div className="ai-chat-input-container">
+                <Input
+                  className="ai-chat-input"
+                  placeholder="Type your medical query or patient question..."
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                />
                 <Button 
-                  onClick={handleSendMessage} 
+                  variant="outline" 
+                  size="icon"
+                  className="ai-chat-input-button"
+                  onClick={toggleVoiceInput}
+                >
+                  {isListening ? (
+                    <MicOff className="ai-chat-input-icon" />
+                  ) : (
+                    <Mic className="ai-chat-input-icon" />
+                  )}
+                </Button>
+                <Button 
+                  className="ai-chat-input-button"
+                  onClick={handleSendMessage}
                   disabled={!message.trim() || isLoading}
                 >
-                  <Send className="h-4 w-4" />
+                  {isLoading ? (
+                    <div className="ai-chat-input-icon pulse">...</div>
+                  ) : (
+                    <Send className="ai-chat-input-icon" />
+                  )}
                 </Button>
-              </div>
-
-              {/* AI Capabilities Info */}
-              <div className="grid gap-3 md:grid-cols-3 text-xs text-muted-foreground border-t pt-4">
-                <div className="flex items-center space-x-2">
-                  <User className="h-4 w-4" />
-                  <span>Patient Data Access</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Brain className="h-4 w-4" />
-                  <span>Medical Knowledge Base</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Activity className="h-4 w-4" />
-                  <span>Real-time Analytics</span>
-                </div>
               </div>
             </CardContent>
           </Card>
 
           {/* AI Capabilities */}
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="ai-capabilities-grid">
             {aiCapabilities.map((capability, index) => {
               const Icon = capability.icon;
               return (
-                <Card key={index} className="card-hover">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg flex items-center space-x-2">
-                      <Icon className="h-5 w-5" />
-                      <span>{capability.title}</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                      {capability.description}
-                    </p>
-                  </CardContent>
-                </Card>
+                <div key={index} className="ai-capability-card">
+                  <div className="ai-capability-icon-container">
+                    <Icon className="ai-capability-icon" />
+                  </div>
+                  <div className="ai-capability-title">{capability.title}</div>
+                  <div className="ai-capability-description">{capability.description}</div>
+                </div>
               );
             })}
           </div>
