@@ -55,6 +55,8 @@ admin_username = os.getenv("ADMIN_USERNAME")
 admin_password = os.getenv("ADMIN_PASSWORD")
 admin_email = os.getenv("ADMIN_EMAIL")
 
+llm_model_name = os.getenv("LLM_MODEL_NAME", "gpt2")
+
 
 admin_user = User(
     name=admin_username,

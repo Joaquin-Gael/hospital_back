@@ -5,46 +5,38 @@ import os
 import json
 import asyncio
 
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
 from rich.console import Console
 
+from app.core.utils import BaseInterface
 from app.core.interfaces.users import UserRepository
 from app.core.interfaces.medic_area import DoctorRepository, TurnAndAppointmentRepository
 from app.core.interfaces.emails import EmailService
+from app.config import llm_model_name
 from app.db.main import engine
 from app.models import User, Doctors, Appointments, Turns
 
 console = Console()
 
-_model_pipeline = None
+_model = None
+_tokenizer = None
 
-def get_model_pipeline():
-    """Return a cached text-generation pipeline or attempt to create one lazily.
-
-    Returns None if the model cannot be loaded (permission/network issues).
-    """
-    global _model_pipeline
-    if _model_pipeline is not None:
-        return _model_pipeline
-
+def init_model_torch_class():
+    global _model
+    global _tokenizer
     try:
-        from transformers import pipeline
-        model_name = os.getenv("AI_MODEL", "deepseek-ai/deepseek-math-7b-instruct")
-        hf_token = os.getenv("HF_TOKEN")
-        kwargs = {}
-        if hf_token:
-            kwargs["use_auth_token"] = hf_token
-
-        console.print(f"Attempting to load AI model: {model_name}", style="yellow")
-        _model_pipeline = pipeline("text-generation", model=model_name, **kwargs)
-        console.print("AI model loaded successfully", style="green")
-        return _model_pipeline
+        tokenizer = AutoTokenizer.from_pretrained(llm_model_name)
+        model = AutoModelForCausalLM.from_pretrained(llm_model_name, torch_dtype="auto", device_map="auto")    
+        
+        _model = model
+        _tokenizer = tokenizer
+        
+        console.print(f"AI model loaded successfully\n\nmodel name [blue]{llm_model_name}[/]", style="green")
+        
     except Exception as e:
         console.print_exception(show_locals=False)
         console.print("AI model unavailable — continuing without AI features.", style="red")
-        _model_pipeline = None
-        return None
-
-pipeline = get_model_pipeline()
 
 class AIAssistantCapabilityError(Exception):
     """Exception raised when AI assistant lacks capability for requested operation."""
@@ -53,7 +45,7 @@ class AIAssistantCapabilityError(Exception):
         super().__init__(self.message)
 
 
-class AIAssistantInterface:
+class AIAssistantInterface(BaseInterface):
     """
     AI Assistant interface that provides intelligent capabilities across the hospital system.
     This class serves as a central hub for AI-powered operations and can access all system interfaces.
@@ -64,6 +56,9 @@ class AIAssistantInterface:
         self.doctor_repo = DoctorRepository()
         self.turn_appointment_repo = TurnAndAppointmentRepository()
         self.email_service = EmailService()
+        
+        self.model_messages = []
+        self.max_history = 10
         
         # AI model configuration
         self.model_config = {
@@ -88,6 +83,51 @@ class AIAssistantInterface:
             "Responde en el mismo idioma en que se te pregunte, ya sea español o inglés.\n" + \
             "Si no sabes la respuesta, di que no lo sabes. No intentes inventar respuestas.\n" + \
             f"Si tienes la nesesidad de emplementar alguna de las funcionalidades del sistema, aclara en tu respuesta un sector separado de la respuesta del usuario con el titulo '### IMPLEMENTACION NECESARIA ###' y detalla  el nombre de alguna de las siguientes herramientas: [{"".join(self.model_config["capabilities"])}] \n"
+            
+    async def _regiter_messages(self, role: str, content: str):
+        """Register a message in the conversation history."""
+        self.model_messages.append({"role": role, "content": content})
+        if len(self.model_messages) > self.max_history:
+            self.model_messages.pop(0)
+            
+    async def _generate_response(self, request: str, user_context: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        Generate a response from the AI model based on the request and user context.
+        
+        Args:
+            request: Natural language request from user
+            user_context: Optional context about the requesting user
+        Returns:
+            Generated response string
+        """
+        
+        global _tokenizer
+        global _model
+        
+        try:
+            if _model is None or _tokenizer is None:
+                raise AIAssistantCapabilityError("AI model is not available")
+            
+            input_text = request
+            if user_context:
+                context_str = json.dumps(user_context)
+                input_text += f"\n\n##User Context: {context_str}"
+            
+            input_text += f"\n\n##Tools Context: {self.tools_promt}"
+            
+            await self._regiter_messages("user", input_text)
+            
+            inputs = _tokenizer.apply_chat_template(self.model_messages, add_generation_prompt=True, tokenize=True, return_dict=True, return_tensors="pt").to(_model.device)
+            outputs = _model.generate(**inputs, max_new_tokens=150)
+            response = _tokenizer.decode(outputs[0], skip_special_tokens=True)
+            
+            await self._regiter_messages("assistant", response[0]["generated_text"][-1]["content"])
+            
+            return response[0]["generated_text"]
+
+        except Exception as e:
+            console.print_exception(show_locals=True)
+            raise AIAssistantCapabilityError(f"Error generating AI response: {str(e)}")
         
     async def process_natural_language_request(self, request: str, user_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -128,29 +168,29 @@ class AIAssistantInterface:
     
     async def _handle_appointment_request(self, request: str, user_context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """Handle appointment-related requests."""
+        global _model
+        
         with Session(engine) as session:
             try:
                 # Extract intent from request
                 if "create" in request.lower() or "agendar" in request.lower():
-                    if pipeline is None:
+                    if _model is None:
                         # Model not available — return a helpful response without blocking
                         return {
                             "success": False,
-                            "message": "AI model unavailable. Please try again later or contact the administrator.",
+                            "messages": [{
+                                "role":"assistant", 
+                                "content": "AI model unavailable. Please try again later or contact the administrator."
+                                }],
                             "type": "ai_unavailable",
                         }
 
                     try:
-                        response = pipeline(
-                            {
-                                "role": "user",
-                                "content": request + "\n\n" + self.tools_promt,
-                            }
-                        )
-                        console.print(response)
+                        response = await self._generate_response(request, user_context)
+                        
                         return {
                             "success": True,
-                            "message": response[0].get("generated_text", ""),
+                            "messages": response,
                             "type": "appointment_creation",
                             "required_fields": ["doctor_id", "date", "time"],
                             "suggestions": await self._get_available_doctors(session),
@@ -159,7 +199,10 @@ class AIAssistantInterface:
                         console.print_exception(show_locals=False)
                         return {
                             "success": False,
-                            "message": f"Error generating AI response: {str(e)}",
+                            "messages": [{
+                                "role":"assistant",
+                                "content": f"Error generating AI response: {str(e)}"
+                                }],
                             "type": "error",
                         }
                 elif "list" in request.lower() or "mostrar" in request.lower():
@@ -167,59 +210,109 @@ class AIAssistantInterface:
                         appointments = await self._get_user_appointments(session, user_context["user_id"])
                         return {
                             "success": True,
-                            "message": f"Found {len(appointments)} appointments for you.",
+                            "messages": [{
+                                "role":"assistant",
+                                "content":f"Found {len(appointments)} appointments for you."
+                                }],
                             "type": "appointment_list",
                             "data": appointments
                         }
+                        
+                response = await self._generate_response(request, user_context)
                 
                 return {
                     "success": True,
-                    "message": "I can help you with appointments. You can ask me to create, list, or modify appointments.",
+                    "messages": response,
                     "type": "appointment_help"
                 }
                 
             except Exception as e:
                 return {
                     "success": False,
-                    "message": f"Error handling appointment request: {str(e)}",
+                    "messages": [{
+                        "role":"assistant",
+                        "content": f"Error handling appointment request: {str(e)}"
+                        }],
                     "type": "error"
                 }
     
     async def _handle_doctor_request(self, request: str, user_context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """Handle doctor-related requests."""
+        global _model
+        if _model is None:
+            # Model not available — return a helpful response without blocking
+            return {
+                "success": False,
+                "messages": [{
+                    "role":"assistant",
+                    "content": "AI model unavailable. Please try again later or contact the administrator."
+                    }],
+                "type": "ai_unavailable",
+            }
+        
         with Session(engine) as session:
             try:
                 doctors = await self.doctor_repo.get_doctors(session)
                 
                 if "list" in request.lower() or "mostrar" in request.lower():
-                    doctor_list = [{"id": str(doctor.id), "name": doctor.name, "specialty": doctor.specialty} 
-                                    for doctor in doctors]
+                    doctor_list = [
+                        {
+                           "id": str(doctor.id), 
+                           "name": doctor.name, 
+                           "specialty": doctor.specialty
+                        }
+                         for doctor in doctors
+                    ]
+                    
+                    request += "\n\n##Request Context" + f"\n\nFound {len(doctors)} doctors in the system." + "\n\n##Doctor List Context: " + json.dumps(doctor_list)
+                    
+                    response = await self._generate_response(request, user_context)
+                    
                     return {
                         "success": True,
-                        "message": f"Found {len(doctors)} doctors in the system.",
+                        "messages": response, 
                         "type": "doctor_list",
                         "data": doctor_list
                     }
+                    
                 elif "available" in request.lower() or "disponible" in request.lower():
-                    # Get doctors with available slots
                     available_doctors = await self._get_available_doctors(session)
+                    
+                    doctor_list = [
+                        {
+                           "id": str(doctor.id), 
+                           "name": doctor.name, 
+                           "specialty": doctor.specialty
+                        }
+                         for doctor in available_doctors
+                    ]
+                    
+                    request += "\n\n##Request Context" + f"\n\nFound {len(available_doctors)} doctors with available appointments." + "\n\n##Doctor List Context: " + json.dumps(doctor_list)
+                    
+                    response = await self._generate_response(request, user_context)
+                    
                     return {
                         "success": True,
-                        "message": f"Found {len(available_doctors)} doctors with available appointments.",
+                        "messages": response,
                         "type": "available_doctors",
                         "data": available_doctors
                     }
+                    
+                response = await self._generate_response(request, user_context)
                 
                 return {
                     "success": True,
-                    "message": "I can help you find doctors, check their availability, or get their information.",
+                    "messages": response,
                     "type": "doctor_help"
                 }
                 
             except Exception as e:
                 return {
                     "success": False,
-                    "message": f"Error handling doctor request: {str(e)}",
+                    "messages": [{
+                        "role":"assistant",
+                        "content": f"Error handling doctor request: {str(e)}"
+                        }],
                     "type": "error"
                 }
     
@@ -227,10 +320,12 @@ class AIAssistantInterface:
         """Handle schedule-related requests."""
         with Session(engine) as session:
             try:
-                # This would integrate with the turns and schedules system
+                
+                response = await self._generate_response(request, user_context)
+                
                 return {
                     "success": True,
-                    "message": "I can help you with scheduling. Please specify what type of schedule information you need.",
+                    "messages": response,
                     "type": "schedule_help",
                     "available_actions": ["view_schedule", "create_turn", "modify_schedule"]
                 }
@@ -238,16 +333,19 @@ class AIAssistantInterface:
             except Exception as e:
                 return {
                     "success": False,
-                    "message": f"Error handling schedule request: {str(e)}",
+                    "messages": f"Error handling schedule request: {str(e)}",
                     "type": "error"
                 }
     
     async def _handle_report_request(self, request: str, user_context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """Handle report generation requests."""
         try:
+            
+            response = await self._generate_response(request, user_context)
+            
             return {
                 "success": True,
-                "message": "I can generate various reports for you. What type of report do you need?",
+                "messages": response,
                 "type": "report_help",
                 "available_reports": [
                     "doctor_metrics",
@@ -260,16 +358,22 @@ class AIAssistantInterface:
         except Exception as e:
             return {
                 "success": False,
-                "message": f"Error handling report request: {str(e)}",
+                "messages": [{
+                    "role":"assistant",
+                    "content": f"Error handling report request: {str(e)}"
+                    }],
                 "type": "error"
             }
     
     async def _handle_notification_request(self, request: str, user_context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """Handle notification and email requests."""
         try:
+            
+            response = await self._generate_response(request, user_context)
+            
             return {
                 "success": True,
-                "message": "I can help you manage notifications and send emails. What would you like to do?",
+                "messages": response,
                 "type": "notification_help",
                 "available_actions": [
                     "send_appointment_reminder",
@@ -281,25 +385,21 @@ class AIAssistantInterface:
         except Exception as e:
             return {
                 "success": False,
-                "message": f"Error handling notification request: {str(e)}",
+                "messages": [{
+                    "role":"assistant",
+                    "content": f"Error handling notification request: {str(e)}"
+                    }],
                 "type": "error"
             }
     
     async def _handle_general_request(self, request: str, user_context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """Handle general requests that don't fit specific categories."""
         try:
-            response = pipeline(
-                            {
-                                "role": "user",
-                                "content": request + "\n\n" + self.tools_promt,
-                            }
-                        )
-            
-            console.print(response)
+            response = await self._generate_response(request, user_context)
             
             return {
                 "success": True,
-                "message": response[0].get("generated_text", ""),
+                "messages": response,
                 "type": "general_help",
                 "capabilities": self.model_config["capabilities"]
             }
@@ -308,7 +408,10 @@ class AIAssistantInterface:
             console.print_exception(show_locals=True)
             return {
                 "success": False,
-                "message": f"Error processing general request: {str(e)}",
+                "messages": [{
+                    "role":"assistant",
+                    "content":f"Error processing general request: {str(e)}"
+                    }],
                 "type": "error"
             }
     

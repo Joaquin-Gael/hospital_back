@@ -13,7 +13,7 @@ class AIAssistantRequest(BaseModel):
 class AIAssistantResponse(BaseModel):
     """Schema for AI assistant responses"""
     success: bool
-    message: str
+    messages: List[Dict[str, Any]] = []
     type: str
     data: Optional[Dict[str, Any]] = None
     suggestions: Optional[List[Dict[str, Any]]] = None

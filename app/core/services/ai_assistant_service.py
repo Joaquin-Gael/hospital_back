@@ -41,7 +41,7 @@ class AIAssistantService:
             # Convert to response schema
             return AIAssistantResponse(
                 success=result.get("success", True),
-                message=result.get("message", ""),
+                messages=result.get("messages", ""),
                 type=result.get("type", "general"),
                 data=result.get("data"),
                 suggestions=result.get("suggestions")
