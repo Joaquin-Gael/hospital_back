@@ -238,9 +238,8 @@ async def websocket_endpoint(websocket: WebSocket, secret: str):
 
 app.mount(
     "/admin", 
-    StaticFiles(
-        directory=Path(__file__).parent.joinpath("templates", "admin", "dist").resolve(),
-        html=True
+    SPAStaticFiles(
+        directory=Path(__file__).parent.joinpath("templates", "admin").resolve(),
     ), 
     name="admin"
 )
