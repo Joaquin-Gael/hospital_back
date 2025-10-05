@@ -83,6 +83,26 @@ public_router = APIRouter(
 
 @private_router.get("/", response_model=List[UserRead])
 async def get_users(session: SessionDep):
+    """
+    Obtiene lista completa de todos los usuarios del sistema.
+    
+    Recupera todos los usuarios registrados con su información completa,
+    incluyendo datos personales, estado de activación y seguros médicos.
+    
+    Args:
+        session (SessionDep): Sesión de base de datos inyectada
+        
+    Returns:
+        ORJSONResponse: Lista de usuarios serializados con campos:
+            - id, is_active, is_admin, is_superuser
+            - last_login, date_joined
+            - username, email, first_name, last_name
+            - dni, address, telephone, blood_type
+            - img_profile, health_insurance
+            
+    Note:
+        Requiere autenticación. Incluye logs de debug para troubleshooting.
+    """
     statement = select(User).where(True)
     result: List[User] = session.exec(statement).scalars().all()
     users = []
@@ -118,6 +138,25 @@ async def get_users(session: SessionDep):
 
 @private_router.get("/{user_id}/")
 async def get_user_by_id(session: SessionDep, user_id: UUID):
+    """
+    Obtiene información detallada de un usuario específico por su ID.
+    
+    Recupera un usuario individual con toda su información personal,
+    incluyendo seguros médicos asociados.
+    
+    Args:
+        session (SessionDep): Sesión de base de datos inyectada
+        user_id (UUID): Identificador único del usuario
+        
+    Returns:
+        ORJSONResponse: Datos completos del usuario encontrado
+        
+    Raises:
+        HTTPException: 404 si el usuario no existe
+        
+    Note:
+        Requiere autenticación válida.
+    """
     user: User = session.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="Not found")
@@ -145,6 +184,25 @@ async def get_user_by_id(session: SessionDep, user_id: UUID):
 
 @private_router.get("/me", response_model=UserRead)
 async def me_user(request: Request, session: SessionDep):
+    """
+    Obtiene el perfil del usuario autenticado actualmente.
+    
+    Retorna la información completa del usuario que está autenticado
+    en la sesión actual, actualizando y refrescando los datos.
+    
+    Args:
+        request (Request): Request HTTP con estado de autenticación
+        session (SessionDep): Sesión de base de datos inyectada
+        
+    Returns:
+        ORJSONResponse: Perfil completo del usuario autenticado
+        
+    Raises:
+        HTTPException: 401 si no está autenticado o token inválido
+        
+    Note:
+        Realiza merge y refresh del usuario para datos actualizados.
+    """
     user: User = request.state.user
 
     if not isinstance(user, User):
@@ -177,6 +235,28 @@ async def me_user(request: Request, session: SessionDep):
 
 @public_router.post("/add/", response_model=UserRead)
 async def add_user(session: SessionDep, user: Annotated[UserCreate, Form(...)]):
+    """
+    Registra un nuevo usuario en el sistema.
+    
+    Crea una nueva cuenta de usuario con los datos proporcionados,
+    incluyendo hasheo seguro de contraseña y manejo de imagen de perfil.
+    
+    Args:
+        session (SessionDep): Sesión de base de datos inyectada
+        user (UserCreate): Datos del usuario desde formulario
+        
+    Returns:
+        ORJSONResponse: Usuario creado con información básica
+        
+    Raises:
+        HTTPException: 400 si hay errores en los datos o creación
+        
+    Note:
+        - Endpoint público (no requiere autenticación)
+        - Hashea automáticamente la contraseña
+        - Maneja imagen de perfil opcional
+        - Incluye seguros médicos en la respuesta
+    """
     try:
         user_db = User(
             email=user.email,
@@ -251,7 +331,21 @@ async def verify_dni(dni_form: Annotated[DniForm, Form(...)]):
         img_size = (1500, 1000)
 
         def bytes_to_cv2(b):
-            """Convierte bytes de imagen a formato OpenCV."""
+            """
+            Convierte bytes de imagen a formato OpenCV.
+            
+            Toma datos binarios de una imagen y los convierte al formato
+            que OpenCV puede procesar para manipulación de imágenes.
+            
+            Args:
+                b (bytes): Datos binarios de la imagen
+                
+            Returns:
+                numpy.ndarray: Imagen en formato OpenCV (BGR)
+                
+            Raises:
+                ValueError: Si cv2 no puede decodificar la imagen
+            """
             arr = np.frombuffer(b, np.uint8)
             img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
             if img is None:
@@ -263,13 +357,26 @@ async def verify_dni(dni_form: Annotated[DniForm, Form(...)]):
 
         def extract_from_mrz(img_color, size: tuple[int, int]):
             """
-            Busca en la zona MRZ (Machine Readable Zone) del DNI.
+            Extrae números de DNI de la zona MRZ (Machine Readable Zone).
             
-            La MRZ son esas líneas de abajo con caracteres raros y '<<'.
-            Suele tener el DNI de forma más confiable que el texto impreso normal.
+            Busca en la zona MRZ del documento de identidad, que son las líneas
+            inferiores con caracteres especiales y '<<'. Esta zona suele contener
+            el DNI de forma más confiable que el texto impreso normal.
             
+            Args:
+                img_color (numpy.ndarray): Imagen en color del documento
+                size (tuple): Tupla con (ancho, alto) para redimensionar
+                
             Returns:
-                tuple: (lista de DNIs encontrados, texto MRZ completo)
+                tuple: (lista_de_dnis_encontrados, texto_mrz_completo)
+                    - lista de strings con DNIs de 8 dígitos
+                    - texto completo extraído de la zona MRZ
+                    
+            Note:
+                Aplica filtros de nitidez y busca patrones específicos:
+                - Secuencias de 8 dígitos
+                - Formato XX.XXX.XXX
+                - Líneas con '<<' (características de MRZ)
             """
             img = cv2.resize(img_color, size)
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -331,6 +438,27 @@ async def verify_dni(dni_form: Annotated[DniForm, Form(...)]):
 
 @private_router.delete("/delete/{user_id}/", response_model=UserDelete)
 async def delete_user(request: Request, user_id: UUID, session: SessionDep):
+    """
+    Elimina permanentemente un usuario del sistema.
+    
+    Borra completamente un usuario de la base de datos. Solo los superusuarios
+    pueden realizar esta acción y no pueden eliminar su propia cuenta.
+    
+    Args:
+        request (Request): Request con información de autenticación
+        user_id (UUID): ID del usuario a eliminar
+        session (SessionDep): Sesión de base de datos
+        
+    Returns:
+        ORJSONResponse: Confirmación de eliminación con datos del usuario eliminado
+        
+    Raises:
+        HTTPException: 403 si no tiene permisos o intenta eliminarse a sí mismo
+        HTTPException: 404 si el usuario no existe
+        
+    Warning:
+        Esta operación es irreversible y eliminará todos los datos asociados.
+    """
     if not request.state.user.is_superuser or str(request.state.user.id) == user_id:
         raise HTTPException(status_code=403, detail="Not authorized")
     try:

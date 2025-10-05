@@ -34,10 +34,12 @@ dependencies = [
     "python-magic>=0.4.27",
     "python-magic-bin>=0.4.14",
     "python-multipart>=0.0.20",
+    "redis>=6.4.0",
     "requests>=2.32.4",
     "scalar-fastapi>=1.0.3",
     "sqlmodel>=0.0.24",
     "stripe>=12.4.0",
+    "transformers[torch]>=4.56.2",
 ]
 
 [tool]

@@ -12,11 +12,12 @@ import polars as pl
 
 from uuid import UUID
 
+from app.core.utils import BaseInterface
 from app.core.interfaces.oauth import console
-from app.schemas.medica_area import TurnsCreate
+from app.schemas.medica_area import TurnsCreate, DoctorStates
 from app.models import Turns, Appointments, MedicalSchedules, Services, Doctors, User
 
-class DoctorRepository:
+class DoctorRepository(BaseInterface):
     @staticmethod
     async def get_doctors(session: Session) -> list[Doctors]:
         return session.exec(select(Doctors)).all()
@@ -24,6 +25,10 @@ class DoctorRepository:
     @staticmethod
     async def get_doctor_by_id(session: Session, doctor_id: UUID) -> Doctors:
         return session.exec(select(Doctors).where(Doctors.id == doctor_id)).first()
+    
+    @staticmethod
+    async def get_available_doctors(session: Session) -> list[Doctors]:
+        return session.exec(select(Doctors).where(Doctors.doctor_state == DoctorStates.available.value)).all()
     
     @staticmethod
     async def get_doctor_metrics(session: Session, doctor: Doctors) -> pl.DataFrame:
@@ -113,8 +118,8 @@ class DoctorRepository:
         console.print(serial)
         
         return serial
-
-class TurnAndAppointmentRepository:
+    
+class TurnAndAppointmentRepository(BaseInterface):
     @staticmethod
     async def delete_turn_and_appointment(session: Session, turn: Turns) -> bool:
         try:
