@@ -10,38 +10,37 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '../ui/dropdown';
-import { cn } from '../../lib/utils';
 import { Link } from 'react-router-dom';
 
 export function Header() {
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-card px-6 shadow-sm">
+    <header className="header">
       {/* Search Section */}
-      <div className="flex items-center space-x-4 flex-1 max-w-md">
-        <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <div className="header-search">
+        <div className="search-container">
+          <Search className="search-icon" />
           <Input
             type="search"
             placeholder="Search patients, appointments, records..."
-            className="w-full pl-10 pr-4 h-9"
+            className="search-input"
           />
         </div>
       </div>
 
       {/* Action Items */}
-      <div className="flex items-center space-x-3">
+      <div className="header-actions">
         {/* AI Assistant Quick Access */}
-        <Button variant="outline" size="sm" className="hidden sm:flex" asChild>
+        <Button variant="outline" size="sm" className="header-button header-button-ai" asChild>
           <Link to="/ai-chat">
-            <Brain className="mr-2 h-4 w-4" />
+            <Brain className="button-icon" />
             AI Assistant
           </Link>
         </Button>
 
         {/* Dashboard Quick Access */}
-        <Button variant="outline" size="sm" className="hidden md:flex" asChild>
+        <Button variant="outline" size="sm" className="header-button header-button-dashboard" asChild>
           <Link to="/">
-            <Activity className="mr-2 h-4 w-4" />
+            <Activity className="button-icon" />
             Dashboard
           </Link>
         </Button>
@@ -49,55 +48,55 @@ export function Header() {
         {/* Notifications */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-destructive flex items-center justify-center">
-                <span className="animate-pulse absolute inset-0 rounded-full bg-destructive opacity-75"></span>
+            <Button variant="ghost" size="icon" className="notification-button">
+              <Bell className="notification-icon" />
+              <span className="notification-badge">
+                <span className="notification-badge-pulse"></span>
                 <span className="sr-only">3 notifications</span>
               </span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-80">
-            <DropdownMenuLabel className="flex items-center justify-between">
+          <DropdownMenuContent align="end" className="notification-dropdown">
+            <DropdownMenuLabel className="notification-header">
               <span>Notifications</span>
-              <span className="text-xs font-medium bg-destructive text-destructive-foreground px-2 py-0.5 rounded">3 new</span>
+              <span className="notification-count">3 new</span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             
-            <div className="space-y-1 max-h-[300px] overflow-y-auto">
-              <DropdownMenuItem className="flex flex-col items-start space-y-1 p-3 hover:bg-accent/50 cursor-pointer">
-                <div className="flex w-full items-start justify-between">
-                  <div className="font-medium">New appointment scheduled</div>
-                  <div className="text-xs text-muted-foreground shrink-0 ml-2">5m</div>
+            <div className="notification-list">
+              <DropdownMenuItem className="notification-item">
+                <div className="notification-item-header">
+                  <div className="notification-title">New appointment scheduled</div>
+                  <div className="notification-time">5m</div>
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="notification-description">
                   John Doe - Today 3:00 PM
                 </div>
               </DropdownMenuItem>
               
-              <DropdownMenuItem className="flex flex-col items-start space-y-1 p-3 hover:bg-accent/50 cursor-pointer">
-                <div className="flex w-full items-start justify-between">
-                  <div className="font-medium text-destructive">AI Alert: Critical vitals</div>
-                  <div className="text-xs text-muted-foreground shrink-0 ml-2">15m</div>
+              <DropdownMenuItem className="notification-item">
+                <div className="notification-item-header">
+                  <div className="notification-title notification-title-alert">AI Alert: Critical vitals</div>
+                  <div className="notification-time">15m</div>
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="notification-description">
                   Patient #1234 requires immediate attention
                 </div>
               </DropdownMenuItem>
               
-              <DropdownMenuItem className="flex flex-col items-start space-y-1 p-3 hover:bg-accent/50 cursor-pointer">
-                <div className="flex w-full items-start justify-between">
-                  <div className="font-medium">Record updated</div>
-                  <div className="text-xs text-muted-foreground shrink-0 ml-2">1h</div>
+              <DropdownMenuItem className="notification-item">
+                <div className="notification-item-header">
+                  <div className="notification-title">Record updated</div>
+                  <div className="notification-time">1h</div>
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="notification-description">
                   Medical record updated for Jane Smith
                 </div>
               </DropdownMenuItem>
             </div>
             
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-center text-primary hover:text-primary hover:underline cursor-pointer">
+            <DropdownMenuItem className="notification-view-all">
               View all notifications
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -106,31 +105,31 @@ export function Header() {
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary border border-border">
-                <User className="h-4 w-4" />
+            <Button variant="ghost" className="user-menu-button">
+              <div className="user-avatar">
+                <User className="user-icon" />
               </div>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium">Admin User</p>
-                <p className="text-xs text-muted-foreground">admin@hospital.com</p>
+          <DropdownMenuContent align="end" className="user-dropdown">
+            <DropdownMenuLabel className="user-dropdown-header">
+              <div className="user-info">
+                <p className="user-name">Admin User</p>
+                <p className="user-email">admin@hospital.com</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer">
+            <DropdownMenuItem className="user-dropdown-item">
               Profile Settings
             </DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer">
+            <DropdownMenuItem className="user-dropdown-item">
               AI Configuration
             </DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer">
+            <DropdownMenuItem className="user-dropdown-item">
               System Preferences
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive cursor-pointer">
+            <DropdownMenuItem className="user-dropdown-item user-dropdown-item-signout">
               Sign Out
             </DropdownMenuItem>
           </DropdownMenuContent>
