@@ -15,6 +15,7 @@ import {
   Zap
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { Link } from 'react-router-dom';
 
 const stats = [
   {
@@ -244,8 +245,8 @@ export function Dashboard() {
             <Activity className="mr-2 h-4 w-4" />
             System Health
           </Button>
-          <Button>
-            <MessageSquare className="mr-2 h-4 w-4" />
+          <Button as={Link} to="/ai-chat">
+            <Brain className="mr-2 h-4 w-4" />
             Open AI Assistant
           </Button>
         </div>

@@ -45,7 +45,7 @@ const Settings = () => (
 function App() {
   return (
     <Router>
-      <div className="h-screen flex bg-background text-foreground">
+      <div className="h-[100vh] flex bg-background text-foreground">
         {/* Sidebar */}
         <Sidebar />
         

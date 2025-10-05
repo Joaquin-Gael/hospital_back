@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { Link } from 'react-router-dom';
 import { 
   MessageSquare,
   Send,
@@ -166,7 +167,7 @@ export function AIChat() {
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight flex items-center">
-            <MessageSquare className="mr-3 h-8 w-8" />
+            <Brain className="mr-3 h-8 w-8" />
             AI Medical Assistant
           </h1>
           <p className="text-muted-foreground">
@@ -174,6 +175,10 @@ export function AIChat() {
           </p>
         </div>
         <div className="flex items-center space-x-2">
+          <Button variant="outline" size="sm" as={Link} to="/">
+            <Activity className="mr-2 h-4 w-4" />
+            Dashboard
+          </Button>
           <Button variant="outline" size="sm">
             <RotateCcw className="mr-2 h-4 w-4" />
             New Session
