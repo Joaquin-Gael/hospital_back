@@ -4,6 +4,17 @@ from types import FunctionType
 
 class BaseInterface:
     @classmethod
+    def get_templated_methods(cls) -> list[str]:
+        """
+        Dada una lista de tuplas (name, kind, callable) devuelve una lista de tuplas
+        (name, kind, signature_str)
+        """
+        templated = []
+        for name, kind, func in cls.get_methods(return_bound=False):
+            templated.append(f"method name:  {name} have {inspect.signature(func)}  # {kind} from {cls.__name__}")
+        return templated
+    
+    @classmethod
     def get_methods(
         cls,
         include_private: bool = False,

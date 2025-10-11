@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from typing import Dict, Any
 
+from app.core.auth import JWTBearer
 from app.core.services.ai_assistant_service import AIAssistantService
 from app.schemas.ai_assistant import (
     AIAssistantRequest,
@@ -12,7 +13,14 @@ from app.schemas.ai_assistant import (
     AISuggestionResponse
 )
 
-router = APIRouter(prefix="/ai-assistant", tags=["AI Assistant"])
+auth = JWTBearer()
+
+router = APIRouter(
+    prefix="/ai-assistant", 
+    tags=["AI-assistant"],
+    dependencies=[Depends(auth)],
+    responses={404: {"description": "Not found"}}
+)
 
 # Dependency to get AI service
 def get_ai_service() -> AIAssistantService:
@@ -35,7 +43,8 @@ def get_ai_service() -> AIAssistantService:
 
 @router.post("/chat", response_model=AIAssistantResponse)
 async def chat_with_assistant(
-    request: AIAssistantRequest,
+    request: Request,
+    user_request: AIAssistantRequest,
     ai_service: AIAssistantService = Depends(get_ai_service)
 ):
     """
@@ -49,7 +58,7 @@ async def chat_with_assistant(
     - Notifications and emails
     """
     try:
-        response = await ai_service.process_user_request(request)
+        response = await ai_service.process_user_request(user_request)
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing chat request: {str(e)}")

@@ -14,6 +14,7 @@ from app.config import (
     templates,
     parser_name
 )
+from app.core.utils import BaseInterface
 
 
 class MailSchema(BaseModel):
@@ -43,7 +44,7 @@ def send_email(to: str, subject: str, html_content: str, message: str):
     server.send_message(msg)
     server.quit()
     
-class EmailService:
+class EmailService(BaseInterface):
     @staticmethod
     def send_welcome_email(email: str, first_name: str, last_name: str):
         subject = "Bienvenido a Hospital SDLG"

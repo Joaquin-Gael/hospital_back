@@ -6,6 +6,7 @@ from app.db.main import engine
 from app.models import User
 from app.storage import storage, NoneResultException
 from app.storage.command.main import console
+from app.core.utils import BaseInterface
 
 
 class EmailHasNotBeenVerified(Exception):
@@ -33,7 +34,7 @@ def set_or_update_google_user(user: User, user_data: dict) -> None:
         storage.set(key=str(user.id), value=user_data, table_name="google-user-data", long_live=True)
 
 
-class UserRepository:
+class UserRepository(BaseInterface):
     @staticmethod
     def get_user_by_email(email: str, session: Session) -> User:
         statement = select(User).where(User.email == email)

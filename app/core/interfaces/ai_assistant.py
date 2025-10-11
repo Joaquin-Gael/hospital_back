@@ -1,11 +1,13 @@
 from typing import Optional, Dict, Any, List
 from sqlmodel import Session
 from datetime import datetime
+from pathlib import Path
 import os
 import json
 import asyncio
 
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+from accelerate import Accelerator
 
 from rich.console import Console
 
@@ -15,9 +17,15 @@ from app.core.interfaces.medic_area import DoctorRepository, TurnAndAppointmentR
 from app.core.interfaces.emails import EmailService
 from app.config import llm_model_name
 from app.db.main import engine
-from app.models import User, Doctors, Appointments, Turns
 
 console = Console()
+
+accelerator = Accelerator()
+device = accelerator.device
+
+bnb_cfg = BitsAndBytesConfig(load_in_4bit=True)
+
+model_cache_dir = Path(__file__).parent.joinpath("binaries/model").resolve()
 
 _model = None
 _tokenizer = None
@@ -26,15 +34,17 @@ def init_model_torch_class():
     global _model
     global _tokenizer
     try:
-        tokenizer = AutoTokenizer.from_pretrained(llm_model_name)
-        model = AutoModelForCausalLM.from_pretrained(llm_model_name, torch_dtype="auto", device_map="auto")    
+        tokenizer = AutoTokenizer.from_pretrained(llm_model_name, cache_dir=model_cache_dir, use_fast=True, trust_remote_code=True)
+        model = AutoModelForCausalLM.from_pretrained(llm_model_name, cache_dir=model_cache_dir, torch_dtype="auto", device_map="auto", quantization_config=bnb_cfg, trust_remote_code=True)
         
-        _model = model
+        _model = accelerator.prepare(model)
         _tokenizer = tokenizer
+        
+        console.print(f"model type: {type(model)}, {model.__class__} ")
         
         console.print(f"AI model loaded successfully\n\nmodel name [blue]{llm_model_name}[/]", style="green")
         
-    except Exception as e:
+    except Exception:
         console.print_exception(show_locals=False)
         console.print("AI model unavailable — continuing without AI features.", style="red")
 
@@ -52,15 +62,33 @@ class AIAssistantInterface(BaseInterface):
     """
     
     def __init__(self):
-        self.user_repo = UserRepository()
-        self.doctor_repo = DoctorRepository()
-        self.turn_appointment_repo = TurnAndAppointmentRepository()
-        self.email_service = EmailService()
+        
+        try:
+            if _model is None or _tokenizer is None:
+                init_model_torch_class()
+        except Exception:
+            console.print_exception(show_locals=False)
+            console.print("AI model unavailable — continuing without AI features.", style="red")
+        
+        self.user_repo = UserRepository().get_templated_methods()
+        self.doctor_repo = DoctorRepository.get_templated_methods()
+        self.turn_appointment_repo = TurnAndAppointmentRepository.get_templated_methods()
+        self.email_service = EmailService.get_templated_methods()
         
         self.model_messages = []
         self.max_history = 10
         
-        # AI model configuration
+        self.methods_map = {
+            "user_repo": self.user_repo,
+            "doctor_repo": self.doctor_repo,
+            "turn_appointment_repo": self.turn_appointment_repo,
+            "email_service": self.email_service
+        }
+        
+         # AI model configuration
+         # In a real implementation, this could be loaded from a config file or environment variables
+         # Here we hardcode for simplicity
+        
         self.model_config = {
             "name": "hospital_assistant",
             "version": "1.0.0",
