@@ -26,7 +26,7 @@ device = accelerator.device
 
 bnb_cfg = BitsAndBytesConfig(llm_int8_enable_fp32_cpu_offload=True)
 
-model_cache_dir = Path(__file__).parent.joinpath("binaries/model").resolve()
+model_cache_dir = Path(__file__).parent.parent.joinpath("binaries/model").resolve()
 
 _model = None
 _tokenizer = None
@@ -71,7 +71,7 @@ class AIAssistantInterface(BaseInterface):
             console.print_exception(show_locals=False)
             console.print("AI model unavailable — continuing without AI features.", style="red")
         
-        self.user_repo = UserRepository().get_templated_methods()
+        self.user_repo = UserRepository.get_templated_methods()
         self.doctor_repo = DoctorRepository.get_templated_methods()
         self.turn_appointment_repo = TurnAndAppointmentRepository.get_templated_methods()
         self.email_service = EmailService.get_templated_methods()
@@ -85,10 +85,6 @@ class AIAssistantInterface(BaseInterface):
             "turn_appointment_repo": self.turn_appointment_repo,
             "email_service": self.email_service
         }
-        
-         # AI model configuration
-         # In a real implementation, this could be loaded from a config file or environment variables
-         # Here we hardcode for simplicity
         
         self.model_config = {
             "name": "hospital_assistant",

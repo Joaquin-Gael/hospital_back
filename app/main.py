@@ -116,7 +116,7 @@ app = FastAPI(
         "url": "https://tuweb.com"
     },
     license_info={
-        "name": "MIT",
+        "name": "LICENSE",
         "url": "https://opensource.org/licenses/MIT"
     },
     docs_url=None,
@@ -212,7 +212,7 @@ main_router.include_router(ai_assistant.router)
 app.include_router(main_router)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8000", "http://localhost:5173"], #if debug else [cors_host],
+    allow_origins=["*"], #if debug else [cors_host],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -346,7 +346,7 @@ async def websocket_endpoint(websocket: WebSocket, secret: str):
 @app.get("/login-admin")
 @time_out(120)
 async def login_admin(request: Request):
-    return templates.TemplateResponse(parser_name(["admin", "login.html"]), {"request": request})
+    return templates.TemplateResponse(parser_name(["admin", "login"], "login"), {"request": request})
 
 @app.get("/admin")
 @time_out(120)
@@ -354,6 +354,6 @@ async def admin(request: Request):
     session = request.cookies.get("session")
     try:
         decode_token(session)
-        return templates.TemplateResponse(parser_name(["admin", "index.html"]), {"request": request})
+        return templates.TemplateResponse(parser_name(["admin", "panel"], "index"), {"request": request})
     except:
-        return templates.TemplateResponse(parser_name(["admin", "login.html"]), {"request": request})
+        return templates.TemplateResponse(parser_name(["admin", "login"], "login"), {"request": request})
