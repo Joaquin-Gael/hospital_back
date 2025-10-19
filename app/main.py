@@ -23,6 +23,7 @@ from app.db.main import init_db, set_admin, migrate, test_db, db_url
 from app.api import users, medic_area, auth, cashes, ai_assistant
 from app.config import api_name, version, debug, cors_host, templates, parser_name, id_prefix, assets_dir, media_dir
 from app.storage.main import storage
+from app.core.auth import time_out, gen_token, decode_token
 
 install(show_locals=True)
 
@@ -147,6 +148,7 @@ async def health_check():
 class Layout(Enum):
     MODERN = "modern"
     CLASSIC = "classic"
+    DEEP_SPACE = "deepSpace"
 
 
 class SearchHotKey(Enum):
@@ -196,7 +198,7 @@ if debug:
             openapi_url=app.openapi_url,
             title=app.title,
             hide_download_button=True,
-            layout=Layout.MODERN,
+            layout=Layout.DEEP_SPACE,
             dark_mode=True,
             scalar_favicon_url="/assets/logo-siglas-negro.png"
         )
@@ -210,15 +212,13 @@ main_router.include_router(ai_assistant.router)
 app.include_router(main_router)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], #if debug else [cors_host],
+    allow_origins=["http://localhost:8000", "http://localhost:5173"], #if debug else [cors_host],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.include_router(auth.oauth_router)
-
-# TODO: hacer los servicios MCP y agregar gpt mediante hugginface para hacer el asistente
 
 class SPAStaticFiles(StaticFiles):
     """
@@ -343,65 +343,17 @@ async def websocket_endpoint(websocket: WebSocket, secret: str):
 
 #app.mount("/", SPAStaticFiles(), name="spa")
 
-class AdminSPAStaticFiles(StaticFiles):
-    """
-    Manejador de archivos estáticos para el panel de administración SPA.
-    
-    Similar a SPAStaticFiles pero específico para el panel de administración.
-    Maneja rutas /admin/* sirviendo archivos estáticos cuando existen o
-    index.html para rutas del React Router.
-    
-    Attributes:
-        index_file (str): Archivo index para rutas del admin SPA
-    """
-    
-    def __init__(self, directory: str, html: bool=True, check_dir: bool=True, index_file: str="index.html"):
-        """
-        Inicializa el manejador para el admin SPA.
-        
-        Args:
-            directory (str): Directorio de archivos del admin
-            html (bool): Si servir archivos HTML
-            check_dir (bool): Si verificar que el directorio existe
-            index_file (str): Archivo index del admin SPA
-        """
-        super().__init__(directory=directory, html=html, check_dir=check_dir)
-        self.index_file = index_file
+@app.get("/login-admin")
+@time_out(120)
+async def login_admin(request: Request):
+    return templates.TemplateResponse(parser_name(["admin", "login.html"]), {"request": request})
 
-    async def __call__(self, scope, receive, send):
-        """
-        Maneja requests para el panel de administración.
-        
-        Sirve archivos estáticos si existen, si no sirve index.html para
-        permitir el routing del admin SPA (React Router).
-        
-        Args:
-            scope: Scope ASGI de la conexión
-            receive: Callable para recibir mensajes ASGI
-            send: Callable para enviar mensajes ASGI
-        """
-        if scope["type"] == "websocket":
-            return await super().__call__(scope, receive, send)
-
-        assert scope["type"] == "http"
-
-        request = Request(scope, receive)
-        path = request.url.path
-
-        # If it's a request for a file that exists, serve it directly
-        full_path = (Path(self.directory) / path.lstrip("/admin/")).resolve()
-        if full_path.exists() and full_path.is_file():
-            return await super().__call__(scope, receive, send)
-
-        # For all other routes (React Router routes), serve index.html
-        index_path = Path(self.directory) / self.index_file
-        response = FileResponse(index_path)
-        await response(scope, receive, send)
-
-app.mount(
-    "/admin", 
-    AdminSPAStaticFiles(
-        directory=Path(__file__).parent.joinpath("templates", "admin").resolve()
-    ), 
-    name="admin"
-)
+@app.get("/admin")
+@time_out(120)
+async def admin(request: Request):
+    session = request.cookies.get("session")
+    try:
+        decode_token(session)
+        return templates.TemplateResponse(parser_name(["admin", "index.html"]), {"request": request})
+    except:
+        return templates.TemplateResponse(parser_name(["admin", "login.html"]), {"request": request})

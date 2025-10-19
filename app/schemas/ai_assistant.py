@@ -6,7 +6,6 @@ from datetime import datetime
 class AIAssistantRequest(BaseModel):
     """Schema for AI assistant requests"""
     request: str
-    session_id: Optional[str] = None
 
 
 class AIAssistantResponse(BaseModel):

@@ -1,0 +1,42 @@
+LICENCIA PROPIETARIA DE USO RESTRINGIDO
+
+1. Definiciones
+- "Software": el conjunto de código fuente y objeto, arquitectura, estructura, diseño, documentación, configuraciones, esquemas de BD, flujos y materiales asociados a este proyecto, ya sea ofrecido como producto, servicio, módulo o cualquier otra modalidad.
+- "Licenciante": el titular de los derechos de propiedad intelectual del Software.
+- "Usuario Autorizado": persona física o jurídica que cuenta con autorización expresa y por escrito del Licenciante para usar el Software.
+- "Componentes de Terceros": bibliotecas, frameworks, herramientas o activos incluidos en el Software que no son de autoría del Licenciante.
+
+2. Propiedad
+El Software, su estructura, arquitectura, diseño y cualquier obra derivada son propiedad exclusiva del Licenciante. No se transfiere ningún derecho de propiedad; solo se concede una licencia de uso conforme a este documento.
+
+3. Concesión de Licencia
+El Licenciante concede a los Usuarios Autorizados una licencia limitada, no exclusiva, intransferible y revocable para utilizar el Software exclusivamente para los fines internos y legítimos autorizados por el Licenciante. Cualquier uso comercial, redistribución, publicación, sub-licenciamiento, alquiler, cesión o explotación del Software requiere autorización previa, expresa y por escrito del Licenciante.
+
+4. Restricciones
+Sin autorización del Licenciante, queda prohibido: (a) copiar, distribuir o comunicar el Software o partes del mismo; (b) modificar, adaptar, traducir o crear obras derivadas; (c) realizar ingeniería inversa, descompilación o desensamblaje salvo donde lo permita la ley de forma irrenunciable; (d) eliminar avisos de propiedad o marcas; (e) usar el Software para actividades ilícitas o que vulneren derechos de terceros.
+
+5. Componentes de Terceros
+Los Componentes de Terceros se rigen por sus licencias propias (open source o propietarias). Nada en esta licencia pretende limitar, modificar ni sustituir los términos de dichas licencias. El uso del Software implica la aceptación y cumplimiento de las licencias de los Componentes de Terceros. Lo que no sea de autoría propia del Licenciante no queda sujeto a las restricciones de esta licencia más allá de lo permitido por sus respectivas licencias.
+
+6. Confidencialidad
+El Usuario Autorizado mantendrá confidencial la documentación, claves, configuraciones y cualquier información no pública del Software, y adoptará medidas razonables para prevenir accesos no autorizados.
+
+7. Distribución y Transferencia
+Cualquier distribución, publicación, cesión, acceso compartido o puesta a disposición del Software a terceros requerirá autorización expresa y por escrito del Licenciante. La licencia es personal para el Usuario Autorizado y no puede ser transferida sin consentimiento del Licenciante.
+
+8. Terminación
+El incumplimiento de esta licencia facultará al Licenciante a terminarla de forma inmediata. Tras la terminación, el Usuario Autorizado deberá cesar el uso y destruir todas las copias del Software en su posesión.
+
+9. Ausencia de Garantía
+El Software se proporciona "tal cual" y "según disponibilidad", sin garantías de ningún tipo, expresas o implícitas, incluyendo pero no limitado a comerciabilidad, idoneidad para un propósito particular y no infracción.
+
+10. Limitación de Responsabilidad
+En ningún caso el Licenciante será responsable por daños indirectos, incidentales, especiales, punitivos o consecuentes, ni por pérdida de beneficios, datos o uso, derivados del uso o imposibilidad de uso del Software, incluso si se hubiera advertido de la posibilidad de tales daños.
+
+11. Ley Aplicable y Jurisdicción
+Esta licencia se regirá por las leyes del país de residencia del Licenciante y cualquier disputa se someterá a los tribunales competentes de dicha jurisdicción, salvo pacto expreso en contrario.
+
+12. Contacto y Permisos
+Cualquier solicitud de permiso, autorización o aclaración deberá realizarse por escrito al Licenciante. Solo las autorizaciones otorgadas por el Licenciante tendrán validez.
+
+Al usar el Software, el Usuario Autorizado declara comprender y aceptar la totalidad de los términos de esta licencia.

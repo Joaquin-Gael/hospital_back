@@ -34,8 +34,7 @@ class AIAssistantService:
         try:
             # Process the request through the AI interface
             result = await self.ai_interface.process_natural_language_request(
-                request.request, 
-                request.user_context
+                request.request,
             )
             
             # Convert to response schema

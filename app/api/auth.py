@@ -59,7 +59,8 @@ async def get_scopes(request: Request, _=Depends(auth)):
     })
 
 @router.post("/decode/")
-async def decode_hex(data: OauthCodeInput):
+@time_out(10)
+async def decode_hex(request: Request, data: OauthCodeInput):
     """
     Decodifica datos codificados en hexadecimal.
     
@@ -82,7 +83,7 @@ async def decode_hex(data: OauthCodeInput):
 
 @router.post("/doc/login", response_model=TokenDoctorsResponse)
 @time_out(10)
-async def doc_login(session: SessionDep, credentials: Annotated[DoctorAuth, Form(...)]):
+async def doc_login(request: Request, session: SessionDep, credentials: Annotated[DoctorAuth, Form(...)]):
     """
     Autentica médicos en el sistema.
     
@@ -158,7 +159,7 @@ async def doc_login(session: SessionDep, credentials: Annotated[DoctorAuth, Form
 
 @router.post("/login", response_model=TokenUserResponse)
 @time_out(10)
-async def login(session: SessionDep, credentials: Annotated[UserAuth, Form(...)]):
+async def login(request: Request, session: SessionDep, credentials: Annotated[UserAuth, Form(...)]):
     """
     Autentica usuarios regulares del sistema.
     
@@ -190,11 +191,11 @@ async def login(session: SessionDep, credentials: Annotated[UserAuth, Form(...)]
           * 'active' si cuenta está activa
         - Actualiza timestamp de last_login
     """
-    console.print(credentials)
+    #console.print(credentials)
     statement = select(User).where(User.email == credentials.email)
     result = session.exec(statement)
     user: User = result.first()
-    console.print(user)
+    #console.print(user)
     if not user:
         raise HTTPException(status_code=404, detail="Invalid credentials payload")
 
@@ -226,13 +227,24 @@ async def login(session: SessionDep, credentials: Annotated[UserAuth, Form(...)]
     session.commit()
     session.refresh(user)
 
-    return ORJSONResponse(
+    response = ORJSONResponse(
         TokenUserResponse(
             access_token=token,
             token_type="Bearer",
             refresh_token=refresh_token,
         ).model_dump()
     )
+    
+    response.set_cookie(
+        "session",
+        refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        max_age=60*60*1
+    )
+
+    return response
 
 @oauth_router.get("/{service}/")
 async def oauth_login(service: str):

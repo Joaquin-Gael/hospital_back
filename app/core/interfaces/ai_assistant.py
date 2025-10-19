@@ -5,6 +5,7 @@ from pathlib import Path
 import os
 import json
 import asyncio
+import torch as th
 
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from accelerate import Accelerator
@@ -23,7 +24,7 @@ console = Console()
 accelerator = Accelerator()
 device = accelerator.device
 
-bnb_cfg = BitsAndBytesConfig(load_in_4bit=True)
+bnb_cfg = BitsAndBytesConfig(llm_int8_enable_fp32_cpu_offload=True)
 
 model_cache_dir = Path(__file__).parent.joinpath("binaries/model").resolve()
 
@@ -35,7 +36,7 @@ def init_model_torch_class():
     global _tokenizer
     try:
         tokenizer = AutoTokenizer.from_pretrained(llm_model_name, cache_dir=model_cache_dir, use_fast=True, trust_remote_code=True)
-        model = AutoModelForCausalLM.from_pretrained(llm_model_name, cache_dir=model_cache_dir, torch_dtype="auto", device_map="auto", quantization_config=bnb_cfg, trust_remote_code=True)
+        model = AutoModelForCausalLM.from_pretrained(llm_model_name, cache_dir=model_cache_dir, dtype=th.float32, device_map="cpu", quantization_config=bnb_cfg, trust_remote_code=True)
         
         _model = accelerator.prepare(model)
         _tokenizer = tokenizer
@@ -149,9 +150,9 @@ class AIAssistantInterface(BaseInterface):
             outputs = _model.generate(**inputs, max_new_tokens=150)
             response = _tokenizer.decode(outputs[0], skip_special_tokens=True)
             
-            await self._regiter_messages("assistant", response[0]["generated_text"][-1]["content"])
+            await self._regiter_messages("assistant", response)
             
-            return response[0]["generated_text"]
+            return response
 
         except Exception as e:
             console.print_exception(show_locals=True)

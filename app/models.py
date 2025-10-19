@@ -598,7 +598,6 @@ class HealthInsurance(SQLModel, table=True):
         link_model=UserHealthInsuranceLink
     )
     
-    
 class PasswordResetToken(SQLModel, table=True):
     __tablename__ = "password_reset_tokens"
     id: UUID = Field(
@@ -619,7 +618,43 @@ class PasswordResetToken(SQLModel, table=True):
     attempts: int = Field(default=0, nullable=False)
     request_ip: str = Field(nullable=True)
 
+class SistemSession(SQLModel):
+    uuid: UUID = Field(
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"session_id"},
+        default_factory=uuid.uuid4,
+        primary_key=True,
+        unique=True
+    )
+    value_hash: str = Field(nullable=False)
+    
 
+class AlertLevels(Enum):
+    low = "low"
+    medium = "medium"
+    high = "high"
+
+class AlertDDoS(SQLModel):
+    __tablename__ = "alert_ddos"
+    id: UUID = Field(
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"alert_ddos_id"},
+        default_factory=uuid.uuid4,
+        primary_key=True,
+        unique=True
+    )
+
+    path: str = Field(nullable=False)
+    ip: str = Field(nullable=False)
+    count: int = Field(default=0, nullable=False)
+    created_at: datetime = Field(default_factory=datetime.now, nullable=False)
+    updated_at: datetime = Field(default_factory=datetime.now, nullable=False)
+    alert_level: AlertLevels = Field(
+        nullable=False,
+        default=AlertLevels.low
+    )
+
+AlertDDoS.model_rebuild()
 User.model_rebuild()
 Doctors.model_rebuild()
 Services.model_rebuild()
