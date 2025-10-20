@@ -1,7 +1,7 @@
 // src/lib.rs
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
-use pyo3_serde;
+
 use serde_json::Value;
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufWriter, Read, Write};
@@ -63,8 +63,15 @@ fn _mark_dirty(uuid: &str, storage_dir: &str) -> PyResult<()> {
 
 #[pyfunction]
 fn _write(py: Python, py_obj: &PyAny, key_or_pass: &PyAny, storage_dir: &str, meta: Option<&PyDict>) -> PyResult<String> {
-    // Convert Py object -> serde_json::Value
-    let value: Value = pyo3_serde::from_object(py_obj)?;
+    // Convertir Py object -> JSON (via json.dumps) y luego a serde_json::Value
+    let json_mod = py.import("json").map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+    let json_str: String = json_mod
+        .call_method1("dumps", (py_obj,))
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?
+        .extract()
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let value: Value = serde_json::from_str(&json_str)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
     // create temp file and write a zip containing data.json
     let mut tmp = NamedTempFile::new().map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
     {
@@ -143,9 +150,13 @@ fn _write(py: Python, py_obj: &PyAny, key_or_pass: &PyAny, storage_dir: &str, me
     ensure_index(&conn).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
     let meta_json = if let Some(d) = meta {
-        // convert dict to JSON string
-        let v: Value = pyo3_serde::from_object(d)?;
-        serde_json::to_string(&v).unwrap_or_else(|_| "{}".to_string())
+        // convertir dict a JSON string usando json.dumps
+        let json_mod = py.import("json").map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        json_mod
+            .call_method1("dumps", (d,))
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?
+            .extract()
+            .unwrap_or_else(|_| "{}".to_string())
     } else {
         "{}".to_string()
     };
@@ -218,10 +229,13 @@ fn _read(py: Python, uuid: &str, key_or_pass: &PyAny, storage_dir: &str) -> PyRe
     let mut zip_reader = zip::ZipArchive::new(BufReader::new(zipf)).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
     let mut file = zip_reader.by_name("data.json").map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
     let mut s = String::new();
-    file.read_to_string(&mut s).map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
-    let v: Value = serde_json::from_str(&s).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
-    let obj = pyo3_serde::to_object(py, &v);
-    Ok(obj)
+  let s = read_zip_one_string(&p).map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+    // cargar JSON string en objeto Python con json.loads
+    let json_mod = py.import("json").map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+    let obj_any = json_mod
+        .call_method1("loads", (s,))
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    Ok(obj_any.to_object(py))
 }
 
 #[pymodule]

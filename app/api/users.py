@@ -298,7 +298,7 @@ async def add_user(session: SessionDep, user: Annotated[UserCreate, Form(...)]):
         return ORJSONResponse({"error": str(e)}, status_code=400)
     
 @private_router.post("/verify/dni")
-async def verify_dni(dni_form: Annotated[DniForm, Form(...)]):
+async def verify_dni(request: Request, dni_form: Annotated[DniForm, Form(...)], session: SessionDep):
     """
     Endpoint para extraer número de DNI de fotos del frente y dorso.
     
@@ -427,6 +427,13 @@ async def verify_dni(dni_form: Annotated[DniForm, Form(...)]):
                 
                 
         console.print(mrz_text1)
+
+        if not mrz1 and not mrz2:
+            raise HTTPException(status_code=400, detail="No DNI found in images")
+
+        user = request.state.user
+        user.dni = mrz1[0]
+        session.commit()
 
         return {
             "dni":[mrz1, mrz2],
