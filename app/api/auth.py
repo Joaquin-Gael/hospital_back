@@ -130,8 +130,15 @@ async def doc_login(request: Request, session: SessionDep, credentials: Annotate
 
     token = gen_token(doc_data)
     refresh_token = gen_token(doc_data, refresh=True)
-    
-    doc.last_login = datetime.now()
+
+    try:
+        doc.mark_login()
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    session.add(doc)
+    session.commit()
+    session.refresh(doc)
 
     return ORJSONResponse(
         TokenDoctorsResponse(
@@ -221,7 +228,10 @@ async def login(request: Request, session: SessionDep, credentials: Annotated[Us
     token = gen_token(user_data)
     refresh_token = gen_token(user_data, refresh=True)
 
-    user.last_login = datetime.now()
+    try:
+        user.mark_login()
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     session.add(user)
     session.commit()

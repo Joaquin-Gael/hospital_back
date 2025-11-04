@@ -92,13 +92,20 @@ class UserRepository(BaseInterface):
         with Session(engine) as session:
             existing_user = UserRepository.get_user_by_email(email, session)
             if existing_user:
+                audit = existing_user.mark_login()
                 set_or_update_google_user(existing_user, user_data)
+                session.add(existing_user)
+                session.commit()
+                session.refresh(existing_user)
+                console.log(f"Google login audit: {audit}")
                 return existing_user, True
-            
+
+            audit = user.mark_login()
             session.add(user)
             session.commit()
             session.refresh(user)
 
             set_or_update_google_user(user, user_data)
-        
+            console.log(f"Google login audit: {audit}")
+
         return user, False

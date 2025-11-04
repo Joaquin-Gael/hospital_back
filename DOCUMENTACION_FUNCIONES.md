@@ -10,6 +10,7 @@
 - [7. Core - Autenticación (core/auth.py)](#7-core---autenticación-coreauthpy)
 - [8. Core - Base de Datos (db/main.py)](#8-core---base-de-datos-dbmainpy)
 - [9. Modelos de Datos (models.py)](#9-modelos-de-datos-modelspy)
+- [10. Lógica de Modificación de Entidades](#10-lógica-de-modificación-de-entidades)
 
 ---
 
@@ -1053,6 +1054,32 @@ Las funciones de los modelos incluyen métodos para:
 - Manejo de archivos multimedia
 - Relaciones entre entidades
 - Auditoría automática de cambios
+
+---
+
+## 10. Lógica de Modificación de Entidades
+
+Resumen de los puntos en los que se actualizan los modelos principales (`User`, `Doctors`) y cómo se centralizó la lógica de negocio:
+
+- **Modelos (`app/models.py`)**
+  - `AuditRecord`: estructura ligera para registrar acciones relevantes sobre entidades.【F:app/models.py†L48-L58】
+  - `BaseUser.mark_login() / activate() / deactivate()`: validan estado antes de actualizar, establecen campos (`last_login`, `is_active`) y generan auditoría reutilizable.【F:app/models.py†L104-L151】
+  - `Doctors.update_state()`: ajusta `doctor_state` e `is_available` de manera consistente y genera auditoría de cambio de estado.【F:app/models.py†L213-L228】
+
+- **API de Autenticación (`app/api/auth.py`)**
+  - `doc_login` y `login` delegan en `mark_login()` para registrar el acceso y validar que la cuenta esté activa antes de generar tokens.【F:app/api/auth.py†L118-L157】
+
+- **API de Usuarios (`app/api/users.py`)**
+  - `ban_user` y `unban_user` utilizan `deactivate()`/`activate()` para evitar inconsistencias al cambiar el estado del usuario y reutilizan la auditoría del modelo.【F:app/api/users.py†L722-L769】
+
+- **API del Área Médica (`app/api/medic_area.py`)**
+  - `update_doctor` usa `Doctors.update_state()` para mantener sincronizado `doctor_state` y `is_available` con validaciones centralizadas.【F:app/api/medic_area.py†L870-L904】
+  - `ban_doc` / `unban_doc` reutilizan `deactivate()` y `activate()` para gestionar suspensiones de médicos y registrar auditoría.【F:app/api/medic_area.py†L1043-L1109】
+
+- **Interfaces (`app/core/interfaces/users.py`)**
+  - `UserRepository.create_google_user` marca la sesión con `mark_login()` y aprovecha la auditoría tanto para usuarios nuevos como existentes, manteniendo la lógica fuera de la vista/API.【F:app/core/interfaces/users.py†L65-L104】
+
+Estas rutas y repositorios ya no manipulan directamente los campos críticos y dependen de los métodos del modelo para validar y auditar los cambios.
 
 ---
 
