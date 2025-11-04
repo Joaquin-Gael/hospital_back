@@ -23,6 +23,7 @@ from uuid import UUID
 
 from app.models import (
     Doctors,
+    DoctorStates as DoctorStateModel,
     MedicalSchedules,
     Locations,
     Services,
@@ -48,8 +49,7 @@ from app.schemas.medica_area import (
 )
 from app.schemas.medica_area import (
     DayOfWeek,
-    TurnsState,
-    DoctorStates
+    TurnsState
 )
 from app.schemas.medica_area import (
     DoctorResponse,
@@ -871,27 +871,27 @@ async def update_doctor(request: Request, doctor_id: UUID, session: SessionDep, 
         ).first()
 
         form_fields: List[str] = doctor.__fields__.keys()
+        actor = getattr(request.state, "user", None)
+        actor_id = getattr(actor, "id", None)
 
         for field in form_fields:
             value = getattr(doctor, field, None)
-            console.print(field," = ",value)
-            if value is not None and field != "username" and not value in ["", " "]:
-                setattr(doc, field, value)
-            elif value is not None and field == "username" and not value in ["", " "]:
+            console.print(field, " = ", value)
+            if field == "doctor_state":
+                if value in [None, "", " "]:
+                    continue
+                try:
+                    state_enum = DoctorStateModel(value)
+                    doc.update_state(state_enum, actor_id=actor_id)
+                except ValueError:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid doctor state provided",
+                    )
+            elif field == "username" and value not in [None, "", " "]:
                 doc.name = value
-            elif value is not None and field == "doctor_state" and not value in ["", " "]:
-                match value:
-                    case DoctorStates.available.value:
-                        doc.doctor_state = DoctorStates.available.value
-                        doc.is_available = True
-
-                    case DoctorStates.busy.value:
-                        doc.doctor_state = DoctorStates.busy.value
-                        doc.is_available = False
-
-                    case DoctorStates.offline.value:
-                        doc.doctor_state = DoctorStates.offline.value
-                        doc.is_available = False
+            elif value is not None and field not in ["username", "doctor_state"] and value not in ["", " "]:
+                setattr(doc, field, value)
             else:
                 continue
 
@@ -1047,7 +1047,17 @@ async def ban_doc(request: Request, doc_id: UUID, session: SessionDep):
     statement = select(Doctors).where(Doctors.id == doc_id)
     doc: Doctors = session.exec(statement).first()
 
-    doc.is_active = True
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Doctor {doc_id} not found")
+
+    actor = getattr(request.state, "user", None)
+    actor_id = getattr(actor, "id", None)
+
+    try:
+        doc.deactivate(actor_id=actor_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     session.add(doc)
     session.commit()
     session.refresh(doc)
@@ -1068,7 +1078,7 @@ async def ban_doc(request: Request, doc_id: UUID, session: SessionDep):
             telephone=doc.telephone,
             speciality_id=doc.speciality_id
         ).model_dump(),
-        "message":f"User {doc.name} has been banned."
+        "message":f"Doctor {doc.name} has been banned."
     })
 
 @doctors.patch("/unban/{doc_id}/", response_model=DoctorResponse)
@@ -1080,7 +1090,17 @@ async def unban_doc(request: Request, doc_id: UUID, session: SessionDep):
     statement = select(Doctors).where(Doctors.id == doc_id)
     doc: Doctors = session.exec(statement).first()
 
-    doc.is_active = False
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Doctor {doc_id} not found")
+
+    actor = getattr(request.state, "user", None)
+    actor_id = getattr(actor, "id", None)
+
+    try:
+        doc.activate(actor_id=actor_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     session.add(doc)
     session.commit()
     session.refresh(doc)
@@ -1101,7 +1121,7 @@ async def unban_doc(request: Request, doc_id: UUID, session: SessionDep):
             telephone=doc.telephone,
             speciality_id=doc.speciality_id
         ).model_dump(),
-        "message":f"User {doc.name} has been unbanned."
+        "message":f"Doctor {doc.name} has been unbanned."
     })
 
 locations = APIRouter(

@@ -727,7 +727,15 @@ async def ban_user(request: Request, user_id: UUID, session: SessionDep):
 
     user: User = session.get(User, user_id)
 
-    user.is_active = True
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    try:
+        user.deactivate(actor_id=request.state.user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    session.add(user)
     session.commit()
     session.refresh(user)
 
@@ -746,7 +754,7 @@ async def ban_user(request: Request, user_id: UUID, session: SessionDep):
             dni=user.dni,
             blood_type=user.blood_type,
             img_profile=user.url_image_profile
-        ),
+        ).model_dump(),
         "message":f"User {user.name} has been banned."
     })
 
@@ -757,7 +765,15 @@ async def unban_user(request: Request, user_id: UUID, session: SessionDep):
 
     user: User = session.get(User, user_id)
 
-    user.is_banned = False
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    try:
+        user.activate(actor_id=request.state.user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    session.add(user)
     session.commit()
     session.refresh(user)
 
@@ -776,7 +792,7 @@ async def unban_user(request: Request, user_id: UUID, session: SessionDep):
             dni=user.dni,
             blood_type=user.blood_type,
             img_profile=user.url_image_profile
-        ),
+        ).model_dump(),
         "message":f"User {user.name} has been unbanned."
     })
 
