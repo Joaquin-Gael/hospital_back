@@ -178,7 +178,7 @@ async def get_user_by_id(session: SessionDep, user_id: UUID):
             address=user.address,
             telephone=user.telephone,
             img_profile=user.url_image_profile,
-            health_insurance=user.health_insurance
+            health_insurance=[i.id for i in user.health_insurance]
         ).model_dump()
     )
 
@@ -431,12 +431,29 @@ async def verify_dni(request: Request, dni_form: Annotated[DniForm, Form(...)], 
         if not mrz1 and not mrz2:
             raise HTTPException(status_code=400, detail="No DNI found in images")
 
-        user = request.state.user
-        user.dni = mrz1[0]
-        session.commit()
+        try:
+            user = session.get(User, request.state.user.id)
+            
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            pre_change_dni = user.dni
+
+            user.dni = mrz1[0] if mrz1 else mrz2[0]
+
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+
+            assert user.dni == pre_change_dni, "DNI did not change"
+
+        except Exception as e:
+            console.print_exception(show_locals=True)
+            raise HTTPException(status_code=400, detail=f"Invalid images or OCR error: {str(e)}")
 
         return {
             "dni":[mrz1, mrz2],
+            "status": "success"
         }
 
     except Exception as e:

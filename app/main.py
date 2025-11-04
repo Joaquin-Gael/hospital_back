@@ -117,7 +117,7 @@ app = FastAPI(
     },
     license_info={
         "name": "LICENSE",
-        "url": "https://opensource.org/licenses/MIT"
+        "url": "https://github.com/Joaquin-Gael/hospital_back/blob/main/LICENSE.txt"
     },
     docs_url=None,
     redoc_url=None,
@@ -233,7 +233,7 @@ class SPAStaticFiles(StaticFiles):
         index_file (str): Archivo index a servir para rutas SPA
     """
     
-    def __init__(self, directory: str="dist/hospital-sdlg/browser", html: bool=True, check_dir: bool=True, api_prefix: UUID=id_prefix, index_file: str="index.html"):
+    def __init__(self, directory: str="templates", html: bool=True, check_dir: bool=True, api_prefix: UUID=id_prefix, index_file: str="index.html"):
         """
         Inicializa el manejador de archivos estáticos SPA.
         
@@ -341,8 +341,6 @@ async def websocket_endpoint(websocket: WebSocket, secret: str):
         console.print_exception(show_locals=True)
         console.print(f"Error en WebSocket: {str(e)}")
 
-#app.mount("/", SPAStaticFiles(), name="spa")
-
 @app.get("/login-admin")
 @time_out(120)
 async def login_admin(request: Request):
@@ -357,3 +355,5 @@ async def admin(request: Request):
         return templates.TemplateResponse(parser_name(["admin", "panel"], "index"), {"request": request})
     except:
         return templates.TemplateResponse(parser_name(["admin", "login"], "login"), {"request": request})
+
+app.mount("/", SPAStaticFiles(), name="spa")

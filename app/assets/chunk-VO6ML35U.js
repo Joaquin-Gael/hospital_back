@@ -1,0 +1,1 @@
+var d={GET_ALL:"medic/schedules/",ADD:"medic/schedules/add",GET_DAYS:e=>`medic/schedules/available/days/${e}`,DELETE:e=>`medic/schedules/delete/${e}`,ADD_DOCTOR:"medic/schedules/add/doctor",UPDATE:"medic/schedules/update"};export{d as a};

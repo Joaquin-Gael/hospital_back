@@ -654,6 +654,23 @@ class AlertDDoS(SQLModel):
         default=AlertLevels.low
     )
 
+class AdminRegister(SQLModel):
+    __tablename__ = "admin_register"
+    id: UUID = Field(
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"admin_register_id"},
+        default_factory=uuid.uuid4,
+        primary_key=True,
+        unique=True
+    )
+    user_id: UUID = Field(foreign_key="users.user_id", ondelete="CASCADE")
+    user: User = Relationship(back_populates="admin_register")
+
+    table_changed_name: str = Field(nullable=False)
+    action: str = Field(nullable=False)
+    created_at: datetime = Field(default_factory=datetime.now, nullable=False)
+
+AdminRegister.model_rebuild()
 AlertDDoS.model_rebuild()
 User.model_rebuild()
 Doctors.model_rebuild()

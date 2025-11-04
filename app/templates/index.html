@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en" data-beasties-container>
+  <head>
+    <meta charset="utf-8" />
+    <title>Hospital SDLG - Inicio</title>
+    <base href="/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/x-icon" src="assets/logo-sdlg.png" />
+    <style>
+      @layer properties {
+        @supports (((-webkit-hyphens: none)) and (not (margin-trim: inline))) or
+          ((-moz-orient: inline) and (not (color: rgb(from red r g b)))) {
+          *,
+          :before,
+          :after {
+            --tw-rotate-x: initial;
+            --tw-rotate-y: initial;
+            --tw-rotate-z: initial;
+            --tw-skew-x: initial;
+            --tw-skew-y: initial;
+            --tw-border-style: solid;
+            --tw-shadow: 0 0 #0000;
+            --tw-shadow-color: initial;
+            --tw-shadow-alpha: 100%;
+            --tw-inset-shadow: 0 0 #0000;
+            --tw-inset-shadow-color: initial;
+            --tw-inset-shadow-alpha: 100%;
+            --tw-ring-color: initial;
+            --tw-ring-shadow: 0 0 #0000;
+            --tw-inset-ring-color: initial;
+            --tw-inset-ring-shadow: 0 0 #0000;
+            --tw-ring-inset: initial;
+            --tw-ring-offset-width: 0px;
+            --tw-ring-offset-color: #fff;
+            --tw-ring-offset-shadow: 0 0 #0000;
+            --tw-blur: initial;
+            --tw-brightness: initial;
+            --tw-contrast: initial;
+            --tw-grayscale: initial;
+            --tw-hue-rotate: initial;
+            --tw-invert: initial;
+            --tw-opacity: initial;
+            --tw-saturate: initial;
+            --tw-sepia: initial;
+            --tw-drop-shadow: initial;
+            --tw-drop-shadow-color: initial;
+            --tw-drop-shadow-alpha: 100%;
+            --tw-drop-shadow-size: initial;
+            --tw-ease: initial;
+          }
+        }
+      }
+      :root {
+        --notification-accent: #3b82f6;
+        --notification-bg: #262626;
+        --notification-text: #fff;
+        --notification-text-secondary: #a3a3a3;
+        --notification-border: 3px;
+      }
+      @layer theme {
+        :root {
+          --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+            "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+          --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+            "Liberation Mono", "Courier New", monospace;
+          --color-white: #fff;
+          --spacing: 0.25rem;
+          --radius-lg: 0.5rem;
+          --ease-in: cubic-bezier(0.4, 0, 1, 1);
+          --ease-out: cubic-bezier(0, 0, 0.2, 1);
+          --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+          --default-transition-duration: 0.15s;
+          --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+          --default-font-family: var(--font-sans);
+          --default-mono-font-family: var(--font-mono);
+        }
+      }
+      @layer base {
+        *,
+        :after,
+        :before {
+          box-sizing: border-box;
+          border: 0 solid;
+          margin: 0;
+          padding: 0;
+        }
+        html {
+          -webkit-text-size-adjust: 100%;
+          tab-size: 4;
+          line-height: 1.5;
+          font-family: var(
+            --default-font-family,
+            ui-sans-serif,
+            system-ui,
+            sans-serif,
+            "Apple Color Emoji",
+            "Segoe UI Emoji",
+            "Segoe UI Symbol",
+            "Noto Color Emoji"
+          );
+          font-feature-settings: var(--default-font-feature-settings, normal);
+          font-variation-settings: var(
+            --default-font-variation-settings,
+            normal
+          );
+          -webkit-tap-highlight-color: transparent;
+        }
+      }
+      @layer components;
+      @layer utilities {
+      }
+      :root {
+        --primary: #0077b6;
+        --secondary: #00b4d8;
+        --accent: #90e0ef;
+        --success: #22c55e;
+        --warning: #f59e0b;
+        --error: #ef4444;
+        --medical-green: #10b981;
+        --emergency-red: #dc2626;
+        --text-primary: #1f2937;
+        --text-secondary: #6b7280;
+        --text-light: #9ca3af;
+        --text-white: #fff;
+        --text-shadow: #0000001a;
+        --text-shadow-strong: #0000004d;
+        --gradient-primary: linear-gradient(
+          135deg,
+          #0077b6 0%,
+          #00b4d8 50%,
+          #90e0ef 100%
+        );
+        --gradient-hero: linear-gradient(135deg, #0077b61a 0%, #00b4d80d 100%);
+        --border-radius-sm: 0.375rem;
+        --border-radius-md: 0.5rem;
+        --border-radius-lg: 0.75rem;
+        --border-radius-xl: 1rem;
+        --shadow-glass: 0 8px 32px #1f268726;
+        --shadow-glass-strong: 0 12px 40px #1f268740;
+        --shadow-medical: 0 10px 40px #0077b626;
+        --shadow-btn-primary: 0 4px 12px #0077b64d;
+        --shadow-btn-primary-hover: 0 8px 24px #0077b666;
+        --shadow-btn-success: 0 4px 12px #22c55e4d;
+        --shadow-btn-success-hover: 0 8px 24px #22c55e66;
+        --shadow-btn-emergency: 0 4px 12px #ef44444d;
+        --shadow-btn-emergency-hover: 0 8px 24px #ef444466;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html {
+        scroll-behavior: smooth;
+        height: 100%;
+        overflow-x: hidden;
+      }
+      body {
+        color: #424242;
+        background-color: #f5f5f5;
+        height: 100%;
+        min-height: 100vh;
+        margin: 0;
+        padding: 0;
+        font-family: Inter, Roboto, Segoe UI, Tahoma, Geneva, Verdana,
+          sans-serif;
+        font-size: 16px;
+        line-height: 1.5;
+        position: relative;
+        overflow-x: hidden;
+      }
+      app-root {
+        width: 100%;
+        min-height: 100vh;
+        display: block;
+        position: relative;
+      }
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: #7575754d transparent;
+      }
+      @media print {
+        * {
+          color: #000 !important;
+          box-shadow: none !important;
+          text-shadow: none !important;
+          background: 0 0 !important;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        :before,
+        :after {
+          scroll-behavior: auto !important;
+          transition-duration: 0.01ms !important;
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+        }
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --text-white: #f8f9fa;
+          --text-secondary: #adb5bd;
+          --text-light: #6c757d;
+        }
+      }
+      @property --tw-rotate-x {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-rotate-y {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-rotate-z {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-skew-x {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-skew-y {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-border-style {
+        syntax: "*";
+        inherits: false;
+        initial-value: solid;
+      }
+      @property --tw-shadow {
+        syntax: "*";
+        inherits: false;
+        initial-value: 0 0 #0000;
+      }
+      @property --tw-shadow-color {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-shadow-alpha {
+        syntax: "<percentage>";
+        inherits: false;
+        initial-value: 100%;
+      }
+      @property --tw-inset-shadow {
+        syntax: "*";
+        inherits: false;
+        initial-value: 0 0 #0000;
+      }
+      @property --tw-inset-shadow-color {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-inset-shadow-alpha {
+        syntax: "<percentage>";
+        inherits: false;
+        initial-value: 100%;
+      }
+      @property --tw-ring-color {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-ring-shadow {
+        syntax: "*";
+        inherits: false;
+        initial-value: 0 0 #0000;
+      }
+      @property --tw-inset-ring-color {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-inset-ring-shadow {
+        syntax: "*";
+        inherits: false;
+        initial-value: 0 0 #0000;
+      }
+      @property --tw-ring-inset {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-ring-offset-width {
+        syntax: "<length>";
+        inherits: false;
+        initial-value: 0;
+      }
+      @property --tw-ring-offset-color {
+        syntax: "*";
+        inherits: false;
+        initial-value: #fff;
+      }
+      @property --tw-ring-offset-shadow {
+        syntax: "*";
+        inherits: false;
+        initial-value: 0 0 #0000;
+      }
+      @property --tw-blur {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-brightness {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-contrast {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-grayscale {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-hue-rotate {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-invert {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-opacity {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-saturate {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-sepia {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-drop-shadow {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-drop-shadow-color {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-drop-shadow-alpha {
+        syntax: "<percentage>";
+        inherits: false;
+        initial-value: 100%;
+      }
+      @property --tw-drop-shadow-size {
+        syntax: "*";
+        inherits: false;
+      }
+      @property --tw-ease {
+        syntax: "*";
+        inherits: false;
+      }
+      :root {
+        --fa-style-family-brands: "Font Awesome 6 Brands";
+        --fa-font-brands: normal 400 1em/1 "Font Awesome 6 Brands";
+      }
+      @font-face {
+        font-family: "Font Awesome 6 Brands";
+        font-style: normal;
+        font-weight: 400;
+        font-display: block;
+        src: url("./media/fa-brands-400-Q3XCMWHQ.woff2") format("woff2"),
+          url("./media/fa-brands-400-R2XQZCET.ttf") format("truetype");
+      }
+      :root {
+        --fa-font-regular: normal 400 1em/1 "Font Awesome 6 Free";
+      }
+      @font-face {
+        font-family: "Font Awesome 6 Free";
+        font-style: normal;
+        font-weight: 400;
+        font-display: block;
+        src: url("./media/fa-regular-400-QSNYFYRT.woff2") format("woff2"),
+          url("./media/fa-regular-400-XUOPSR7E.ttf") format("truetype");
+      }
+      :root {
+        --fa-style-family-classic: "Font Awesome 6 Free";
+        --fa-font-solid: normal 900 1em/1 "Font Awesome 6 Free";
+      }
+      @font-face {
+        font-family: "Font Awesome 6 Free";
+        font-style: normal;
+        font-weight: 900;
+        font-display: block;
+        src: url("./media/fa-solid-900-5ZUYHGA7.woff2") format("woff2"),
+          url("./media/fa-solid-900-PJNKLK6W.ttf") format("truetype");
+      }
+    </style>
+    <link
+      rel="stylesheet"
+      href="/assets/styles-HUBLXGPY.css"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript><link rel="stylesheet" href="/assets/styles-HUBLXGPY.css" /></noscript>
+  </head>
+  <body>
+    <app-root></app-root>
+    <link rel="modulepreload" href="/assets/chunk-PCFTSFGC.js" /><link
+      rel="modulepreload"
+      href="/assets/chunk-CAIHUQYF.js"
+    /><link rel="modulepreload" href="/assets/chunk-4BZVKNQ5.js" /><link
+      rel="modulepreload"
+      href="/assets/chunk-4PPNR7WW.js"
+    /><link rel="modulepreload" href="/assets/chunk-VO6ML35U.js" /><link
+      rel="modulepreload"
+      href="/assets/chunk-QMYIRM4F.js"
+    /><link rel="modulepreload" href="/assets/chunk-BSEUEMQC.js" /><link
+      rel="modulepreload"
+      href="/assets/chunk-2WAWTWTY.js"
+    /><link rel="modulepreload" href="/assets/chunk-RYO32FGU.js" /><link
+      rel="modulepreload"
+      href="/assets/chunk-Y6I3CS6I.js"
+    />
+    <script src="/assets/polyfills-B6TNHZQ6.js" type="module"></script>
+    <script src="/assets/main-P5PQRTHA.js" type="module"></script>
+  </body>
+</html>
