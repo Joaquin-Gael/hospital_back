@@ -4,7 +4,7 @@ import random
 
 from rich.console import Console
 
-from app.db.main import Session, engine
+from app.db.session import session_factory
 from app.models import *
 
 fake = Faker()
@@ -20,7 +20,7 @@ def get_blood_type() -> str:
 def init_data(amount: int):
     console.rule("make init data")
 
-    with Session(engine) as session:
+    with session_factory() as session:
         for _ in range(amount):
             session.add(
                 User(
