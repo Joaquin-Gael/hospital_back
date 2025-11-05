@@ -3,7 +3,7 @@ from fastapi.responses import ORJSONResponse
 
 from sqlalchemy import select
 
-from typing import List, Annotated
+from typing import List, Annotated, Optional
 
 from rich.console import Console
 
@@ -51,6 +51,17 @@ from app.core.auth import encode, decode
 from app.storage import storage
 from app.config import cors_host, email_host_user, binaries_dir
 
+from app.audit import (
+    AuditAction,
+    AuditEmitter,
+    AuditEventCreate,
+    AuditSeverity,
+    AuditTargetType,
+    build_request_metadata,
+    get_audit_emitter,
+    get_request_identifier,
+)
+
 logger = logging.getLogger("uvicorn.error")
 logger.setLevel(logging.DEBUG)
 
@@ -69,6 +80,28 @@ pytesseract.pytesseract.tesseract_cmd = binaries_dir / "tesseract.exe"
 console = Console()
 
 auth = JWTBearer()
+
+
+def _make_event(
+    request: Request,
+    *,
+    action: AuditAction,
+    severity: AuditSeverity = AuditSeverity.INFO,
+    actor_id: Optional[UUID] = None,
+    target_id: Optional[UUID] = None,
+    target_type: AuditTargetType = AuditTargetType.USER,
+    details: Optional[dict] = None,
+) -> AuditEventCreate:
+    return AuditEventCreate(
+        action=action,
+        severity=severity,
+        target_type=target_type,
+        actor_id=actor_id,
+        target_id=target_id,
+        request_id=get_request_identifier(request),
+        request_metadata=build_request_metadata(request),
+        details=dict(details or {}),
+    )
 
 private_router = APIRouter(
     dependencies=[
@@ -564,7 +597,12 @@ async def update_user(request: Request, user_id: UUID, session: SessionDep, user
     )
 
 @public_router.post("/update/petition/password")
-async def update_petition_password(session: SessionDep, data: Annotated[UserPetitionPasswordUpdate, Form(...)]):
+async def update_petition_password(
+    request: Request,
+    session: SessionDep,
+    data: Annotated[UserPetitionPasswordUpdate, Form(...)],
+    emitter: AuditEmitter = Depends(get_audit_emitter),
+):
     try:
         user: User = session.exec(
             select(User).where(User.email == data.email)
@@ -586,6 +624,17 @@ async def update_petition_password(session: SessionDep, data: Annotated[UserPeti
         }
 
         storage.set(key=user.email, value=r_code_data, table_name="recovery-codes", short_live=True)
+
+        await emitter.emit_event(
+            _make_event(
+                request,
+                action=AuditAction.PASSWORD_RESET_REQUESTED,
+                severity=AuditSeverity.WARNING,
+                actor_id=user.id,
+                target_id=user.id,
+                details={"email": user.email},
+            )
+        )
 
         EmailService.send_password_reset_email(user.email, reset_code=r_cod)
 
@@ -621,7 +670,14 @@ async def verify_code(session: SessionDep, email: str = Form(...), code: str = F
         raise HTTPException(status_code=500, detail="Internal server error")
     
 @public_router.post("/update/confirm/password", response_model=UserRead)
-async def update_confirm_password(session: SessionDep, email: str = Form(...), code: str = Form(...), new_password: str = Form(...)):
+async def update_confirm_password(
+    request: Request,
+    session: SessionDep,
+    email: str = Form(...),
+    code: str = Form(...),
+    new_password: str = Form(...),
+    emitter: AuditEmitter = Depends(get_audit_emitter),
+):
     try:
         user: User = session.exec(
             select(User).where(User.email == email)
@@ -642,7 +698,17 @@ async def update_confirm_password(session: SessionDep, email: str = Form(...), c
         session.add(user)
         session.commit()
         session.refresh(user)
-        
+
+        await emitter.emit_event(
+            _make_event(
+                request,
+                action=AuditAction.PASSWORD_RESET_COMPLETED,
+                actor_id=user.id,
+                target_id=user.id,
+                details={"email": user.email},
+            )
+        )
+
         EmailService.send_password_changed_notification_email(
             user.email,
             help_link=f"{cors_host}/support",
@@ -675,7 +741,13 @@ async def update_confirm_password(session: SessionDep, email: str = Form(...), c
 
 
 @private_router.patch("/update/{user_id}/password", response_model=UserRead)
-async def update_user_password(request: Request, user_id: UUID, session: SessionDep, user_form: UserPasswordUpdate):
+async def update_user_password(
+    request: Request,
+    user_id: UUID,
+    session: SessionDep,
+    user_form: UserPasswordUpdate,
+    emitter: AuditEmitter = Depends(get_audit_emitter),
+):
 
     if not request.state.user.id == user_id and not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un unauthorized")
@@ -692,7 +764,17 @@ async def update_user_password(request: Request, user_id: UUID, session: Session
     session.add(user)
     session.commit()
     session.refresh(user)
-    
+
+    await emitter.emit_event(
+        _make_event(
+            request,
+            action=AuditAction.PASSWORD_RESET_COMPLETED,
+            actor_id=request.state.user.id,
+            target_id=user.id,
+            details={"email": user.email, "initiated_by": str(request.state.user.id)},
+        )
+    )
+
     EmailService.send_password_changed_notification_email(
         user.email,
         help_link="https://support.google.com/accounts/answer/41078?hl=en",
@@ -721,7 +803,12 @@ async def update_user_password(request: Request, user_id: UUID, session: Session
     )
 
 @private_router.patch("/ban/{user_id}/", response_model=UserRead)
-async def ban_user(request: Request, user_id: UUID, session: SessionDep):
+async def ban_user(
+    request: Request,
+    user_id: UUID,
+    session: SessionDep,
+    emitter: AuditEmitter = Depends(get_audit_emitter),
+):
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=403, detail="Not authorized")
 
@@ -731,13 +818,19 @@ async def ban_user(request: Request, user_id: UUID, session: SessionDep):
         raise HTTPException(status_code=404, detail="User not found")
 
     try:
-        user.deactivate(actor_id=request.state.user.id)
+        record = user.deactivate(actor_id=request.state.user.id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     session.add(user)
     session.commit()
     session.refresh(user)
+
+    await emitter.emit_record(
+        record,
+        request_id=get_request_identifier(request),
+        request_metadata=build_request_metadata(request),
+    )
 
     return ORJSONResponse({
         "user":UserRead(
@@ -759,7 +852,12 @@ async def ban_user(request: Request, user_id: UUID, session: SessionDep):
     })
 
 @private_router.patch("/unban/{user_id}/", response_model=UserRead)
-async def unban_user(request: Request, user_id: UUID, session: SessionDep):
+async def unban_user(
+    request: Request,
+    user_id: UUID,
+    session: SessionDep,
+    emitter: AuditEmitter = Depends(get_audit_emitter),
+):
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=403, detail="Not authorized")
 
@@ -769,13 +867,19 @@ async def unban_user(request: Request, user_id: UUID, session: SessionDep):
         raise HTTPException(status_code=404, detail="User not found")
 
     try:
-        user.activate(actor_id=request.state.user.id)
+        record = user.activate(actor_id=request.state.user.id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     session.add(user)
     session.commit()
     session.refresh(user)
+
+    await emitter.emit_record(
+        record,
+        request_id=get_request_identifier(request),
+        request_metadata=build_request_metadata(request),
+    )
 
     return ORJSONResponse({
         "user":UserRead(
