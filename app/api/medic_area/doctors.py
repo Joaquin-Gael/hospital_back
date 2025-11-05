@@ -16,7 +16,7 @@ from sqlmodel import select
 
 from app.db.main import SessionDep
 from app.models import DoctorStates as DoctorStateModel
-from app.models import Doctors, MedicalSchedules, User
+from app.models import Doctors, MedicalSchedules, User, AuditRecord
 from app.schemas import UserRead
 from app.schemas.medica_area import (
     DoctorCreate,
@@ -28,6 +28,16 @@ from app.schemas.medica_area import (
     MedicalScheduleResponse,
 )
 from app.core.interfaces.medic_area import DoctorRepository
+from app.audit import (
+    AuditAction,
+    AuditEmitter,
+    AuditEventCreate,
+    AuditSeverity,
+    AuditTargetType,
+    build_request_metadata,
+    get_audit_emitter,
+    get_request_identifier,
+)
 
 from .common import auth_dependency, console, default_response_class
 
@@ -38,6 +48,28 @@ router = APIRouter(
     default_response_class=default_response_class,
     dependencies=[auth_dependency()],
 )
+
+
+def _make_event(
+    request: Request,
+    *,
+    action: AuditAction,
+    severity: AuditSeverity = AuditSeverity.INFO,
+    actor_id: UUID | None = None,
+    target_id: UUID | None = None,
+    target_type: AuditTargetType = AuditTargetType.DOCTOR,
+    details: dict | None = None,
+) -> AuditEventCreate:
+    return AuditEventCreate(
+        action=action,
+        severity=severity,
+        target_type=target_type,
+        actor_id=actor_id,
+        target_id=target_id,
+        request_id=get_request_identifier(request),
+        request_metadata=build_request_metadata(request),
+        details=dict(details or {}),
+    )
 
 
 @router.get("/", response_model=List[DoctorResponse])
@@ -327,6 +359,7 @@ async def update_doctor(
     doctor_id: UUID,
     session: SessionDep,
     doctor: Annotated[DoctorUpdate, Form(...)],
+    emitter: AuditEmitter = Depends(get_audit_emitter),
 ):
     if "doc" not in request.state.scopes and not request.state.user.is_superuser:
         raise HTTPException(
@@ -347,6 +380,9 @@ async def update_doctor(
         actor = getattr(request.state, "user", None)
         actor_id = getattr(actor, "id", None)
 
+        audit_records: list[AuditRecord] = []
+        changed_fields: list[str] = []
+
         for field in form_fields:
             value = getattr(doctor, field, None)
             console.print(field, " = ", value)
@@ -355,7 +391,8 @@ async def update_doctor(
                     continue
                 try:
                     state_enum = DoctorStateModel(value)
-                    doc.update_state(state_enum, actor_id=actor_id)
+                    record = doc.update_state(state_enum, actor_id=actor_id)
+                    audit_records.append(record)
                 except ValueError as exc:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
@@ -363,16 +400,37 @@ async def update_doctor(
                     ) from exc
             elif field == "username" and value not in [None, "", " "]:
                 doc.name = value
+                changed_fields.append(field)
             elif (
                 value is not None
                 and field not in ["username", "doctor_state"]
                 and value not in ["", " "]
             ):
                 setattr(doc, field, value)
+                changed_fields.append(field)
 
         session.add(doc)
         session.commit()
         session.refresh(doc)
+
+        for record in audit_records:
+            await emitter.emit_record(
+                record,
+                request_id=get_request_identifier(request),
+                request_metadata=build_request_metadata(request),
+            )
+
+        if changed_fields:
+            await emitter.emit_event(
+                _make_event(
+                    request,
+                    action=AuditAction.RECORD_UPDATED,
+                    actor_id=actor_id,
+                    target_id=doc.id,
+                    target_type=AuditTargetType.DOCTOR,
+                    details={"fields": changed_fields},
+                )
+            )
 
         return ORJSONResponse(
             DoctorUpdate(

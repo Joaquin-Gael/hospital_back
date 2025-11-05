@@ -19,8 +19,9 @@ from uuid import UUID
 
 from pathlib import Path
 
+from app.audit.pipeline import audit_pipeline
 from app.db.main import init_db, set_admin, migrate, test_db, db_url
-from app.api import users, medic_area, auth, cashes, ai_assistant
+from app.api import users, medic_area, auth, cashes, ai_assistant, audit
 from app.config import api_name, version, debug, cors_host, templates, parser_name, id_prefix, assets_dir, media_dir
 from app.storage.main import storage
 from app.core.auth import time_out, gen_token, decode_token
@@ -58,6 +59,7 @@ async def lifespan(app: FastAPI):
     storage.create_table("google-user-data")
     storage.create_table("recovery-codes")
     storage.create_table("ip-time-out")
+    await audit_pipeline.start()
     console.rule("[green]Server Opened[/green]")
     if debug:
         # Línea destacada con título
@@ -77,33 +79,36 @@ async def lifespan(app: FastAPI):
                 padding=(1, 2),
             )
         )
-    yield None
-    console.rule("[red]Server Closed[/red]")
-    if debug:
-        try:
-            import os
-            from pathlib import Path
-            import time
+    try:
+        yield None
+    finally:
+        await audit_pipeline.stop()
+        console.rule("[red]Server Closed[/red]")
+        if debug:
+            try:
+                import os
+                from pathlib import Path
+                import time
 
-            db_name = db_url.split("/")[-1]
-            db_driver = db_url.split(":")[0]
+                db_name = db_url.split("/")[-1]
+                db_driver = db_url.split(":")[0]
 
-            if db_driver == "sqlite":
-                db_path = Path(db_name).resolve()
+                if db_driver == "sqlite":
+                    db_path = Path(db_name).resolve()
 
-                for _ in range(5):
-                    try:
-                        db_path.unlink()
-                        os.remove(db_path)
-                        break
-                    except PermissionError:
-                        console.print_exception()
-                        time.sleep(1)
-            else:
-                pass
+                    for _ in range(5):
+                        try:
+                            db_path.unlink()
+                            os.remove(db_path)
+                            break
+                        except PermissionError:
+                            console.print_exception()
+                            time.sleep(1)
+                else:
+                    pass
 
-        except OSError:
-            console.print_exception(show_locals=True)
+            except OSError:
+                console.print_exception(show_locals=True)
 
 app = FastAPI(
     lifespan=lifespan,
@@ -207,6 +212,7 @@ main_router.include_router(users.router)
 main_router.include_router(medic_area.router)
 main_router.include_router(auth.router)
 main_router.include_router(cashes.router)
+main_router.include_router(audit.router)
 main_router.include_router(ai_assistant.router)
 
 app.include_router(main_router)

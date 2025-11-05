@@ -17,6 +17,11 @@ from typing import List, Tuple
 
 from app.config import debug, admin_user, User, db_url
 
+# Import audit models so their tables are registered in the global metadata
+# before `SQLModel.metadata.create_all` is executed. The import has no runtime
+# side effects besides model registration.
+import app.audit.models  # noqa: F401
+
 
 engine = create_engine(db_url, echo=False, future=True, pool_pre_ping=True)
 

@@ -28,12 +28,50 @@ from app.db.main import Session, engine
 from app.storage import storage
 from app.core.interfaces.emails import EmailService
 from app.storage import storage
+from app.audit import (
+    AuditAction,
+    AuditEventCreate,
+    AuditSeverity,
+    AuditTargetType,
+    build_request_metadata,
+    get_audit_emitter,
+    get_request_identifier,
+)
 
 encoder_key = Fernet.generate_key()
 
 encoder_f = Fernet(encoder_key)
 
 console = Console()
+
+
+async def _emit_security_event(
+    request: Request,
+    *,
+    action: AuditAction,
+    severity: AuditSeverity = AuditSeverity.INFO,
+    details: Optional[dict] = None,
+    actor_id: Optional[UUID] = None,
+    target_id: Optional[UUID] = None,
+    target_type: AuditTargetType = AuditTargetType.WEB_SESSION,
+) -> None:
+    emitter = get_audit_emitter()
+    event = AuditEventCreate(
+        action=action,
+        severity=severity,
+        target_type=target_type,
+        actor_id=actor_id,
+        target_id=target_id,
+        request_id=get_request_identifier(request),
+        request_metadata=build_request_metadata(request),
+        details=dict(details or {}),
+    )
+    try:
+        await emitter.emit_event(event)
+    except Exception:  # pragma: no cover - defensive logging
+        if debug:
+            console.print_exception(show_locals=True)
+
 
 @singledispatch
 def encode(data: object) -> bytes:
@@ -273,6 +311,12 @@ def time_out(seconds: Optional[float] = 1.0, max_trys: Optional[int] = 5) -> Cal
                 storage.set(key=client_ip, value={"current_try": 1, "max_trys": max_trys}, table_name="ip-time-out")
             elif isinstance(current_try, dict):
                 if current_try.get("current_try", 0) >= current_try.get("max_trys", max_trys):
+                    await _emit_security_event(
+                        request,
+                        action=AuditAction.RATE_LIMIT_TRIGGERED,
+                        severity=AuditSeverity.WARNING,
+                        details={"ip": client_ip, "reason": "max_attempts", "endpoint": request.url.path},
+                    )
                     raise HTTPException(
                         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                         detail=f"Has excedido el número máximo de intentos. Por favor espera {seconds} segundos antes de intentar de nuevo."
@@ -286,6 +330,17 @@ def time_out(seconds: Optional[float] = 1.0, max_trys: Optional[int] = 5) -> Cal
                 time_elapsed = current_time - last_access[client_ip]
                 # Si no ha pasado suficiente tiempo, lanzar una excepción
                 if time_elapsed < seconds:
+                    await _emit_security_event(
+                        request,
+                        action=AuditAction.RATE_LIMIT_TRIGGERED,
+                        severity=AuditSeverity.WARNING,
+                        details={
+                            "ip": client_ip,
+                            "reason": "cooldown",
+                            "endpoint": request.url.path,
+                            "remaining": round(seconds - time_elapsed, 2),
+                        },
+                    )
                     raise HTTPException(
                         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                         detail=f"Por favor espera {seconds - time_elapsed:.1f} segundos antes de hacer otra petición"
@@ -356,12 +411,24 @@ class JWTBearer:
         try:
             payload = decode_token(token)
         except ValueError as e:
+            await _emit_security_event(
+                request,
+                action=AuditAction.TOKEN_INVALID,
+                severity=AuditSeverity.WARNING,
+                details={"reason": "invalid_or_expired", "token_prefix": token[:8]},
+            )
             raise HTTPException(status_code=401, detail=e.args) from e
 
         if request.scope["route"].name != "refresh_token":
             #console.rule(request.scope["route"].name)
             #console.print(f"Se intento hacer el refresh: {payload}")
             if payload.get("type") == "refresh_token":
+                await _emit_security_event(
+                    request,
+                    action=AuditAction.TOKEN_INVALID,
+                    severity=AuditSeverity.WARNING,
+                    details={"reason": "refresh_token_used", "route": request.scope["route"].name},
+                )
                 raise HTTPException(status_code=401, detail="No credentials provided or invalid format")
 
         user_id = payload.get("sub")
@@ -372,7 +439,17 @@ class JWTBearer:
 
         if ban_token is not None:
             #console.print(f"Token banned: {ban_token.value}") if debug else None
-            if token == ban_token.value:
+            stored_token = getattr(getattr(ban_token, "value", None), "value", None)
+            if stored_token and token == stored_token:
+                await _emit_security_event(
+                    request,
+                    action=AuditAction.TOKEN_REVOKED,
+                    severity=AuditSeverity.WARNING,
+                    actor_id=UUID(user_id) if user_id else None,
+                    target_id=UUID(user_id) if user_id else None,
+                    target_type=AuditTargetType.AUTH_TOKEN,
+                    details={"reason": "banned_token"},
+                )
                 raise HTTPException(status_code=403, detail="Token banned")
 
         try:
