@@ -29,6 +29,16 @@ from app.schemas.medica_area import (
 )
 from app.core.interfaces.medic_area import TurnAndAppointmentRepository
 from app.core.services.stripe_payment import StripeServices
+from app.audit import (
+    AuditAction,
+    AuditEmitter,
+    AuditEventCreate,
+    AuditSeverity,
+    AuditTargetType,
+    build_request_metadata,
+    get_audit_emitter,
+    get_request_identifier,
+)
 
 from .common import auth_dependency, console, default_response_class
 
@@ -39,6 +49,28 @@ router = APIRouter(
     default_response_class=default_response_class,
     dependencies=[auth_dependency()],
 )
+
+
+def _make_event(
+    request: Request,
+    *,
+    action: AuditAction,
+    severity: AuditSeverity = AuditSeverity.INFO,
+    actor_id: UUID | None = None,
+    target_id: UUID | None = None,
+    target_type: AuditTargetType = AuditTargetType.APPOINTMENT,
+    details: dict | None = None,
+) -> AuditEventCreate:
+    return AuditEventCreate(
+        action=action,
+        severity=severity,
+        target_type=target_type,
+        actor_id=actor_id,
+        target_id=target_id,
+        request_id=get_request_identifier(request),
+        request_metadata=build_request_metadata(request),
+        details=dict(details or {}),
+    )
 
 
 @router.get("/", response_model=List[TurnsResponse])
@@ -253,7 +285,12 @@ async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
 
 
 @router.delete("/delete/{turn_id}", response_model=TurnsDelete)
-async def delete_turn(request: Request, session: SessionDep, turn_id: UUID):
+async def delete_turn(
+    request: Request,
+    session: SessionDep,
+    turn_id: UUID,
+    emitter: AuditEmitter = Depends(get_audit_emitter),
+):
     session_user = request.state.user
     try:
         turn = session.get(Turns, turn_id)
@@ -265,19 +302,38 @@ async def delete_turn(request: Request, session: SessionDep, turn_id: UUID):
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"the turn: {turn_id} cannot be deleted",
             )
-        return ORJSONResponse(
+        response = ORJSONResponse(
             TurnsDelete(
                 id=turn.id,
                 message=f"Turn {turn.id} has been deleted",
             ),
             status_code=status.HTTP_200_OK,
         )
+
+        await emitter.emit_event(
+            _make_event(
+                request,
+                action=AuditAction.RECORD_DELETED,
+                severity=AuditSeverity.WARNING,
+                actor_id=getattr(session_user, "id", None),
+                target_id=turn.id,
+                details={"entity": "Turn", "appointment_id": str(turn.appointment.id) if turn.appointment else None},
+            )
+        )
+
+        return response
     except Exception as exc:  # pragma: no cover - preserve behaviour
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.patch("/update/state")
-async def update_state(request: Request, turn_id: UUID, new_state: str, session: SessionDep):
+async def update_state(
+    request: Request,
+    turn_id: UUID,
+    new_state: str,
+    session: SessionDep,
+    emitter: AuditEmitter = Depends(get_audit_emitter),
+):
     turn = session.get(Turns, turn_id)
 
     if not turn:
@@ -315,6 +371,16 @@ async def update_state(request: Request, turn_id: UUID, new_state: str, session:
 
         session.add(turn)
         session.commit()
+
+        await emitter.emit_event(
+            _make_event(
+                request,
+                action=AuditAction.APPOINTMENT_STATE_UPDATED,
+                actor_id=getattr(request.state.user, "id", None),
+                target_id=turn.id,
+                details={"new_state": turn.state.value},
+            )
+        )
 
         return ORJSONResponse({"msg": "success"}, status_code=200)
 

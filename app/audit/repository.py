@@ -10,7 +10,7 @@ from sqlmodel import Session, select
 
 from .models import AuditEvent
 from .schemas import AuditEventCreate
-from .taxonomy import AuditAction
+from .taxonomy import AuditAction, AuditTargetType
 
 
 def _utcnow() -> datetime:
@@ -50,6 +50,9 @@ class AuditRepository:
         *,
         actor_id: Optional[UUID] = None,
         action: Optional[AuditAction] = None,
+        target_type: Optional[AuditTargetType] = None,
+        occurred_after: Optional[datetime] = None,
+        occurred_before: Optional[datetime] = None,
         limit: int = 100,
     ) -> List[AuditEvent]:
         """Retrieve audit events applying simple optional filters."""
@@ -60,6 +63,12 @@ class AuditRepository:
             query = query.where(AuditEvent.actor_id == actor_id)
         if action:
             query = query.where(AuditEvent.action == action)
+        if target_type:
+            query = query.where(AuditEvent.target_type == target_type)
+        if occurred_after:
+            query = query.where(AuditEvent.occurred_at >= occurred_after)
+        if occurred_before:
+            query = query.where(AuditEvent.occurred_at <= occurred_before)
 
         return list(self._session.exec(query))
 

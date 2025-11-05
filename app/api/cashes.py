@@ -3,6 +3,7 @@ from fastapi.params import Query, Depends
 from fastapi.responses import Response, ORJSONResponse
 
 from typing import List, Dict, Optional, Tuple
+from uuid import UUID
 
 from rich.console import Console
 from sqlmodel import select
@@ -16,6 +17,16 @@ from app.core.interfaces.emails import EmailService
 from app.core.services.stripe_payment import StripeServices
 from app.db.main import SessionDep
 from app.models import Cashes
+from app.audit import (
+    AuditAction,
+    AuditEmitter,
+    AuditEventCreate,
+    AuditSeverity,
+    AuditTargetType,
+    build_request_metadata,
+    get_audit_emitter,
+    get_request_identifier,
+)
 
 console = Console()
 
@@ -28,8 +39,34 @@ auth = JWTBearer()
 
 public_router, private_router = APIRouter(prefix=""), APIRouter(prefix="", dependencies=[Depends(auth)])
 
+
+def _make_event(
+    request: Request,
+    *,
+    action: AuditAction,
+    severity: AuditSeverity = AuditSeverity.INFO,
+    actor_id: UUID | None = None,
+    target_id: UUID | None = None,
+    details: dict | None = None,
+) -> AuditEventCreate:
+    return AuditEventCreate(
+        action=action,
+        severity=severity,
+        target_type=AuditTargetType.PAYMENT,
+        actor_id=actor_id,
+        target_id=target_id,
+        request_id=get_request_identifier(request),
+        request_metadata=build_request_metadata(request),
+        details=dict(details or {}),
+    )
+
 @public_router.get("/pay/success")
-async def pay_success(session: SessionDep, a:str = Query(...)):
+async def pay_success(
+    request: Request,
+    session: SessionDep,
+    a: str = Query(...),
+    emitter: AuditEmitter = Depends(get_audit_emitter),
+):
     """
     Maneja la confirmación de pago exitoso desde Stripe.
     
@@ -74,8 +111,29 @@ async def pay_success(session: SessionDep, a:str = Query(...)):
         console.print(services_query)
         
         if success:
+            await emitter.emit_event(
+                _make_event(
+                    request,
+                    action=AuditAction.PAYMENT_SUCCEEDED,
+                    target_id=UUID(data["turn_id"]),
+                    details={
+                        "payment_method": data["payment_method"],
+                        "total": data["total"],
+                        "discount": data["discount"],
+                    },
+                )
+            )
             return Response(status_code=302, headers={"Location": "http://localhost:4200/user_panel/appointments?success=true"})
         else:
+            await emitter.emit_event(
+                _make_event(
+                    request,
+                    action=AuditAction.PAYMENT_FAILED,
+                    severity=AuditSeverity.WARNING,
+                    target_id=UUID(data["turn_id"]),
+                    details={"reason": "cash_detail_not_created", "services": data.get("services")},
+                )
+            )
             return Response(status_code=307, headers={"Location": f"http://localhost:4200/user_panel/appointments?success=false&{urlencode({"services":data["services"]})}"})
 
     except Exception as e:
@@ -84,7 +142,11 @@ async def pay_success(session: SessionDep, a:str = Query(...)):
 
 
 @public_router.get("/pay/cancel")
-async def pay_cansel(b: str = Query(...)):
+async def pay_cansel(
+    request: Request,
+    b: str = Query(...),
+    emitter: AuditEmitter = Depends(get_audit_emitter),
+):
     """
     Maneja la cancelación de pago desde Stripe.
     
@@ -113,6 +175,15 @@ async def pay_cansel(b: str = Query(...)):
 
         console.print(data)
 
+        await emitter.emit_event(
+            _make_event(
+                request,
+                action=AuditAction.PAYMENT_CANCELLED,
+                severity=AuditSeverity.WARNING,
+                target_id=UUID(data.get("turn_id")) if data.get("turn_id") else None,
+                details={"reason": "user_cancelled"},
+            )
+        )
         return Response(status_code=302, headers={"Location": "http://localhost:4200/user_panel/appointments"})
 
     except Exception as e:

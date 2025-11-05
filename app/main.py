@@ -21,7 +21,7 @@ from pathlib import Path
 
 from app.audit.pipeline import audit_pipeline
 from app.db.main import init_db, set_admin, migrate, test_db, db_url
-from app.api import users, medic_area, auth, cashes, ai_assistant
+from app.api import users, medic_area, auth, cashes, ai_assistant, audit
 from app.config import api_name, version, debug, cors_host, templates, parser_name, id_prefix, assets_dir, media_dir
 from app.storage.main import storage
 from app.core.auth import time_out, gen_token, decode_token
@@ -212,6 +212,7 @@ main_router.include_router(users.router)
 main_router.include_router(medic_area.router)
 main_router.include_router(auth.router)
 main_router.include_router(cashes.router)
+main_router.include_router(audit.router)
 main_router.include_router(ai_assistant.router)
 
 app.include_router(main_router)
