@@ -24,7 +24,7 @@ from rich.console import Console
 
 from app.config import token_key, api_name, version, debug
 from app.models import Doctors, User
-from app.db.main import Session, engine
+from app.db.session import session_factory
 from app.storage import storage
 from app.core.interfaces.emails import EmailService
 from app.storage import storage
@@ -462,7 +462,7 @@ class JWTBearer:
             if "doc" in payload.get("scopes"):
                 statement = select(Doctors).where(Doctors.id == user_id)
 
-            with Session(engine) as session:
+            with session_factory() as session:
                 user = session.exec(statement).first()
 
             if "google" in payload.get("scopes") and not "doc" in payload.get("scopes"):
@@ -518,7 +518,7 @@ class JWTWebSocket:
             if "doc" in payload.get("scopes"):
                 statement = select(Doctors).where(Doctors.id == user_id)
 
-            with Session(engine) as session:
+            with session_factory() as session:
                 user = session.exec(statement).first()
 
             if "google" in payload.get("scopes") and not "doc" in payload.get("scopes"):

@@ -17,7 +17,7 @@ from app.core.interfaces.users import UserRepository
 from app.core.interfaces.medic_area import DoctorRepository, TurnAndAppointmentRepository
 from app.core.interfaces.emails import EmailService
 from app.config import llm_model_name
-from app.db.main import engine
+from app.db.session import session_factory
 
 console = Console()
 
@@ -195,7 +195,7 @@ class AIAssistantInterface(BaseInterface):
         """Handle appointment-related requests."""
         global _model
         
-        with Session(engine) as session:
+        with session_factory() as session:
             try:
                 # Extract intent from request
                 if "create" in request.lower() or "agendar" in request.lower():
@@ -275,7 +275,7 @@ class AIAssistantInterface(BaseInterface):
                 "type": "ai_unavailable",
             }
         
-        with Session(engine) as session:
+        with session_factory() as session:
             try:
                 doctors = await self.doctor_repo.get_doctors(session)
                 
@@ -343,7 +343,7 @@ class AIAssistantInterface(BaseInterface):
     
     async def _handle_schedule_request(self, request: str, user_context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """Handle schedule-related requests."""
-        with Session(engine) as session:
+        with session_factory() as session:
             try:
                 
                 response = await self._generate_response(request, user_context)
