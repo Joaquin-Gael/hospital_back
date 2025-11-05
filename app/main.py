@@ -22,7 +22,18 @@ from pathlib import Path
 from app.audit.pipeline import audit_pipeline
 from app.db.main import init_db, set_admin, migrate, test_db, db_url
 from app.api import users, medic_area, auth, cashes, ai_assistant, audit
-from app.config import api_name, version, debug, cors_host, templates, parser_name, id_prefix, assets_dir, media_dir
+from app.config import (
+    api_name,
+    audit_enabled,
+    version,
+    debug,
+    cors_host,
+    templates,
+    parser_name,
+    id_prefix,
+    assets_dir,
+    media_dir,
+)
 from app.storage.main import storage
 from app.core.auth import time_out, gen_token, decode_token
 
@@ -59,7 +70,8 @@ async def lifespan(app: FastAPI):
     storage.create_table("google-user-data")
     storage.create_table("recovery-codes")
     storage.create_table("ip-time-out")
-    await audit_pipeline.start()
+    if audit_enabled:
+        await audit_pipeline.start()
     console.rule("[green]Server Opened[/green]")
     if debug:
         # Línea destacada con título
@@ -82,7 +94,8 @@ async def lifespan(app: FastAPI):
     try:
         yield None
     finally:
-        await audit_pipeline.stop()
+        if audit_enabled:
+            await audit_pipeline.stop()
         console.rule("[red]Server Closed[/red]")
         if debug:
             try:
@@ -212,7 +225,8 @@ main_router.include_router(users.router)
 main_router.include_router(medic_area.router)
 main_router.include_router(auth.router)
 main_router.include_router(cashes.router)
-main_router.include_router(audit.router)
+if audit_enabled:
+    main_router.include_router(audit.router)
 main_router.include_router(ai_assistant.router)
 
 app.include_router(main_router)
