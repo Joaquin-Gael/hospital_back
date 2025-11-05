@@ -12,9 +12,11 @@ class AuditAction(str, Enum):
     """Canonical list of actions that can be audited."""
 
     USER_LOGIN = "mark_login"
+    USER_LOGIN_FAILED = "login_failed"
     USER_ACTIVATED = "activate"
     USER_DEACTIVATED = "deactivate"
     DOCTOR_STATE_UPDATED = "update_state"
+    APPOINTMENT_STATE_UPDATED = "appointment_state_updated"
 
     RECORD_CREATED = "create"
     RECORD_UPDATED = "update"
@@ -22,9 +24,15 @@ class AuditAction(str, Enum):
 
     TOKEN_ISSUED = "token_issued"
     TOKEN_REVOKED = "token_revoked"
+    TOKEN_INVALID = "token_invalid"
+    RATE_LIMIT_TRIGGERED = "rate_limit_triggered"
 
     PASSWORD_RESET_REQUESTED = "password_reset_requested"
     PASSWORD_RESET_COMPLETED = "password_reset_completed"
+
+    PAYMENT_SUCCEEDED = "payment_succeeded"
+    PAYMENT_CANCELLED = "payment_cancelled"
+    PAYMENT_FAILED = "payment_failed"
 
 
 class AuditTargetType(str, Enum):
