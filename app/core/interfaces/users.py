@@ -2,7 +2,7 @@ from typing import Tuple
 
 from sqlmodel import Session, select
 
-from app.db.main import engine
+from app.db.session import session_factory
 from app.models import User, AuditRecord
 from app.storage import storage, NoneResultException
 from app.storage.command.main import console
@@ -58,7 +58,7 @@ class UserRepository(BaseInterface):
 
     @staticmethod
     def update_user(user: User, session) -> User:
-        with Session(engine) as session:
+        with session_factory() as session:
             session.merge(user)
             session.commit()
             return user
@@ -89,7 +89,7 @@ class UserRepository(BaseInterface):
         )
         user.set_google_liked_acount_password(user_data.get('id'))
         
-        with Session(engine) as session:
+        with session_factory() as session:
             existing_user = UserRepository.get_user_by_email(email, session)
             if existing_user:
                 audit = existing_user.mark_login(actor_id=existing_user.id)

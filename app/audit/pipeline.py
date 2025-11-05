@@ -6,9 +6,7 @@ import asyncio
 import logging
 from typing import Optional, TYPE_CHECKING
 
-from sqlmodel import Session
-
-from app.db.main import engine
+from app.db.session import session_factory
 from app.config import (
     audit_batch_size,
     audit_enabled,
@@ -145,12 +143,8 @@ class AuditPipeline:
         return True
 
 
-def _session_factory() -> Session:
-    return Session(engine)
-
-
 audit_service = AuditService(
-    _session_factory,
+    session_factory,
     retention_days=audit_retention_days,
     redacted_fields=audit_redact_fields,
 )
