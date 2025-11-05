@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import List, Optional, Sequence
 from uuid import UUID
 
+from sqlalchemy import delete
 from sqlmodel import Session, select
 
 from .models import AuditEvent
@@ -76,3 +77,11 @@ class AuditRepository:
         data = payload.model_dump()
         data.setdefault("recorded_at", _utcnow())
         return AuditEvent(**data)
+
+    def purge_older_than(self, threshold: datetime) -> int:
+        """Delete events recorded before the given threshold."""
+
+        statement = delete(AuditEvent).where(AuditEvent.recorded_at < threshold)
+        result = self._session.exec(statement)
+        self._session.commit()
+        return int(result.rowcount or 0)

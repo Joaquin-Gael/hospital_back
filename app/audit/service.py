@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Callable, Dict, Iterable, List, Optional
 
 from sqlmodel import Session
@@ -18,11 +18,22 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+_REDACTED_PLACEHOLDER = "***redacted***"
+
+
 class AuditService:
     """Coordinates translation of domain audit records into persisted events."""
 
-    def __init__(self, session_factory: Callable[[], Session]):
+    def __init__(
+        self,
+        session_factory: Callable[[], Session],
+        *,
+        retention_days: Optional[int] = None,
+        redacted_fields: Optional[Iterable[str]] = None,
+    ):
         self._session_factory = session_factory
+        self._retention_days = retention_days if retention_days and retention_days > 0 else None
+        self._redacted_fields = {field.lower() for field in (redacted_fields or [])}
 
     def build_event(
         self,
@@ -36,7 +47,7 @@ class AuditService:
 
         action = self._coerce_action(record.action)
         target_type = self._coerce_target_type(record.target_type)
-        metadata = dict(request_metadata or {})
+        metadata = self._redact_payload(dict(request_metadata or {}))
 
         return AuditEventCreate(
             action=action,
@@ -45,7 +56,7 @@ class AuditService:
             target_id=record.target_id,
             actor_id=record.actor_id,
             request_id=request_id,
-            details=dict(record.details or {}),
+            details=self._redact_payload(dict(record.details or {})),
             request_metadata=metadata,
             occurred_at=record.timestamp,
         )
@@ -76,6 +87,9 @@ class AuditService:
         with self._session_factory() as session:
             repo = AuditRepository(session)
             repo.save_many(payloads)
+            if self._retention_days:
+                cutoff = _utcnow() - timedelta(days=self._retention_days)
+                repo.purge_older_than(cutoff)
         return payloads
 
     def _coerce_action(self, raw: str) -> AuditAction:
@@ -96,3 +110,21 @@ class AuditService:
             return AuditTargetType(raw)
         except ValueError:
             return AuditTargetType.STORAGE_ENTRY
+
+    def _redact_payload(self, payload: Dict[str, object]) -> Dict[str, object]:
+        if not self._redacted_fields:
+            return payload
+
+        redacted: Dict[str, object] = {}
+        for key, value in payload.items():
+            redacted[key] = self._redact_value(key, value)
+        return redacted
+
+    def _redact_value(self, key: str, value: object) -> object:
+        if key.lower() in self._redacted_fields:
+            return _REDACTED_PLACEHOLDER
+        if isinstance(value, dict):
+            return self._redact_payload(value)
+        if isinstance(value, list):
+            return [self._redact_payload(item) if isinstance(item, dict) else item for item in value]
+        return value

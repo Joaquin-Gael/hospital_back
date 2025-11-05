@@ -12,6 +12,13 @@ from fastapi.responses import ORJSONResponse
 from app.audit import AuditAction, AuditEventRead, AuditRepository, AuditTargetType
 from app.core.auth import JWTBearer
 from app.db.main import SessionDep
+from app.config import (
+    audit_enabled,
+    audit_export_default_limit,
+    audit_export_max_limit,
+    audit_list_default_limit,
+    audit_list_max_limit,
+)
 
 
 auth = JWTBearer()
@@ -20,10 +27,14 @@ router = APIRouter(
     prefix="/audit",
     tags=["audit"],
     dependencies=[Depends(auth)],
+    include_in_schema=audit_enabled,
 )
 
 
 def _ensure_admin(request: Request) -> None:
+    if not audit_enabled:
+        raise HTTPException(status_code=503, detail="Audit trail disabled")
+
     user = getattr(request.state, "user", None)
     scopes = set(getattr(request.state, "scopes", []) or [])
     if not user or ("admin" not in scopes and not getattr(user, "is_superuser", False)):
@@ -43,7 +54,7 @@ async def list_audit_events(
     target_type: Optional[AuditTargetType] = Query(None),
     occurred_after: Optional[datetime] = Query(None, alias="from"),
     occurred_before: Optional[datetime] = Query(None, alias="to"),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(audit_list_default_limit, ge=1, le=audit_list_max_limit),
 ):
     _ensure_admin(request)
 
@@ -71,7 +82,7 @@ async def export_audit_events(
     target_type: Optional[AuditTargetType] = Query(None),
     occurred_after: Optional[datetime] = Query(None, alias="from"),
     occurred_before: Optional[datetime] = Query(None, alias="to"),
-    limit: int = Query(1000, ge=1, le=2000),
+    limit: int = Query(audit_export_default_limit, ge=1, le=audit_export_max_limit),
     format: str = Query("csv", pattern="^(csv|json)$"),
 ):
     _ensure_admin(request)

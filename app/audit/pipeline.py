@@ -9,6 +9,16 @@ from typing import Optional, TYPE_CHECKING
 from sqlmodel import Session
 
 from app.db.main import engine
+from app.config import (
+    audit_batch_size,
+    audit_enabled,
+    audit_linger_seconds,
+    audit_minimum_severity,
+    audit_queue_size,
+    audit_redact_fields,
+    audit_retention_days,
+    audit_retry_delay,
+)
 
 from .schemas import AuditEventCreate
 from .service import AuditService
@@ -19,6 +29,17 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 _LOGGER = logging.getLogger("app.audit.pipeline")
+
+_SEVERITY_RANK = {
+    AuditSeverity.INFO: 0,
+    AuditSeverity.WARNING: 1,
+    AuditSeverity.CRITICAL: 2,
+}
+
+try:
+    _configured_minimum_severity = AuditSeverity(audit_minimum_severity)
+except ValueError:  # pragma: no cover - configuration fallback
+    _configured_minimum_severity = AuditSeverity.INFO
 
 
 class AuditPipeline:
@@ -128,16 +149,54 @@ def _session_factory() -> Session:
     return Session(engine)
 
 
-audit_service = AuditService(_session_factory)
-audit_pipeline = AuditPipeline(audit_service)
+audit_service = AuditService(
+    _session_factory,
+    retention_days=audit_retention_days,
+    redacted_fields=audit_redact_fields,
+)
+
+
+class _DisabledAuditPipeline:
+    async def start(self) -> None:  # pragma: no cover - simple no-op
+        return None
+
+    async def stop(self) -> None:  # pragma: no cover - simple no-op
+        return None
+
+    async def enqueue(self, event: AuditEventCreate) -> None:  # pragma: no cover - simple no-op
+        return None
+
+    async def drain(self) -> None:  # pragma: no cover - simple no-op
+        return None
+
+
+if audit_enabled:
+    audit_pipeline: AuditPipeline | _DisabledAuditPipeline = AuditPipeline(
+        audit_service,
+        max_queue_size=audit_queue_size,
+        batch_size=audit_batch_size,
+        linger_seconds=audit_linger_seconds,
+        retry_delay=audit_retry_delay,
+    )
+else:
+    audit_pipeline = _DisabledAuditPipeline()
 
 
 class AuditEmitter:
     """Injectable helper that converts records and pushes them through the pipeline."""
 
-    def __init__(self, service: AuditService, pipeline: AuditPipeline):
+    def __init__(
+        self,
+        service: AuditService,
+        pipeline: AuditPipeline | _DisabledAuditPipeline,
+        *,
+        enabled: bool = True,
+        minimum_severity: AuditSeverity = AuditSeverity.INFO,
+    ):
         self._service = service
         self._pipeline = pipeline
+        self._enabled = enabled
+        self._minimum_severity = minimum_severity
 
     async def emit_record(
         self,
@@ -147,22 +206,50 @@ class AuditEmitter:
         request_id: Optional[str] = None,
         request_metadata: Optional[dict] = None,
     ) -> None:
-        level = (
-            severity
-            if isinstance(severity, AuditSeverity) or severity is None
-            else AuditSeverity(severity)
-        )
+        if not self._enabled:
+            return
+
+        level = self._normalize_severity(severity)
         event = self._service.build_event(
             record,
             severity=level,
             request_id=request_id,
             request_metadata=request_metadata,
         )
+        if not self._should_emit(event.severity):
+            return
         await self._pipeline.enqueue(event)
 
     async def emit_event(self, event: AuditEventCreate) -> None:
-        await self._pipeline.enqueue(event)
+        if not self._enabled:
+            return
+
+        severity = self._normalize_severity(event.severity)
+        if not self._should_emit(severity):
+            return
+
+        payload = event.model_copy(update={"severity": severity})
+        payload = self._service.ensure_recorded_at(payload)
+        await self._pipeline.enqueue(payload)
+
+    def _normalize_severity(self, value: Optional[AuditSeverity | str]) -> AuditSeverity:
+        if isinstance(value, AuditSeverity):
+            return value
+        if value is None:
+            return AuditSeverity.INFO
+        try:
+            return AuditSeverity(value)
+        except ValueError:
+            return AuditSeverity.INFO
+
+    def _should_emit(self, severity: AuditSeverity) -> bool:
+        return _SEVERITY_RANK[severity] >= _SEVERITY_RANK[self._minimum_severity]
 
 
 def get_audit_emitter() -> "AuditEmitter":
-    return AuditEmitter(audit_service, audit_pipeline)
+    return AuditEmitter(
+        audit_service,
+        audit_pipeline,
+        enabled=audit_enabled,
+        minimum_severity=_configured_minimum_severity,
+    )
