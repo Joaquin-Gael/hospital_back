@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends, HTTPException, Header, status, Form
+from fastapi import APIRouter, Request, Depends, HTTPException, Header, status, Form, Cookie
 from fastapi.responses import ORJSONResponse
 
 from rich.console import Console
@@ -20,6 +20,7 @@ from app.schemas.users import UserAuth
 from app.schemas.auth import TokenUserResponse, TokenDoctorsResponse, OauthCodeInput
 from app.schemas.medica_area import DoctorAuth, DoctorResponse
 from app.storage import storage
+from app.config import token_expire_minutes, token_refresh_expire_days
 
 from app.audit import (
     AuditAction,
@@ -213,8 +214,8 @@ async def doc_login(
             details={"scopes": doc_data["scopes"], "refresh": True},
         )
     )
-
-    return ORJSONResponse(
+    
+    response = ORJSONResponse(
         TokenDoctorsResponse(
             access_token=token,
             token_type="Bearer",
@@ -237,6 +238,27 @@ async def doc_login(
             refresh_token=refresh_token
         ).model_dump()
     )
+    
+    response.set_cookie(
+        key="authorization",
+        value=token,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        max_age=token_expire_minutes * 60
+    )
+    
+    response.set_cookie(
+        key="authorization_refresh",
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        max_age=token_refresh_expire_days * 24 * 60 * 60
+    )
+    
+
+    return response
 
 @router.post("/login", response_model=TokenUserResponse)
 @time_out(10)
@@ -359,12 +381,21 @@ async def login(
     )
     
     response.set_cookie(
-        "session",
-        refresh_token,
+        key="authorization",
+        value=token,
         httponly=True,
         secure=True,
         samesite="strict",
-        max_age=60*60*1
+        max_age=token_expire_minutes * 60
+    )
+    
+    response.set_cookie(
+        key="authorization_refresh",
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        max_age=token_refresh_expire_days * 24 * 60 * 60
     )
 
     return response
@@ -488,7 +519,7 @@ async def refresh(
             )
         )
 
-        return ORJSONResponse(
+        response = ORJSONResponse(
             TokenDoctorsResponse(
                 access_token=token,
                 token_type="Bearer",
@@ -510,6 +541,26 @@ async def refresh(
                 refresh_token=refresh_token
             ).model_dump()
         )
+        
+        response.set_cookie(
+            key="authorization",
+            value=token,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            max_age=token_expire_minutes * 60
+        )
+    
+        response.set_cookie(
+            key="authorization_refresh",
+            value=refresh_token,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            max_age=token_refresh_expire_days * 24 * 60 * 60
+        )
+        
+        return response
 
     user_data = {
         "sub":str(user.id),
@@ -544,18 +595,38 @@ async def refresh(
         )
     )
 
-    return ORJSONResponse(
+    response = ORJSONResponse(
         TokenUserResponse(
             access_token=token,
             token_type="bearer",
             refresh_token=refresh_token,
         ).model_dump()
     )
+    
+    response.set_cookie(
+            key="authorization",
+            value=token,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            max_age=token_expire_minutes * 60
+        )
+    
+    response.set_cookie(
+            key="authorization_refresh",
+            value=refresh_token,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            max_age=token_refresh_expire_days * 24 * 60 * 60
+        )
+        
+    return response
 
 @router.delete("/logout")
 async def logout(
     request: Request,
-    authorization: Optional[str] = Header(None),
+    authorization: Optional[str] = Cookie(None),
     _: User = Depends(auth),
     emitter: AuditEmitter = Depends(get_audit_emitter),
 ):
@@ -581,15 +652,17 @@ async def logout(
         - Se almacena en tabla 'ban-token' del storage
         - Actualiza registro existente si el usuario ya tenía tokens baneados
     """
-    if authorization is None or not authorization.startswith("Bearer "):
+    
+    if authorization is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No credentials provided or invalid format"
         )
+    
+    
+    token = authorization
 
     session_user = request.state.user
-
-    token = authorization.split(" ")[1]
 
     table_name = "ban-token"
 
@@ -610,4 +683,22 @@ async def logout(
         )
     )
 
-    return result.model_dump()
+    response = ORJSONResponse(
+        result.model_dump()
+        )
+    
+    response.delete_cookie(
+            key="authorization",
+            httponly=True,
+            secure=True,
+            samesite="strict",
+        )
+    
+    response.delete_cookie(
+            key="authorization_refresh",
+            httponly=True,
+            secure=True,
+            samesite="strict",
+        )
+    
+    return response

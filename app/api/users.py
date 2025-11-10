@@ -62,17 +62,6 @@ from app.audit import (
     get_request_identifier,
 )
 
-logger = logging.getLogger("uvicorn.error")
-logger.setLevel(logging.DEBUG)
-
-handler = logging.StreamHandler(sys.stdout)
-formatter = logging.Formatter(
-    "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
-handler.setFormatter(formatter)
-
-logger.addHandler(handler)
-
 TESS_DIGITS = "-c tessedit_char_whitelist=0123456789 --oem 3"
 
 pytesseract.pytesseract.tesseract_cmd = binaries_dir / "tesseract.exe"
@@ -753,6 +742,8 @@ async def update_user_password(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un unauthorized")
 
     user: User = session.get(User, user_id)
+    
+    console.print(f"User Form: {user}")
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

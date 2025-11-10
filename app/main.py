@@ -376,4 +376,4 @@ async def admin(request: Request):
     except:
         return templates.TemplateResponse(parser_name(["admin", "login"], "login"), {"request": request})
 
-app.mount("/", SPAStaticFiles(), name="spa")
+#app.mount("/", SPAStaticFiles(), name="spa")
