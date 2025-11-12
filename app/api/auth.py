@@ -8,6 +8,7 @@ from typing import Optional, Dict, List, Annotated
 from sqlmodel import select
 
 from datetime import datetime
+from uuid import UUID
 
 from app.models import Doctors, User
 from app.db.main import SessionDep
@@ -19,10 +20,45 @@ from app.schemas.users import UserAuth
 from app.schemas.auth import TokenUserResponse, TokenDoctorsResponse, OauthCodeInput
 from app.schemas.medica_area import DoctorAuth, DoctorResponse
 from app.storage import storage
+from app.config import token_expire_minutes, token_refresh_expire_days
+
+from app.audit import (
+    AuditAction,
+    AuditEmitter,
+    AuditEventCreate,
+    AuditSeverity,
+    AuditTargetType,
+    build_request_metadata,
+    get_audit_emitter,
+    get_request_identifier,
+)
 
 console = Console()
 
 auth = JWTBearer()
+
+
+def _make_event(
+    request: Request,
+    *,
+    action: AuditAction,
+    severity: AuditSeverity = AuditSeverity.INFO,
+    target_type: AuditTargetType = AuditTargetType.WEB_SESSION,
+    actor_id: Optional[UUID] = None,
+    target_id: Optional[UUID] = None,
+    details: Optional[Dict[str, object]] = None,
+) -> AuditEventCreate:
+    return AuditEventCreate(
+        action=action,
+        severity=severity,
+        target_type=target_type,
+        actor_id=actor_id,
+        target_id=target_id,
+        request_id=get_request_identifier(request),
+        request_metadata=build_request_metadata(request),
+        details=dict(details or {}),
+    )
+
 
 router = APIRouter(
     prefix="/auth",
@@ -115,9 +151,26 @@ async def doc_login(request: Request, session_db: SessionDep, credentials: Annot
     result = session_db.exec(statement)
     doc: Doctors = result.first()
     if not doc:
+        await emitter.emit_event(
+            _make_event(
+                request,
+                action=AuditAction.USER_LOGIN_FAILED,
+                severity=AuditSeverity.WARNING,
+                details={"email": credentials.email, "role": "doctor", "reason": "not_found"},
+            )
+        )
         raise HTTPException(status_code=404, detail="Invalid credentials")
 
     if not doc.check_password(credentials.password):
+        await emitter.emit_event(
+            _make_event(
+                request,
+                action=AuditAction.USER_LOGIN_FAILED,
+                severity=AuditSeverity.WARNING,
+                actor_id=doc.id,
+                details={"email": credentials.email, "role": "doctor", "reason": "invalid_password"},
+            )
+        )
         raise HTTPException(status_code=404, detail="Invalid credentials")
 
     doc_data = {
@@ -130,10 +183,34 @@ async def doc_login(request: Request, session_db: SessionDep, credentials: Annot
 
     token = gen_token(doc_data)
     refresh_token = gen_token(doc_data, refresh=True)
-    
-    doc.last_login = datetime.now()
 
-    return ORJSONResponse(
+    try:
+        record = doc.mark_login(actor_id=doc.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    session.add(doc)
+    session.commit()
+    session.refresh(doc)
+
+    await emitter.emit_record(
+        record,
+        request_id=get_request_identifier(request),
+        request_metadata=build_request_metadata(request),
+    )
+
+    await emitter.emit_event(
+        _make_event(
+            request,
+            action=AuditAction.TOKEN_ISSUED,
+            target_type=AuditTargetType.AUTH_TOKEN,
+            actor_id=doc.id,
+            target_id=doc.id,
+            details={"scopes": doc_data["scopes"], "refresh": True},
+        )
+    )
+    
+    response = ORJSONResponse(
         TokenDoctorsResponse(
             access_token=token,
             token_type="Bearer",
@@ -156,6 +233,27 @@ async def doc_login(request: Request, session_db: SessionDep, credentials: Annot
             refresh_token=refresh_token
         ).model_dump()
     )
+    
+    response.set_cookie(
+        key="authorization",
+        value=token,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        max_age=token_expire_minutes * 60
+    )
+    
+    response.set_cookie(
+        key="authorization_refresh",
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        max_age=token_refresh_expire_days * 24 * 60 * 60
+    )
+    
+
+    return response
 
 @router.post("/login", response_model=TokenUserResponse)
 @time_out(10)
@@ -197,9 +295,26 @@ async def login(request: Request, session_db: SessionDep, credentials: Annotated
     user: User = result.first()
     #console.print(user)
     if not user:
+        await emitter.emit_event(
+            _make_event(
+                request,
+                action=AuditAction.USER_LOGIN_FAILED,
+                severity=AuditSeverity.WARNING,
+                details={"email": credentials.email, "role": "user", "reason": "not_found"},
+            )
+        )
         raise HTTPException(status_code=404, detail="Invalid credentials payload")
 
     if not user.check_password(credentials.password):
+        await emitter.emit_event(
+            _make_event(
+                request,
+                action=AuditAction.USER_LOGIN_FAILED,
+                severity=AuditSeverity.WARNING,
+                actor_id=user.id,
+                details={"email": credentials.email, "role": "user", "reason": "invalid_password"},
+            )
+        )
         raise HTTPException(status_code=400, detail="Invalid credentials payload")
 
     user_data = {
@@ -221,7 +336,10 @@ async def login(request: Request, session_db: SessionDep, credentials: Annotated
     token = gen_token(user_data)
     refresh_token = gen_token(user_data, refresh=True)
 
-    user.last_login = datetime.now()
+    try:
+        record = user.mark_login(actor_id=user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     session_db.add(user)
     session_db.commit()
@@ -236,12 +354,21 @@ async def login(request: Request, session_db: SessionDep, credentials: Annotated
     )
     
     response.set_cookie(
-        "session",
-        refresh_token,
+        key="authorization",
+        value=token,
         httponly=True,
         secure=True,
         samesite="strict",
-        max_age=60*60*1
+        max_age=token_expire_minutes * 60
+    )
+    
+    response.set_cookie(
+        key="authorization_refresh",
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        max_age=token_refresh_expire_days * 24 * 60 * 60
     )
 
     return response
@@ -279,7 +406,7 @@ async def oauth_login(service: str):
         raise HTTPException(status_code=500, detail=str(e))
     
 @oauth_router.get("/webhook/google_callback")
-async def google_callback(request: Request):
+async def google_callback(request: Request, emitter: AuditEmitter = Depends(get_audit_emitter)):
     """
     Maneja la respuesta del callback de Google OAuth.
     
@@ -303,7 +430,22 @@ async def google_callback(request: Request):
     """
     try:
         params: dict = dict(request.query_params)
-        data, exist, response = OauthRepository.google_callback(params.get("code"))
+        data, exist, audit, response = OauthRepository.google_callback(params.get("code"))
+        await emitter.emit_record(
+            audit,
+            request_id=get_request_identifier(request),
+            request_metadata=build_request_metadata(request),
+        )
+        await emitter.emit_event(
+            _make_event(
+                request,
+                action=AuditAction.TOKEN_ISSUED,
+                target_type=AuditTargetType.AUTH_TOKEN,
+                actor_id=audit.actor_id,
+                target_id=audit.target_id,
+                details={"scopes": ["google", "user"], "refresh": False},
+            )
+        )
         if not exist:
             EmailService.send_welcome_email(
                 email=data.get("email"),
@@ -321,7 +463,11 @@ async def google_callback(request: Request):
     
 
 @router.get("/refresh", response_model=TokenUserResponse, name="refresh_token")
-async def refresh(request: Request, user: User = Depends(auth)):
+async def refresh(
+    request: Request,
+    user: User = Depends(auth),
+    emitter: AuditEmitter = Depends(get_audit_emitter),
+):
     if isinstance(user, Doctors):
         doc_data = {
             "sub":str(user.id),
@@ -335,7 +481,18 @@ async def refresh(request: Request, user: User = Depends(auth)):
         token = gen_token(doc_data)
         refresh_token = gen_token(doc_data)
 
-        return ORJSONResponse(
+        await emitter.emit_event(
+            _make_event(
+                request,
+                action=AuditAction.TOKEN_ISSUED,
+                target_type=AuditTargetType.AUTH_TOKEN,
+                actor_id=user.id,
+                target_id=user.id,
+                details={"scopes": doc_data["scopes"], "refresh": True},
+            )
+        )
+
+        response = ORJSONResponse(
             TokenDoctorsResponse(
                 access_token=token,
                 token_type="Bearer",
@@ -357,6 +514,26 @@ async def refresh(request: Request, user: User = Depends(auth)):
                 refresh_token=refresh_token
             ).model_dump()
         )
+        
+        response.set_cookie(
+            key="authorization",
+            value=token,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            max_age=token_expire_minutes * 60
+        )
+    
+        response.set_cookie(
+            key="authorization_refresh",
+            value=refresh_token,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            max_age=token_refresh_expire_days * 24 * 60 * 60
+        )
+        
+        return response
 
     user_data = {
         "sub":str(user.id),
@@ -380,13 +557,44 @@ async def refresh(request: Request, user: User = Depends(auth)):
     token = gen_token(user_data)
     refresh_token = gen_token(user_data, refresh=True)
 
-    return ORJSONResponse(
+    await emitter.emit_event(
+        _make_event(
+            request,
+            action=AuditAction.TOKEN_ISSUED,
+            target_type=AuditTargetType.AUTH_TOKEN,
+            actor_id=user.id,
+            target_id=user.id,
+            details={"scopes": user_data["scopes"], "refresh": True},
+        )
+    )
+
+    response = ORJSONResponse(
         TokenUserResponse(
             access_token=token,
             token_type="bearer",
             refresh_token=refresh_token,
         ).model_dump()
     )
+    
+    response.set_cookie(
+            key="authorization",
+            value=token,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            max_age=token_expire_minutes * 60
+        )
+    
+    response.set_cookie(
+            key="authorization_refresh",
+            value=refresh_token,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            max_age=token_refresh_expire_days * 24 * 60 * 60
+        )
+        
+    return response
 
 @router.delete("/logout")
 async def logout(request: Request, session: Optional[str] = Cookie(None), _=Depends(auth)):
@@ -417,6 +625,9 @@ async def logout(request: Request, session: Optional[str] = Cookie(None), _=Depe
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No credentials provided or invalid format"
         )
+    
+    
+    token = authorization
 
     session_user = request.state.user
 
@@ -429,4 +640,34 @@ async def logout(request: Request, session: Optional[str] = Cookie(None), _=Depe
 
     result = storage.set(key=str(session_user.id), value=token, table_name=table_name)
 
-    return result.model_dump()
+    await emitter.emit_event(
+        _make_event(
+            request,
+            action=AuditAction.TOKEN_REVOKED,
+            target_type=AuditTargetType.AUTH_TOKEN,
+            actor_id=session_user.id,
+            target_id=session_user.id,
+            severity=AuditSeverity.INFO,
+            details={"table": table_name},
+        )
+    )
+
+    response = ORJSONResponse(
+        result.model_dump()
+        )
+    
+    response.delete_cookie(
+            key="authorization",
+            httponly=True,
+            secure=True,
+            samesite="strict",
+        )
+    
+    response.delete_cookie(
+            key="authorization_refresh",
+            httponly=True,
+            secure=True,
+            samesite="strict",
+        )
+    
+    return response

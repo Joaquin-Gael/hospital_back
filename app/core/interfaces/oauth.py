@@ -87,13 +87,13 @@ class OauthRepository:
         
         user_data = get_user_data(data['access_token'])
         
-        user, exist = UserRepository.create_google_user(user_data)
+        user, exist, audit = UserRepository.create_google_user(user_data)
 
         url_data = {
             "a":encode({"access_token":gen_token_from_user_data(user)}).hex()
         }
 
-        return user_data, exist, Response(
+        return user_data, exist, audit, Response(
             status_code=302,
             headers={"Location": f"{CORS_HOST}/user_panel?{urlencode(url_data)}" if not DEBUG else f"http://localhost:4200/user_panel?{urlencode(url_data)}" }
         )

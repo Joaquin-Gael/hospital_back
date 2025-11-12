@@ -2,8 +2,8 @@ from typing import Tuple
 
 from sqlmodel import Session, select
 
-from app.db.main import engine
-from app.models import User
+from app.db.session import session_factory
+from app.models import User, AuditRecord
 from app.storage import storage, NoneResultException
 from app.storage.command.main import console
 from app.core.utils import BaseInterface
@@ -58,13 +58,13 @@ class UserRepository(BaseInterface):
 
     @staticmethod
     def update_user(user: User, session) -> User:
-        with Session(engine) as session:
+        with session_factory() as session:
             session.merge(user)
             session.commit()
             return user
         
     @staticmethod
-    def create_google_user(user_data: dict) -> Tuple[User, bool]:
+    def create_google_user(user_data: dict) -> Tuple[User, bool, AuditRecord]:
         username = user_data.get('name')
         email = user_data.get('email')
         first_name = user_data.get('given_name')
@@ -89,16 +89,23 @@ class UserRepository(BaseInterface):
         )
         user.set_google_liked_acount_password(user_data.get('id'))
         
-        with Session(engine) as session:
+        with session_factory() as session:
             existing_user = UserRepository.get_user_by_email(email, session)
             if existing_user:
+                audit = existing_user.mark_login(actor_id=existing_user.id)
                 set_or_update_google_user(existing_user, user_data)
-                return existing_user, True
-            
+                session.add(existing_user)
+                session.commit()
+                session.refresh(existing_user)
+                console.log(f"Google login audit: {audit}")
+                return existing_user, True, audit
+
+            audit = user.mark_login(actor_id=user.id)
             session.add(user)
             session.commit()
             session.refresh(user)
 
             set_or_update_google_user(user, user_data)
-        
-        return user, False
+            console.log(f"Google login audit: {audit}")
+
+        return user, False, audit

@@ -1,4 +1,4 @@
-from sqlmodel import create_engine, Session, SQLModel, select
+from sqlmodel import Session, SQLModel, select
 
 from sqlalchemy.exc import IntegrityError
 
@@ -15,10 +15,16 @@ import time
 
 from typing import List, Tuple
 
-from app.config import DEBUG, ADMIN_USER, User, DB_URL
+from app.config import DEBUG, ADMIN_USER, User, DB_URL as _db_url
+from app.db.session import engine, get_session as _get_session, session_factory
+
+# Import audit models so their tables are registered in the global metadata
+# before `SQLModel.metadata.create_all` is executed. The import has no runtime
+# side effects besides model registration.
+import app.audit.models  # noqa: F401
 
 
-engine = create_engine(DB_URL, echo=False, future=True, pool_pre_ping=True)
+db_url = _db_url
 
 console = Console()
 
@@ -76,7 +82,7 @@ def set_admin():
     """
     try:
         print("Setting admin")
-        with Session(engine) as session:
+        with session_factory() as session:
             admin: User = session.exec(
                 select(User)
                     .where(User.email == ADMIN_USER.email)
@@ -117,9 +123,9 @@ def test_db() -> Tuple[float, bool]:
     """
     start = time.time()
     try:
-        with Session(engine) as session:
+        with session_factory() as session:
             statement = select(User)
-        result: List["User"] = session.exec(statement).all()
+            result: List["User"] = session.exec(statement).all()
         if result is None:
             end = time.time()
             return (end - start), False
@@ -137,22 +143,22 @@ def test_db() -> Tuple[float, bool]:
 def get_session():
     """
     Generador de sesiones de base de datos para dependency injection.
-    
+
     Crea una nueva sesión SQLModel para cada request, garantizando
     el cierre automático de la conexión al finalizar.
-    
+
     Yields:
         Session: Sesión de base de datos para operaciones ORM
-        
+
     Note:
         - Patrón context manager con yield
         - Usado como FastAPI Dependency
         - Garantiza cierre automático de conexiones
         - Una sesión por request para thread safety
     """
-    with Session(engine) as session:
-        yield session
+    yield from _get_session()
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
 metadata = SQLModel.metadata
+

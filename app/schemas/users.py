@@ -4,7 +4,7 @@ from fastapi import UploadFile
 
 from typing import Optional, List
 
-from pydantic import BaseModel, EmailStr, constr, field_validator
+from pydantic import BaseModel, EmailStr, PrivateAttr, constr, field_validator, model_validator
 
 from uuid import UUID
 
@@ -55,7 +55,22 @@ class UserHeathInsuranceUpdate(BaseModel):
 class UserPasswordUpdate(BaseModel):
     old_password: constr(min_length=8)
     new_password: constr(min_length=8)
-    new_password_confirm: constr(min_length=8)
+    new_password_confirm: Optional[constr(min_length=8)] = None
+    _confirmation_matches: bool = PrivateAttr(default=True)
+
+    @model_validator(mode="after")
+    def validate_confirmation(self):
+        object.__setattr__(
+            self,
+            "_confirmation_matches",
+            self.new_password_confirm is None
+            or self.new_password == self.new_password_confirm,
+        )
+        return self
+
+    @property
+    def confirmation_matches(self) -> bool:
+        return self._confirmation_matches
 
 class UserPetitionPasswordUpdate(BaseModel):
     email: EmailStr
