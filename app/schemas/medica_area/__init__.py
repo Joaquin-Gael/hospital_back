@@ -63,6 +63,7 @@ from .specialties import (
 )
 from .turns import (
     PayTurnResponse,
+    TurnReschedule,
     TurnsBase,
     TurnsCreate,
     TurnsDelete,
@@ -123,6 +124,7 @@ __all__ = [
     "SpecialtyDelete",
     "SpecialtyResponse",
     "SpecialtyUpdate",
+    "TurnReschedule",
     "TurnsBase",
     "TurnsCreate",
     "TurnsDelete",
