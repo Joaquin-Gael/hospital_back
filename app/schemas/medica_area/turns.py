@@ -42,7 +42,12 @@ class TurnsUpdate(BaseModel):
     state: Optional[TurnsState] = None
     date: Optional[date_type] = None
     date_created: Optional[date_type] = None
-    time: Optional[date_type] = None
+    time: Optional[time_type] = None
+
+
+class TurnReschedule(BaseModel):
+    date: date_type
+    time: time_type
 
 
 class TurnsResponse(TurnsBase):
