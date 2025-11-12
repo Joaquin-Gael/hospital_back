@@ -7,67 +7,86 @@ from pathlib import Path
 
 from uuid import uuid4, UUID
 
+from datetime import datetime
+
+from zoneinfo import ZoneInfo
+
 from fastapi.templating import Jinja2Templates
 
 from app.models import User
 
 load_dotenv()
 
-id_prefix: UUID = uuid4()
-
-debug:bool = bool(int(os.getenv("DEBUG")))
-
-templates_dir = Path(__file__).parent / "templates"
-
-assets_dir = Path(__file__).parent / "assets"
-
-media_dir = Path(__file__).parent / "media"
-
-templates = Jinja2Templates(directory=templates_dir)
-
-binaries_dir = Path(__file__).parent / "core" / "binaries"
-
-api_name = "Hospital API"
-version = "0.10.7"
-
-db_url = os.getenv("DB_URL")
-
-cors_host = os.getenv("DOMINIO")
-
-token_key = os.getenv("TOKEN_KEY")
-
-google_client_secret = os.getenv("CLIENT_SECRET_GOOGLE")
-google_client_id = os.getenv("CLIENT_ID_GOOGLE")
-google_oauth_url = os.getenv("OAUTH_GOOGLE_URL")
-google_oauth_token_url = os.getenv("OAUTH_GOOGLE_TOKEN_URL")
-google_oauth_userinfo_url = os.getenv("OAUTH_GOOGLE_USERINFO_URL")
-
-email_host = os.getenv("EMAIL_HOST")
-email_port = int(os.getenv("EMAIL_PORT"))
-email_use_tls = bool(int(os.getenv("EMAIL_USE_TLS")))
-email_host_user = os.getenv("EMAIL_HOST_USER")
-email_host_password = os.getenv("EMAIL_HOST_PASSWORD")
-
-stripe_public_key = os.getenv("STRIPE_PUBLIC_KEY")
-stripe_secret_key = os.getenv("STRIPE_SECRET_KEY")
-
-admin_username = os.getenv("ADMIN_USERNAME")
-admin_password = os.getenv("ADMIN_PASSWORD")
-admin_email = os.getenv("ADMIN_EMAIL")
-
-llm_model_name = os.getenv("LLM_MODEL_NAME", "gpt2")
+TIME_ZONE = ZoneInfo(os.getenv("TIME_ZONE", "America/Argentina/Buenos_Aires"))
 
 
-admin_user = User(
-    name=admin_username,
-    email=admin_email,
-    password=admin_password,
+def GET_CURRENT_TIME() -> datetime:
+    return datetime.now(TIME_ZONE)
+
+ID_PREFIX: UUID = uuid4()
+
+DEBUG: bool = bool(int(os.getenv("DEBUG")))
+
+TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+ASSETS_DIR = Path(__file__).parent / "assets"
+
+MEDIA_DIR = Path(__file__).parent / "media"
+
+TEMPLATES = Jinja2Templates(directory=TEMPLATES_DIR)
+
+BINARIES_DIR = Path(__file__).parent / "core" / "binaries"
+
+API_NAME = "Hospital API"
+VERSION = "0.10.7"
+
+DB_URL = os.getenv("DB_URL")
+
+REDIS_URL = os.getenv("REDIS_URL")
+REDIS_HOST = os.getenv("REDIS_HOST")
+REDIS_PORT = int(os.getenv("REDIS_PORT"))
+REDIS_DB = int(os.getenv("REDIS_DB"))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
+REDIS_SSL = os.getenv("REDIS_SSL") == "True"
+
+STORAGE_DIR_NAME = os.getenv("STORAGE_DIR_NAME", "sets")
+
+CORS_HOST = os.getenv("DOMINIO")
+
+TOKEN_KEY = os.getenv("TOKEN_KEY")
+
+GOOGLE_CLIENT_SECRET = os.getenv("CLIENT_SECRET_GOOGLE")
+GOOGLE_CLIENT_ID = os.getenv("CLIENT_ID_GOOGLE")
+GOOGLE_OAUTH_URL = os.getenv("OAUTH_GOOGLE_URL")
+GOOGLE_OAUTH_TOKEN_URL = os.getenv("OAUTH_GOOGLE_TOKEN_URL")
+GOOGLE_OAUTH_USERINFO_URL = os.getenv("OAUTH_GOOGLE_USERINFO_URL")
+
+EMAIL_HOST = os.getenv("EMAIL_HOST")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT"))
+EMAIL_USE_TLS = bool(int(os.getenv("EMAIL_USE_TLS")))
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
+
+STRIPE_PUBLIC_KEY = os.getenv("STRIPE_PUBLIC_KEY")
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")
+
+LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "gpt2")
+
+
+ADMIN_USER = User(
+    name=ADMIN_USERNAME,
+    email=ADMIN_EMAIL,
+    password=ADMIN_PASSWORD,
     dni="00000000"
 )
-admin_user.set_password(
-    admin_user.password
+ADMIN_USER.set_password(
+    ADMIN_USER.password
 )
-admin_user.make_superuser()
+ADMIN_USER.make_superuser()
 
-def parser_name(folders: List[str], name:str) -> str:
+def parser_name(folders: List[str], name: str) -> str:
     return "/".join(folders) + f"/{name}.html"

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends, HTTPException, Header, status, Form
+from fastapi import APIRouter, Request, Depends, HTTPException, Cookie, status, Form
 from fastapi.responses import ORJSONResponse
 
 from rich.console import Console
@@ -83,7 +83,7 @@ async def decode_hex(request: Request, data: OauthCodeInput):
 
 @router.post("/doc/login", response_model=TokenDoctorsResponse)
 @time_out(10)
-async def doc_login(request: Request, session: SessionDep, credentials: Annotated[DoctorAuth, Form(...)]):
+async def doc_login(request: Request, session_db: SessionDep, credentials: Annotated[DoctorAuth, Form(...)]):
     """
     Autentica médicos en el sistema.
     
@@ -112,7 +112,7 @@ async def doc_login(request: Request, session: SessionDep, credentials: Annotate
         - Scopes: ['doc'] + ['active'] si está activo
     """
     statement = select(Doctors).where(Doctors.email == credentials.email)
-    result = session.exec(statement)
+    result = session_db.exec(statement)
     doc: Doctors = result.first()
     if not doc:
         raise HTTPException(status_code=404, detail="Invalid credentials")
@@ -159,7 +159,7 @@ async def doc_login(request: Request, session: SessionDep, credentials: Annotate
 
 @router.post("/login", response_model=TokenUserResponse)
 @time_out(10)
-async def login(request: Request, session: SessionDep, credentials: Annotated[UserAuth, Form(...)]):
+async def login(request: Request, session_db: SessionDep, credentials: Annotated[UserAuth, Form(...)]):
     """
     Autentica usuarios regulares del sistema.
     
@@ -193,7 +193,7 @@ async def login(request: Request, session: SessionDep, credentials: Annotated[Us
     """
     #console.print(credentials)
     statement = select(User).where(User.email == credentials.email)
-    result = session.exec(statement)
+    result = session_db.exec(statement)
     user: User = result.first()
     #console.print(user)
     if not user:
@@ -223,9 +223,9 @@ async def login(request: Request, session: SessionDep, credentials: Annotated[Us
 
     user.last_login = datetime.now()
 
-    session.add(user)
-    session.commit()
-    session.refresh(user)
+    session_db.add(user)
+    session_db.commit()
+    session_db.refresh(user)
 
     response = ORJSONResponse(
         TokenUserResponse(
@@ -389,7 +389,7 @@ async def refresh(request: Request, user: User = Depends(auth)):
     )
 
 @router.delete("/logout")
-async def logout(request: Request, authorization: Optional[str] = Header(None), _=Depends(auth)):
+async def logout(request: Request, session: Optional[str] = Cookie(None), _=Depends(auth)):
     """
     Cierra la sesión del usuario invalidando su token.
     
@@ -398,7 +398,7 @@ async def logout(request: Request, authorization: Optional[str] = Header(None), 
     
     Args:
         request (Request): Request con información del usuario autenticado
-        authorization (str, optional): Header Authorization con el token
+        session (str, optional): Cookie "session" con el token
         _ (User): Usuario autenticado (inyección de dependencia)
         
     Returns:
@@ -412,7 +412,7 @@ async def logout(request: Request, authorization: Optional[str] = Header(None), 
         - Se almacena en tabla 'ban-token' del storage
         - Actualiza registro existente si el usuario ya tenía tokens baneados
     """
-    if authorization is None or not authorization.startswith("Bearer "):
+    if session is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No credentials provided or invalid format"
@@ -420,7 +420,7 @@ async def logout(request: Request, authorization: Optional[str] = Header(None), 
 
     session_user = request.state.user
 
-    token = authorization.split(" ")[1]
+    token = session
 
     table_name = "ban-token"
 

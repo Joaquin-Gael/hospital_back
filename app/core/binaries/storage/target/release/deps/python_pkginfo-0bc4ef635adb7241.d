@@ -1,0 +1,10 @@
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\python_pkginfo-0bc4ef635adb7241.d: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\python-pkginfo-0.6.6\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\python-pkginfo-0.6.6\src\distribution.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\python-pkginfo-0.6.6\src\error.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\python-pkginfo-0.6.6\src\metadata.rs
+
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\libpython_pkginfo-0bc4ef635adb7241.rlib: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\python-pkginfo-0.6.6\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\python-pkginfo-0.6.6\src\distribution.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\python-pkginfo-0.6.6\src\error.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\python-pkginfo-0.6.6\src\metadata.rs
+
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\libpython_pkginfo-0bc4ef635adb7241.rmeta: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\python-pkginfo-0.6.6\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\python-pkginfo-0.6.6\src\distribution.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\python-pkginfo-0.6.6\src\error.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\python-pkginfo-0.6.6\src\metadata.rs
+
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\python-pkginfo-0.6.6\src\lib.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\python-pkginfo-0.6.6\src\distribution.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\python-pkginfo-0.6.6\src\error.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\python-pkginfo-0.6.6\src\metadata.rs:

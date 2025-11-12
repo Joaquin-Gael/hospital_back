@@ -9,7 +9,7 @@ from orjson import loads
 from urllib.parse import urlencode
 import requests as r
 
-from app.config import google_client_id, google_client_secret, cors_host, google_oauth_url, google_oauth_token_url, google_oauth_userinfo_url, debug
+from app.config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, CORS_HOST, GOOGLE_OAUTH_URL, GOOGLE_OAUTH_TOKEN_URL, GOOGLE_OAUTH_USERINFO_URL, DEBUG
 from app.core.auth import gen_token, encode
 from app.core.interfaces.users import UserRepository
 from app.models import User, AlertLevels, AlertDDoS
@@ -37,7 +37,7 @@ class OauthCallbackError(Exception):
 
 def get_user_data(access_token: str) -> Dict[str, str | bool | int | None]:
     headers = {'Authorization': f'Bearer {access_token}'}
-    user_info_response = r.get(google_oauth_userinfo_url, headers=headers)
+    user_info_response = r.get(GOOGLE_OAUTH_USERINFO_URL, headers=headers)
     user_data = loads(user_info_response.content)
     return user_data
 
@@ -55,29 +55,29 @@ class OauthRepository:
     def google_oauth() -> Response:
 
         payload:Dict = {
-            'client_id': google_client_id,
-            'redirect_uri': f'{cors_host}/oauth/webhook/google_callback',
+            'client_id': GOOGLE_CLIENT_ID,
+            'redirect_uri': f'{CORS_HOST}/oauth/webhook/google_callback',
             'response_type':'code',
             'scope':'openid email profile',
             'access_type':'offline',
             'prompt':'select_account',
         }
         
-        return Response(status_code=302, headers={"Location": f"{google_oauth_url}?{urlencode(payload)}"})
+        return Response(status_code=302, headers={"Location": f"{GOOGLE_OAUTH_URL}?{urlencode(payload)}"})
 
         
         
     @staticmethod
     def google_callback(code: str) -> Tuple[Dict[str, Any], bool, Response]:
         payload:Dict = {
-            'client_id': google_client_id,
-            'client_secret': google_client_secret,
-            'redirect_uri': f'{cors_host}/oauth/webhook/google_callback',
+            'client_id': GOOGLE_CLIENT_ID,
+            'client_secret': GOOGLE_CLIENT_SECRET,
+            'redirect_uri': f'{CORS_HOST}/oauth/webhook/google_callback',
             'grant_type': 'authorization_code',
             'code': code,
         }
 
-        response = r.post(google_oauth_token_url, data=payload)
+        response = r.post(GOOGLE_OAUTH_TOKEN_URL, data=payload)
 
         data = loads(response.content.decode('utf-8'))
         
@@ -95,5 +95,5 @@ class OauthRepository:
 
         return user_data, exist, Response(
             status_code=302,
-            headers={"Location": f"{cors_host}/user_panel?{urlencode(url_data)}" if not debug else f"http://localhost:4200/user_panel?{urlencode(url_data)}" }
+            headers={"Location": f"{CORS_HOST}/user_panel?{urlencode(url_data)}" if not DEBUG else f"http://localhost:4200/user_panel?{urlencode(url_data)}" }
         )

@@ -1,5 +1,5 @@
 from fastapi import FastAPI, APIRouter, Request, WebSocket
-from fastapi.responses import ORJSONResponse, FileResponse, Response
+from fastapi.responses import ORJSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocketDisconnect
@@ -19,9 +19,9 @@ from uuid import UUID
 
 from pathlib import Path
 
-from app.db.main import init_db, set_admin, migrate, test_db, db_url
+from app.db.main import init_db, set_admin, migrate, test_db, DB_URL
 from app.api import users, medic_area, auth, cashes, ai_assistant
-from app.config import api_name, version, debug, cors_host, templates, parser_name, id_prefix, assets_dir, media_dir
+from app.config import API_NAME, VERSION, DEBUG, CORS_HOST, TEMPLATES, parser_name, ID_PREFIX, ASSETS_DIR, MEDIA_DIR
 from app.storage.main import storage
 from app.core.auth import time_out, gen_token, decode_token
 
@@ -30,7 +30,7 @@ install(show_locals=True)
 console = Console()
 
 main_router = APIRouter(
-    prefix=f"/{str(id_prefix)}",
+    prefix=f"/{str(ID_PREFIX)}",
 )
 
 @asynccontextmanager
@@ -59,14 +59,14 @@ async def lifespan(app: FastAPI):
     storage.create_table("recovery-codes")
     storage.create_table("ip-time-out")
     console.rule("[green]Server Opened[/green]")
-    if debug:
+    if DEBUG:
         # Línea destacada con título
         console.rule("[bold green]🔍 Documentación Scalar activa[/bold green]")
 
         # Panel con el mensaje y detalles
         mensaje = (
             "[bold cyan]La documentación de tu API está disponible en:[/bold cyan]\n"
-            f"  [bold magenta]http://localhost:8000/{id_prefix}/scalar[/bold magenta]\n\n"
+            f"  [bold magenta]http://localhost:8000/{ID_PREFIX}/scalar[/bold magenta]\n\n"
             "[dim]Permanecerá accesible mientras debug esté activado.[/dim]"
         )
         console.print(
@@ -79,14 +79,14 @@ async def lifespan(app: FastAPI):
         )
     yield None
     console.rule("[red]Server Closed[/red]")
-    if debug:
+    if DEBUG:
         try:
             import os
             from pathlib import Path
             import time
 
-            db_name = db_url.split("/")[-1]
-            db_driver = db_url.split(":")[0]
+            db_name = DB_URL.split("/")[-1]
+            db_driver = DB_URL.split(":")[0]
 
             if db_driver == "sqlite":
                 db_path = Path(db_name).resolve()
@@ -107,9 +107,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     lifespan=lifespan,
-    title=api_name,
+    title=API_NAME,
     description="Esta API permite gestionar usuarios, pacientes y médicos.",
-    version=version,
+    version=VERSION,
     contact={
         "name": "JoaDev",
         "email": "tuemail@example.com",
@@ -121,7 +121,7 @@ app = FastAPI(
     },
     docs_url=None,
     redoc_url=None,
-    debug=debug,
+    debug=DEBUG,
     redirect_slashes=True
 )
 
@@ -179,7 +179,7 @@ class SearchHotKey(Enum):
     Y = "y"
     Z = "z"
 
-if debug:
+if DEBUG:
     @main_router.get("/scalar", include_in_schema=False)
     async def scalar_html():
         """
@@ -212,7 +212,7 @@ main_router.include_router(ai_assistant.router)
 app.include_router(main_router)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], #if debug else [cors_host],
+    allow_origins=["*"], #if DEBUG else [CORS_HOST],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -233,7 +233,7 @@ class SPAStaticFiles(StaticFiles):
         index_file (str): Archivo index a servir para rutas SPA
     """
     
-    def __init__(self, directory: str="templates", html: bool=True, check_dir: bool=True, api_prefix: UUID=id_prefix, index_file: str="index.html"):
+    def __init__(self, directory: str="templates", html: bool=True, check_dir: bool=True, api_prefix: UUID=ID_PREFIX, index_file: str="index.html"):
         """
         Inicializa el manejador de archivos estáticos SPA.
         
@@ -286,10 +286,10 @@ class SPAStaticFiles(StaticFiles):
         response = FileResponse(index_path)
         await response(scope, receive, send)
 
-app.mount("/assets", StaticFiles(directory=assets_dir))
-app.mount("/media", StaticFiles(directory=media_dir))
+app.mount("/assets", StaticFiles(directory=ASSETS_DIR))
+app.mount("/media", StaticFiles(directory=MEDIA_DIR))
 
-@app.get("/id_prefix_api_secret/", include_in_schema=debug)
+@app.get("/id_prefix_api_secret/", include_in_schema=DEBUG)
 async def get_secret():
     """
     Obtiene el prefijo secreto de la API.
@@ -304,7 +304,7 @@ async def get_secret():
     Note:
         Solo incluido en el schema cuando debug=True
     """
-    return {"id_prefix_api_secret": str(id_prefix)}
+    return {"id_prefix_api_secret": str(ID_PREFIX)}
 
 @app.websocket("/{secret}/ws")
 async def websocket_endpoint(websocket: WebSocket, secret: str):
@@ -344,7 +344,7 @@ async def websocket_endpoint(websocket: WebSocket, secret: str):
 @app.get("/login-admin")
 @time_out(120)
 async def login_admin(request: Request):
-    return templates.TemplateResponse(parser_name(["admin", "login"], "login"), {"request": request})
+    return TEMPLATES.TemplateResponse(parser_name(["admin", "login"], "login"), {"request": request})
 
 @app.get("/admin")
 @time_out(120)
@@ -352,8 +352,8 @@ async def admin(request: Request):
     session = request.cookies.get("session")
     try:
         decode_token(session)
-        return templates.TemplateResponse(parser_name(["admin", "panel"], "index"), {"request": request})
+        return TEMPLATES.TemplateResponse(parser_name(["admin", "panel"], "index"), {"request": request})
     except:
-        return templates.TemplateResponse(parser_name(["admin", "login"], "login"), {"request": request})
+        return TEMPLATES.TemplateResponse(parser_name(["admin", "login"], "login"), {"request": request})
 
 app.mount("/", SPAStaticFiles(), name="spa")

@@ -1,0 +1,11 @@
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\normpath-8b3a8e0e3f066e0f.d: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\normpath-1.5.0\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\normpath-1.5.0\src\base.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\normpath-1.5.0\src\cmp.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\normpath-1.5.0\src\error.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\normpath-1.5.0\src\windows\mod.rs
+
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\libnormpath-8b3a8e0e3f066e0f.rlib: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\normpath-1.5.0\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\normpath-1.5.0\src\base.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\normpath-1.5.0\src\cmp.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\normpath-1.5.0\src\error.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\normpath-1.5.0\src\windows\mod.rs
+
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\libnormpath-8b3a8e0e3f066e0f.rmeta: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\normpath-1.5.0\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\normpath-1.5.0\src\base.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\normpath-1.5.0\src\cmp.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\normpath-1.5.0\src\error.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\normpath-1.5.0\src\windows\mod.rs
+
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\normpath-1.5.0\src\lib.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\normpath-1.5.0\src\base.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\normpath-1.5.0\src\cmp.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\normpath-1.5.0\src\error.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\normpath-1.5.0\src\windows\mod.rs:

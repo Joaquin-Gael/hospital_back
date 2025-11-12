@@ -13,12 +13,12 @@ from sqlmodel import Session, select
 from rich.console import Console
 
 from app.models import Cashes, CashDetails, Turns, HealthInsurance
-from app.config import stripe_secret_key, stripe_public_key, cors_host, id_prefix
+from app.config import STRIPE_SECRET_KEY, STRIPE_PUBLIC_KEY, CORS_HOST, ID_PREFIX
 from app.core.auth import encode
 
 console = Console()
 
-stripe.api_key = stripe_secret_key
+stripe.api_key = STRIPE_SECRET_KEY
 
 class StripeServices:
     @staticmethod
@@ -65,8 +65,8 @@ class StripeServices:
                 payment_method_types=["card"],
                 line_items=line_items,
                 mode="payment",
-                success_url=f"{cors_host}/{id_prefix}/cashes/pay/success?session_id={{CHECKOUT_SESSION_ID}}&{urlencode(payload)}",
-                cancel_url=f"{cors_host}/{id_prefix}/cashes/pay/cancel?{urlencode(bad_payload)}",
+                success_url=f"{CORS_HOST}/{ID_PREFIX}/cashes/pay/success?session_id={{CHECKOUT_SESSION_ID}}&{urlencode(payload)}",
+                cancel_url=f"{CORS_HOST}/{ID_PREFIX}/cashes/pay/cancel?{urlencode(bad_payload)}",
             )
 
             return session.url

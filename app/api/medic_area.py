@@ -127,8 +127,8 @@ departments = APIRouter(
 )
 
 @departments.get("/", response_model=DepartmentResponse)
-async def get_departments(request: Request, session: SessionDep):
-    result = session.exec(
+async def get_departments(request: Request, session_db: SessionDep):
+    result = session_db.exec(
         select(Departments)
     ).all()
 
@@ -158,8 +158,8 @@ async def get_departments(request: Request, session: SessionDep):
     return ORJSONResponse(departments_list)
 
 @departments.get("/{department_id}/", response_model=DepartmentResponse)
-async def get_department_by_id(request: Request, department_id: UUID, session: SessionDep):
-    department = session.exec(
+async def get_department_by_id(request: Request, department_id: UUID, session_db: SessionDep):
+    department = session_db.exec(
         select(Departments).where(Departments.id == department_id)
     ).first()
 
@@ -183,7 +183,7 @@ async def get_department_by_id(request: Request, department_id: UUID, session: S
     ).model_dump()
 
 @departments.post("/add/", response_model=DepartmentResponse)
-async def add_department(request: Request, department: DepartmentCreate, session: SessionDep):
+async def add_department(request: Request, department: DepartmentCreate, session_db: SessionDep):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
@@ -194,9 +194,9 @@ async def add_department(request: Request, department: DepartmentCreate, session
         location_id=department.location_id
     )
 
-    session.add(new_department)
-    session.commit()
-    session.refresh(new_department)
+    session_db.add(new_department)
+    session_db.commit()
+    session_db.refresh(new_department)
 
     return DepartmentResponse(
         id=new_department.id,
@@ -206,18 +206,18 @@ async def add_department(request: Request, department: DepartmentCreate, session
     ).model_dump()
 
 @departments.delete("/delete/{department_id}/", response_model=DepartmentDelete)
-async def delete_department_by_id(request: Request, department_id: UUID, session: SessionDep):
+async def delete_department_by_id(request: Request, department_id: UUID, session_db: SessionDep):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
 
     try:
-        department: Departments = session.exec(
+        department: Departments = session_db.exec(
             select(Departments).where(Departments.id == department_id)
         ).first()
 
-        session.delete(department)
-        session.commit()
+        session_db.delete(department)
+        session_db.commit()
 
         return DepartmentDelete(
             id=department.id,
@@ -228,18 +228,18 @@ async def delete_department_by_id(request: Request, department_id: UUID, session
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Department {department_id} not found")
 
 @departments.delete("/delete/{department_id}/specialities/{speciality_id}/", response_model=SpecialtyDelete)
-async def delete_speciality_by_id(request: Request, department_id: UUID, speciality_id: UUID, session: SessionDep):
+async def delete_speciality_by_id(request: Request, department_id: UUID, speciality_id: UUID, session_db: SessionDep):
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
 
     try:
-        result = session.execute(select(Departments).where(Departments.id == department_id)).scalars().first()
+        result = session_db.execute(select(Departments).where(Departments.id == department_id)).scalars().first()
         if result is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Department {department_id} not found")
         for speciality in result.specialities:
             if speciality.id == speciality_id:
-                session.delete(speciality)
-                session.commit()
+                session_db.delete(speciality)
+                session_db.commit()
                 return SpecialtyDelete(
                     id=speciality.id,
                     message=f"Speciality {speciality.name} has been deleted"
@@ -252,12 +252,12 @@ async def delete_speciality_by_id(request: Request, department_id: UUID, special
 
 
 @departments.patch("/update/{department_id}/", response_model=DepartmentResponse)
-async def update_department(request: Request, department_id: UUID , department: DepartmentUpdate, session: SessionDep):
+async def update_department(request: Request, department_id: UUID , department: DepartmentUpdate, session_db: SessionDep):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
 
-    new_department: Departments = session.exec(
+    new_department: Departments = session_db.exec(
         select(Departments).where(Departments.id == department_id)
     ).first()
 
@@ -265,9 +265,9 @@ async def update_department(request: Request, department_id: UUID , department: 
     new_department.description = department.description
     new_department.location_id = department.location_id
 
-    session.add(new_department)
-    session.commit()
-    session.refresh(new_department)
+    session_db.add(new_department)
+    session_db.commit()
+    session_db.refresh(new_department)
 
     return DepartmentResponse(
         id=new_department.id,
@@ -286,9 +286,9 @@ schedules = APIRouter(
 )
 
 @schedules.get("/", response_model=List[MedicalScheduleResponse])
-async def get_medical_schedules(request: Request, session: SessionDep):
+async def get_medical_schedules(request: Request, session_db: SessionDep):
     statement = select(MedicalSchedules)
-    result: List[MedicalSchedules] = session.exec(statement).all()
+    result: List[MedicalSchedules] = session_db.exec(statement).all()
     schedules = []
     for schedule_i in result:
         doctors: List[DoctorResponse] = []
@@ -325,9 +325,9 @@ async def get_medical_schedules(request: Request, session: SessionDep):
     )
 
 @schedules.get("/{schedule_id}", response_model=MedicalScheduleResponse)
-async def get_schedule_by_id(session: SessionDep, schedule_id: UUID):
+async def get_schedule_by_id(session_db: SessionDep, schedule_id: UUID):
     try:
-        schedule = session.get(MedicalSchedules, schedule_id)
+        schedule = session_db.get(MedicalSchedules, schedule_id)
         doctors_by_schedule_serialized: List[DoctorResponse] = [
             DoctorResponse(
                 username=doc.name,
@@ -356,9 +356,9 @@ async def get_schedule_by_id(session: SessionDep, schedule_id: UUID):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @schedules.get("/available/days/{speciality_id}", response_model=AvailableSchedules)
-async def days_by_availability(request: Request, speciality_id: UUID, session: SessionDep):
+async def days_by_availability(request: Request, speciality_id: UUID, session_db: SessionDep):
     try:
-        speciality = session.get(Specialties, speciality_id)
+        speciality = session_db.get(Specialties, speciality_id)
 
         dict_days = {}
 
@@ -408,15 +408,15 @@ async def days_by_availability(request: Request, speciality_id: UUID, session: S
         return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @schedules.post("/add/", response_model=MedicalScheduleResponse)
-async def add_schedule(medical_schedule: MedicalScheduleCreate, session: SessionDep):
+async def add_schedule(medical_schedule: MedicalScheduleCreate, session_db: SessionDep):
     schedule = MedicalSchedules(
         day=medical_schedule.day,
         start_time=medical_schedule.start_time,
         end_time=medical_schedule.end_time,
     )
-    session.add(schedule)
-    session.commit()
-    session.refresh(schedule)
+    session_db.add(schedule)
+    session_db.commit()
+    session_db.refresh(schedule)
 
     doctors = []
     for doc in schedule.doctors:
@@ -450,13 +450,13 @@ async def add_schedule(medical_schedule: MedicalScheduleCreate, session: Session
     )
 
 @schedules.delete("/delete/{schedule_id}/", response_model=MedicalScheduleDelete)
-async def delete_schedule(session: SessionDep, schedule_id: UUID):
+async def delete_schedule(session_db: SessionDep, schedule_id: UUID):
     statement = select(MedicalSchedules).where(MedicalSchedules.id == schedule_id)
-    result: MedicalSchedules = session.exec(statement).first()
+    result: MedicalSchedules = session_db.exec(statement).first()
 
     if result:
-        session.add(result)
-        session.commit()
+        session_db.add(result)
+        session_db.commit()
 
         return ORJSONResponse(
             MedicalScheduleDelete(
@@ -471,18 +471,18 @@ async def delete_schedule(session: SessionDep, schedule_id: UUID):
         }, status_code=status.HTTP_404_NOT_FOUND)
 
 @schedules.put("/add/doctor/", response_model=MedicalScheduleResponse)
-async def add_doctor_by_id(session: SessionDep, doc_id: UUID = Query(...), schedule_id: UUID = Query(...)):
+async def add_doctor_by_id(session_db: SessionDep, doc_id: UUID = Query(...), schedule_id: UUID = Query(...)):
     try:
         statement = select(MedicalSchedules).where(MedicalSchedules.id == schedule_id)
-        schedule: MedicalSchedules = session.exec(statement).first()
+        schedule: MedicalSchedules = session_db.exec(statement).first()
         statement = select(Doctors).where(Doctors.id == doc_id)
-        doctor: Doctors = session.exec(statement).first()
+        doctor: Doctors = session_db.exec(statement).first()
 
         schedule.doctors.append(doctor)
 
-        session.add(schedule)
-        session.commit()
-        session.refresh(schedule)
+        session_db.add(schedule)
+        session_db.commit()
+        session_db.refresh(schedule)
 
         serial_docs: List[DoctorResponse] = []
 
@@ -520,7 +520,7 @@ async def add_doctor_by_id(session: SessionDep, doc_id: UUID = Query(...), sched
         }, status_code=400)
 
 @schedules.put("/update/")
-async def update_schedule(schedule: MedicalScheduleUpdate, session: SessionDep):
+async def update_schedule(schedule: MedicalScheduleUpdate, session_db: SessionDep):
     """
     An enumeration of the days of the week.
 
@@ -558,7 +558,7 @@ async def update_schedule(schedule: MedicalScheduleUpdate, session: SessionDep):
     """
     try:
         statement = select(MedicalSchedules).where(MedicalSchedules.id == schedule.id)
-        result: MedicalSchedules = session.exec(statement).first()
+        result: MedicalSchedules = session_db.exec(statement).first()
 
         form_fields: List[str] = MedicalScheduleUpdate.__fields__.keys()
 
@@ -567,9 +567,9 @@ async def update_schedule(schedule: MedicalScheduleUpdate, session: SessionDep):
             if value is not None and field != "username":
                 setattr(result, field, value)
 
-        session.add(result)
-        session.commit()
-        session.refresh(result)
+        session_db.add(result)
+        session_db.commit()
+        session_db.refresh(result)
 
         return ORJSONResponse(
             MedicalScheduleResponse(
@@ -594,8 +594,8 @@ doctors = APIRouter(
 )
 
 @doctors.get("/", response_model=List[DoctorResponse])
-async def get_doctors(session: SessionDep):
-    result: List[Doctors] = session.exec(
+async def get_doctors(session_db: SessionDep):
+    result: List[Doctors] = session_db.exec(
         select(Doctors).where(True)
     ).all()
     doctors_serialized = [DoctorResponse(
@@ -620,8 +620,8 @@ async def get_doctors(session: SessionDep):
     return ORJSONResponse(doctors_serialized)
 
 @doctors.get("/{doctor_id}/", response_model=DoctorResponse)
-async def get_doctor_by_id(doctor_id: UUID, session: SessionDep):
-    doc = session.get(Doctors, doctor_id)
+async def get_doctor_by_id(doctor_id: UUID, session_db: SessionDep):
+    doc = session_db.get(Doctors, doctor_id)
 
     if not doc:
         raise HTTPException(status_code=404, detail=f"Doctor {doctor_id} not found")
@@ -654,14 +654,14 @@ async def get_doctor_by_id(doctor_id: UUID, session: SessionDep):
     )
 
 @doctors.get("/me", response_model=DoctorResponse)
-async def me_doctor(request: Request, session: SessionDep):
+async def me_doctor(request: Request, session_db: SessionDep):
     doc: Doctors | User = request.state.user
 
     if isinstance(doc, User):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
 
-    doc = session.merge(doc)
-    session.refresh(doc)
+    doc = session_db.merge(doc)
+    session_db.refresh(doc)
 
     return ORJSONResponse({
         "doc":DoctorResponse(
@@ -693,9 +693,9 @@ async def me_doctor(request: Request, session: SessionDep):
     })
 
 @doctors.get("/{doctor_id}/patients", response_model=List[UserRead])
-async def get_patients_by_doctor(request: Request, doctor_id: UUID, session: SessionDep):
+async def get_patients_by_doctor(request: Request, doctor_id: UUID, session_db: SessionDep):
     try:
-        doc = session.get(Doctors, doctor_id)
+        doc = session_db.get(Doctors, doctor_id)
         users_list: List[User] = []
         for appointment in doc.appointments:
             users_list.append(
@@ -730,10 +730,10 @@ async def get_patients_by_doctor(request: Request, doctor_id: UUID, session: Ses
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
 @doctors.get("/{doctor_id}/stats")
-async def get_doctor_stats_by_id(request: Request, doctor_id: str, session: SessionDep):
+async def get_doctor_stats_by_id(request: Request, doctor_id: str, session_db: SessionDep):
     try:
-        doctor = await DoctorRepository.get_doctor_by_id(session, UUID(doctor_id))
-        metrics = await DoctorRepository.get_doctor_metrics(session, doctor)
+        doctor = await DoctorRepository.get_doctor_by_id(session_db, UUID(doctor_id))
+        metrics = await DoctorRepository.get_doctor_metrics(session_db, doctor)
         
         return ORJSONResponse(
             metrics,
@@ -744,7 +744,7 @@ async def get_doctor_stats_by_id(request: Request, doctor_id: str, session: Sess
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @doctors.post("/add/", response_model=DoctorResponse)
-async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep):
+async def add_doctor(request: Request, doctor: DoctorCreate, session_db: SessionDep):
     try:
         user: User = request.state.user
 
@@ -767,9 +767,9 @@ async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep
 
         new_doctor.set_password(doctor.password)
 
-        session.add(new_doctor)
-        session.commit()
-        session.refresh(new_doctor)
+        session_db.add(new_doctor)
+        session_db.commit()
+        session_db.refresh(new_doctor)
 
         return ORJSONResponse(
             DoctorResponse(
@@ -799,16 +799,16 @@ async def add_doctor(request: Request, doctor: DoctorCreate, session: SessionDep
         }, status_code=status.HTTP_400_BAD_REQUEST)
 
 @doctors.delete("/delete/{doctor_id}/", response_model=DoctorDelete)
-async def delete_doctor(request: Request, doctor_id: UUID, session: SessionDep):
+async def delete_doctor(request: Request, doctor_id: UUID, session_db: SessionDep):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
 
     statement = select(Doctors).where(Doctors.id == doctor_id)
-    result = session.exec(statement).first()
+    result = session_db.exec(statement).first()
     if result:
-        session.delete(result)
-        session.commit()
+        session_db.delete(result)
+        session_db.commit()
 
         return ORJSONResponse(
             DoctorDelete(
@@ -822,20 +822,20 @@ async def delete_doctor(request: Request, doctor_id: UUID, session: SessionDep):
         },status_code=404)
 
 @doctors.delete("/delete/{doctor_id}/schedule/{schedule_id}/", response_model=DoctorResponse)
-async def delete_doctor_schedule_by_id(request: Request, schedule_id: UUID, doctor_id: UUID, session: SessionDep):
+async def delete_doctor_schedule_by_id(request: Request, schedule_id: UUID, doctor_id: UUID, session_db: SessionDep):
 
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not unauthorized")
 
-    doc: Doctors = session.exec(
+    doc: Doctors = session_db.exec(
         select(Doctors)
         .where(Doctors.id == doctor_id)
     ).first()
 
     doc.medical_schedules = [i for i in doc.medical_schedules if i.id != schedule_id]
 
-    session.add(doc)
-    session.commit()
+    session_db.add(doc)
+    session_db.commit()
 
     return ORJSONResponse(
         DoctorResponse(

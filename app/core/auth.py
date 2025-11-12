@@ -6,7 +6,7 @@ import time
 
 from pydantic import BaseModel
 
-from fastapi import Header, HTTPException, status, Request, WebSocket
+from fastapi import Cookie, Header, HTTPException, status, Request, WebSocket
 
 from functools import singledispatch, wraps
 
@@ -22,7 +22,7 @@ from uuid import UUID
 
 from rich.console import Console
 
-from app.config import token_key, api_name, version, debug
+from app.config import TOKEN_KEY, API_NAME, VERSION, DEBUG
 from app.models import Doctors, User
 from app.db.main import Session, engine
 from app.storage import storage
@@ -148,7 +148,7 @@ def decode(data: bytes, dtype: Type[T] | None = None) -> T | Any:
     try:
         plaintext: bytes = encoder_f.decrypt(data)
     except Exception as e:
-        console.print_exception(show_locals=True) if debug else None
+        console.print_exception(show_locals=True) if DEBUG else None
         raise ValueError("Token inválido o expirado") from e
 
 
@@ -191,13 +191,13 @@ def gen_token(payload: dict, refresh: bool = False):
         - Usa algoritmo HS256 con clave secreta del sistema
     """
     payload.setdefault("iat", datetime.now())
-    payload.setdefault("iss", f"{api_name}/{version}")
+    payload.setdefault("iss", f"{API_NAME}/{VERSION}")
     if refresh:
         payload["exp"] = int((datetime.now() + timedelta(days=1)).timestamp())
         payload.setdefault("type", "refresh_token")
     else:
         payload["exp"] = int((datetime.now() + timedelta(minutes=15)).timestamp())
-    return jwt.encode(payload, token_key, algorithm="HS256")
+    return jwt.encode(payload, TOKEN_KEY, algorithm="HS256")
 
 def decode_token(token: str):
     """
@@ -221,10 +221,10 @@ def decode_token(token: str):
         - Solo acepta algoritmo HS256
     """
     try:
-        payload = jwt.decode(token, key=token_key, algorithms=["HS256"], leeway=20)
+        payload = jwt.decode(token, key=TOKEN_KEY, algorithms=["HS256"], leeway=20)
         return payload
     except PyJWTError as e:
-        print(e) if debug else None
+        print(e) if DEBUG else None
         raise ValueError("Value Not Found") from e
 
 P = ParamSpec("P")
@@ -320,16 +320,16 @@ class JWTBearer:
         - Establece user y scopes en request.state
     """
     
-    async def __call__(self, request: Request, authorization: Optional[str] = Header(None)) -> User | Doctors | None:
+    async def __call__(self, request: Request, session: Optional[str] = Cookie(None)) -> User | Doctors | None:
         """
         Procesa autenticación JWT para una request HTTP.
         
-        Extrae el token del header Authorization, lo valida, y carga
+        Extrae el token desde la cookie "session", lo valida, y carga
         los datos del usuario correspondiente en el estado de la request.
         
         Args:
             request (Request): Request HTTP de FastAPI
-            authorization (str, optional): Header "Authorization: Bearer {token}"
+            session (str, optional): cookie "session" con el token
             
         Returns:
             User | Doctors | None: Usuario o médico autenticado
@@ -340,18 +340,18 @@ class JWTBearer:
             HTTPException: 403 si token está baneado
             
         Note:
-            - Valida formato "Bearer {token}"
+            - Usa el token directamente desde la cookie
             - Previene uso de refresh tokens en endpoints normales
             - Maneja warnings para cuentas Google
             - Establece request.state.user y request.state.scopes
         """
-        if authorization is None or not authorization.startswith("Bearer"):
+        if session is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="No credentials provided or invalid format"
             )
 
-        token = authorization.split(" ")[1]
+        token = session
 
         try:
             payload = decode_token(token)
@@ -368,10 +368,10 @@ class JWTBearer:
 
         ban_token = storage.get(key=payload.get("sub"), table_name="ban-token")
 
-        #console.print(">>> ", ban_token, " <<<") if debug else None
+            #console.print(">>> ", ban_token, " <<<") if DEBUG else None
 
         if ban_token is not None:
-            #console.print(f"Token banned: {ban_token.value}") if debug else None
+            #console.print(f"Token banned: {ban_token.value}") if DEBUG else None
             if token == ban_token.value:
                 raise HTTPException(status_code=403, detail="Token banned")
 
@@ -403,7 +403,7 @@ class JWTBearer:
             return user
 
         except Exception as e:
-            console.print(e) if debug else None
+            console.print(e) if DEBUG else None
             raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 class JWTWebSocket:
