@@ -529,7 +529,10 @@ async def delete_user(request: Request, user_id: UUID, session: SessionDep):
 async def update_user(request: Request, user_id: UUID, session: SessionDep, user_form: Annotated[UserUpdate, Form(...)]):
 
     if not request.state.user.id == user_id and not request.state.user.is_superuser:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="scopes have not un unauthorized")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="scopes have not un unauthorized",
+        )
 
     user: User = session.get(User, user_id)
 
@@ -748,8 +751,17 @@ async def update_user_password(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    if not user.check_password(user_form.old_password) or not user_form.new_password == user_form.new_password_confirm:
-        raise HTTPException(status_code=404, detail="User not found")
+    if not user.check_password(user_form.old_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Contraseña actual incorrecta",
+        )
+
+    if not user_form.confirmation_matches:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La confirmación de la contraseña no coincide",
+        )
 
     user.set_password(user_form.new_password)
     session.add(user)
