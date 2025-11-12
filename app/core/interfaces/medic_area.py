@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import extract
 from sqlmodel import Session, select
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date as date_type, time as time_type
 
 import polars as pl
 
@@ -15,7 +15,15 @@ from uuid import UUID
 from app.core.utils import BaseInterface
 from app.core.interfaces.oauth import console
 from app.schemas.medica_area import TurnsCreate, DoctorStates
-from app.models import Turns, Appointments, MedicalSchedules, Services, Doctors, User
+from app.models import (
+    Turns,
+    Appointments,
+    MedicalSchedules,
+    Services,
+    Doctors,
+    User,
+    DayOfWeek,
+)
 
 class DoctorRepository(BaseInterface):
     @staticmethod
@@ -231,3 +239,95 @@ class TurnAndAppointmentRepository(BaseInterface):
             console.print_exception(show_locals=True)
             session.rollback()
             return None, f"Unexpected error: {str(e)}"
+
+    @staticmethod
+    async def reschedule_turn(
+        session: Session,
+        turn: Turns,
+        *,
+        date: date_type,
+        time: time_type,
+    ) -> Turns:
+        if turn is None:
+            raise ValueError("Turn not found")
+
+        if turn.doctor_id is None:
+            raise ValueError("Turn has no assigned doctor")
+
+        day_map = {
+            1: DayOfWeek.monday,
+            2: DayOfWeek.tuesday,
+            3: DayOfWeek.wednesday,
+            4: DayOfWeek.thursday,
+            5: DayOfWeek.friday,
+            6: DayOfWeek.saturday,
+            7: DayOfWeek.sunday,
+        }
+
+        target_day = day_map.get(date.isoweekday())
+
+        if target_day is None:
+            raise ValueError("Invalid date for scheduling")
+
+        session.refresh(turn)
+
+        schedule = session.exec(
+            select(MedicalSchedules)
+            .join(MedicalSchedules.doctors)
+            .where(
+                Doctors.id == turn.doctor_id,
+                MedicalSchedules.day == target_day,
+            )
+            .limit(1)
+        ).first()
+
+        if schedule is None:
+            raise ValueError("No matching schedule found for the selected date")
+
+        turn_is_already_assigned = schedule in turn.schedules
+        scheduled_patients = len(schedule.turns) - (1 if turn_is_already_assigned else 0)
+
+        if schedule.max_patients is not None and scheduled_patients >= schedule.max_patients:
+            raise ValueError("No available slots in the schedule")
+
+        try:
+            previous_schedules = list(turn.schedules)
+
+            for previous_schedule in previous_schedules:
+                if turn in previous_schedule.turns:
+                    previous_schedule.turns.remove(turn)
+
+                if (
+                    previous_schedule.max_patients is None
+                    or len(previous_schedule.turns) < previous_schedule.max_patients
+                ):
+                    previous_schedule.available = True
+
+                session.add(previous_schedule)
+
+            turn.schedules.clear()
+            session.flush()
+
+            turn.date = date
+            turn.date_limit = date + timedelta(days=1)
+            turn.time = time
+
+            schedule.turns.append(turn)
+
+            if schedule.max_patients is not None:
+                schedule.available = len(schedule.turns) < schedule.max_patients
+            else:
+                schedule.available = True
+
+            session.add(schedule)
+            session.add(turn)
+            session.commit()
+
+        except Exception:
+            session.rollback()
+            raise
+
+        session.refresh(turn)
+        session.refresh(schedule)
+
+        return turn

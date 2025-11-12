@@ -10,9 +10,6 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "integration: mark test as integration")
     install(show_locals=True)
     # Asegurarse de que el plugin terminalreporter esté registrado
-    if not config.pluginmanager.getplugin("terminalreporter"):
-        reporter = TerminalReporter(config)
-        config.pluginmanager.register(reporter, "terminalreporter")
 
 @pytest.fixture(scope="session")
 def console():
