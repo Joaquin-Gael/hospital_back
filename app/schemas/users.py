@@ -8,6 +8,7 @@ from pydantic import BaseModel, EmailStr, constr, field_validator
 
 from uuid import UUID
 
+
 class UserBase(BaseModel):
     username: str
     email: EmailStr
@@ -66,3 +67,20 @@ class UserDelete(UserBase):
 class UserAuth(BaseModel):
     email: EmailStr
     password: constr(min_length=8)
+    
+class DniForm(BaseModel):
+    front: UploadFile
+    back: UploadFile
+    
+class VerifyResetIn(BaseModel):
+    email: EmailStr
+    code: str
+    
+class VerifyResetOut(BaseModel):
+    reset_session_id: UUID
+    ttl_seconds: int
+
+class ConfirmResetIn(BaseModel):
+    reset_session_id: UUID
+    new_password: constr(min_length=8)
+    new_password_confirm: constr(min_length=8)    

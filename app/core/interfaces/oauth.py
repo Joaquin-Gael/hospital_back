@@ -1,7 +1,8 @@
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, Optional
 
 from fastapi import Response
-
+from sqlmodel import Session
+from datetime import datetime, timedelta
 from rich.console import Console
 
 from orjson import loads
@@ -11,9 +12,23 @@ import requests as r
 from app.config import google_client_id, google_client_secret, cors_host, google_oauth_url, google_oauth_token_url, google_oauth_userinfo_url, debug
 from app.core.auth import gen_token, encode
 from app.core.interfaces.users import UserRepository
-from app.models import User
+from app.models import User, AlertLevels, AlertDDoS
 
 console= Console()
+
+class AlertRepository:
+    @classmethod
+    async def create_alert_ddos(cls, session: Session, path: str, ip: str, alert_level: AlertLevels = AlertLevels.low) -> AlertDDoS:
+        alert = AlertDDoS(
+            path=path,
+            ip=ip,
+            alert_level=alert_level,
+            count=1,
+        )
+        session.add(alert)
+        session.commit()
+        session.refresh(alert)
+        return alert
 
 class OauthCallbackError(Exception):
     def __init__(self, message: str = "Error during OAuth callback."):
@@ -72,13 +87,13 @@ class OauthRepository:
         
         user_data = get_user_data(data['access_token'])
         
-        user, exist = UserRepository.create_google_user(user_data)
+        user, exist, audit = UserRepository.create_google_user(user_data)
 
         url_data = {
             "a":encode({"access_token":gen_token_from_user_data(user)}).hex()
         }
 
-        return user_data, exist, Response(
+        return user_data, exist, audit, Response(
             status_code=302,
             headers={"Location": f"{cors_host}/user_panel?{urlencode(url_data)}" if not debug else f"http://localhost:4200/user_panel?{urlencode(url_data)}" }
         )

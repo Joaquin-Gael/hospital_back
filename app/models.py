@@ -7,7 +7,9 @@ from sqlalchemy import Column, UUID as UUID_TYPE, VARCHAR, event
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import declarative_mixin
 
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
+
+from dataclasses import dataclass, field
 
 from passlib.context import CryptContext
 
@@ -50,6 +52,22 @@ class TurnsState(str, Enum):
     cancelled = "cancelled"
     rejected = "rejected"
     accepted = "accepted"
+
+
+@dataclass
+class AuditRecord:
+    """Structured audit information for domain events.
+
+    The record is intentionally lightweight so it can be persisted or logged by the
+    caller depending on the use case.
+    """
+
+    action: str
+    target_type: str
+    target_id: Optional[UUID]
+    actor_id: Optional[UUID]
+    timestamp: datetime
+    details: Dict[str, Any] = field(default_factory=dict)
 
 @declarative_mixin
 class RenameTurnsStateMixin:
@@ -105,7 +123,7 @@ class BaseUser(SQLModel, table=False):
         try:
             if self.url_image_profile:
                 media_index = self.url_image_profile.find("/media")
-                file_path = self.url_image_profile[media_index:]
+                file_path = Path("app").joinpath(self.url_image_profile[media_index+1:]).resolve()
                 os.remove(file_path)
         except FileNotFoundError:
             pass
@@ -150,6 +168,64 @@ class BaseUser(SQLModel, table=False):
         """Verifica la contraseña en texto plano contra el hash almacenado."""
         return pwd_context.verify(raw_password, self.password)
 
+    def _make_audit_record(
+        self,
+        action: str,
+        actor_id: Optional[UUID] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ) -> AuditRecord:
+        return AuditRecord(
+            action=action,
+            target_type=self.__class__.__name__,
+            target_id=getattr(self, "id", None),
+            actor_id=actor_id,
+            timestamp=datetime.now(),
+            details=details or {},
+        )
+
+    def mark_login(
+        self,
+        timestamp: Optional[datetime] = None,
+        *,
+        actor_id: Optional[UUID] = None,
+    ) -> AuditRecord:
+        if not self.is_active:
+            raise ValueError("Inactive accounts cannot start a new session.")
+
+        timestamp = timestamp or datetime.now()
+        self.last_login = timestamp
+        return self._make_audit_record(
+            action="mark_login",
+            actor_id=actor_id,
+            details={"timestamp": timestamp.isoformat()},
+        )
+
+    def activate(
+        self,
+        *,
+        actor_id: Optional[UUID] = None,
+        reason: Optional[str] = None,
+    ) -> AuditRecord:
+        if self.is_active:
+            raise ValueError("Account is already active.")
+
+        self.is_active = True
+        details = {"reason": reason} if reason else {}
+        return self._make_audit_record("activate", actor_id, details)
+
+    def deactivate(
+        self,
+        *,
+        actor_id: Optional[UUID] = None,
+        reason: Optional[str] = None,
+    ) -> AuditRecord:
+        if not self.is_active:
+            raise ValueError("Account is already inactive.")
+
+        self.is_active = False
+        details = {"reason": reason} if reason else {}
+        return self._make_audit_record("deactivate", actor_id, details)
+
     def get_full_name(self) -> str:
         """Devuelve el nombre completo del usuario."""
         full_name = f"{self.first_name or ''} {self.last_name or ''}".strip()
@@ -169,13 +245,21 @@ class BaseUser(SQLModel, table=False):
         self.is_admin = False
         return True
 
-    def ban(self) -> bool:
-        self.is_active = False
-        return True
+    def ban(
+        self,
+        *,
+        actor_id: Optional[UUID] = None,
+        reason: Optional[str] = None,
+    ) -> AuditRecord:
+        return self.deactivate(actor_id=actor_id, reason=reason)
 
-    def des_ban(self) -> bool:
-        self.is_active = True
-        return True
+    def des_ban(
+        self,
+        *,
+        actor_id: Optional[UUID] = None,
+        reason: Optional[str] = None,
+    ) -> AuditRecord:
+        return self.activate(actor_id=actor_id, reason=reason)
 
 class BaseModelTurns(SQLModel, RenameTurnsStateMixin, table=False):
     reason: str = Field(nullable=True, default=None)
@@ -549,6 +633,27 @@ class Doctors(BaseUser, table=True):
         sa_column_kwargs={"name":"state"}
     )
 
+    def update_state(
+        self,
+        new_state: DoctorStates,
+        *,
+        actor_id: Optional[UUID] = None,
+        reason: Optional[str] = None,
+    ) -> AuditRecord:
+        if not isinstance(new_state, DoctorStates):
+            raise ValueError("Invalid doctor state provided.")
+
+        self.doctor_state = new_state
+        self.is_available = new_state == DoctorStates.available
+        return self._make_audit_record(
+            action="update_state",
+            actor_id=actor_id,
+            details={
+                "new_state": new_state.value,
+                **({"reason": reason} if reason else {}),
+            },
+        )
+
 
 class Chat(SQLModel, table=True):
     id: UUID = Field(
@@ -580,7 +685,6 @@ class ChatMessages(SQLModel, table=True):
     created_at: datetime = Field(nullable=False, default=datetime.now())
     deleted_at: datetime = Field(nullable=False, default=datetime.fromtimestamp((datetime.now() + timedelta(days=1)).timestamp()))
 
-#TODO: completar este tabla con datos importantes
 class HealthInsurance(SQLModel, table=True):
     __tablename__ = "health_insurance"
     id: UUID = Field(
@@ -598,8 +702,81 @@ class HealthInsurance(SQLModel, table=True):
         back_populates="health_insurance",
         link_model=UserHealthInsuranceLink
     )
+    
+class PasswordResetToken(SQLModel, table=True):
+    __tablename__ = "password_reset_tokens"
+    id: UUID = Field(
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"password_reset_token_id"},
+        default_factory=uuid4, 
+        primary_key=True,
+        unique=True)
+    user_id: Optional[UUID] = Field(
+        sa_type=UUID_TYPE,
+        foreign_key="users.user_id",
+        nullable=True,
+    )
+    token_hash: str = Field(nullable=False, index=True)
+    created_at: datetime = Field(default_factory=datetime.now, nullable=False)
+    expires_at: datetime = Field(nullable=False)
+    used: bool = Field(default=False, nullable=False)
+    attempts: int = Field(default=0, nullable=False)
+    request_ip: str = Field(nullable=True)
 
+class SistemSession(SQLModel):
+    uuid: UUID = Field(
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"session_id"},
+        default_factory=uuid.uuid4,
+        primary_key=True,
+        unique=True
+    )
+    value_hash: str = Field(nullable=False)
+    
 
+class AlertLevels(Enum):
+    low = "low"
+    medium = "medium"
+    high = "high"
+
+class AlertDDoS(SQLModel):
+    __tablename__ = "alert_ddos"
+    id: UUID = Field(
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"alert_ddos_id"},
+        default_factory=uuid.uuid4,
+        primary_key=True,
+        unique=True
+    )
+
+    path: str = Field(nullable=False)
+    ip: str = Field(nullable=False)
+    count: int = Field(default=0, nullable=False)
+    created_at: datetime = Field(default_factory=datetime.now, nullable=False)
+    updated_at: datetime = Field(default_factory=datetime.now, nullable=False)
+    alert_level: AlertLevels = Field(
+        nullable=False,
+        default=AlertLevels.low
+    )
+
+class AdminRegister(SQLModel):
+    __tablename__ = "admin_register"
+    id: UUID = Field(
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name":"admin_register_id"},
+        default_factory=uuid.uuid4,
+        primary_key=True,
+        unique=True
+    )
+    user_id: UUID = Field(foreign_key="users.user_id", ondelete="CASCADE")
+    user: User = Relationship(back_populates="admin_register")
+
+    table_changed_name: str = Field(nullable=False)
+    action: str = Field(nullable=False)
+    created_at: datetime = Field(default_factory=datetime.now, nullable=False)
+
+AdminRegister.model_rebuild()
+AlertDDoS.model_rebuild()
 User.model_rebuild()
 Doctors.model_rebuild()
 Services.model_rebuild()

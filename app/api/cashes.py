@@ -3,6 +3,7 @@ from fastapi.params import Query, Depends
 from fastapi.responses import Response, ORJSONResponse
 
 from typing import List, Dict, Optional, Tuple
+from uuid import UUID
 
 from rich.console import Console
 from sqlmodel import select
@@ -16,6 +17,16 @@ from app.core.interfaces.emails import EmailService
 from app.core.services.stripe_payment import StripeServices
 from app.db.main import SessionDep
 from app.models import Cashes
+from app.audit import (
+    AuditAction,
+    AuditEmitter,
+    AuditEventCreate,
+    AuditSeverity,
+    AuditTargetType,
+    build_request_metadata,
+    get_audit_emitter,
+    get_request_identifier,
+)
 
 console = Console()
 
@@ -28,8 +39,59 @@ auth = JWTBearer()
 
 public_router, private_router = APIRouter(prefix=""), APIRouter(prefix="", dependencies=[Depends(auth)])
 
+
+def _make_event(
+    request: Request,
+    *,
+    action: AuditAction,
+    severity: AuditSeverity = AuditSeverity.INFO,
+    actor_id: UUID | None = None,
+    target_id: UUID | None = None,
+    details: dict | None = None,
+) -> AuditEventCreate:
+    return AuditEventCreate(
+        action=action,
+        severity=severity,
+        target_type=AuditTargetType.PAYMENT,
+        actor_id=actor_id,
+        target_id=target_id,
+        request_id=get_request_identifier(request),
+        request_metadata=build_request_metadata(request),
+        details=dict(details or {}),
+    )
+
 @public_router.get("/pay/success")
-async def pay_success(session: SessionDep, a:str = Query(...)):
+async def pay_success(
+    request: Request,
+    session: SessionDep,
+    a: str = Query(...),
+    emitter: AuditEmitter = Depends(get_audit_emitter),
+):
+    """
+    Maneja la confirmación de pago exitoso desde Stripe.
+    
+    Procesa la respuesta de Stripe después de un pago exitoso,
+    decodifica los datos de la transacción y crea el registro
+    en el sistema de cajas.
+    
+    Args:
+        session (SessionDep): Sesión de base de datos
+        a (str): Datos de pago codificados en hexadecimal desde Stripe
+        
+    Returns:
+        Response: Redirección HTTP a panel de usuario
+            - Éxito: redirige a appointments?success=true
+            - Error: redirige a appointments?success=false&services=...
+            
+    Raises:
+        HTTPException: 500 si hay errores procesando los datos
+        
+    Note:
+        - Decodifica datos hexadecimales de Stripe
+        - Crea registro detallado en sistema de cajas
+        - Maneja servicios asociados al pago
+        - Redirige al frontend con parámetros de estado
+    """
     try:
         data = decode(
             bytes.fromhex(a)
@@ -49,8 +111,29 @@ async def pay_success(session: SessionDep, a:str = Query(...)):
         console.print(services_query)
         
         if success:
+            await emitter.emit_event(
+                _make_event(
+                    request,
+                    action=AuditAction.PAYMENT_SUCCEEDED,
+                    target_id=UUID(data["turn_id"]),
+                    details={
+                        "payment_method": data["payment_method"],
+                        "total": data["total"],
+                        "discount": data["discount"],
+                    },
+                )
+            )
             return Response(status_code=302, headers={"Location": "http://localhost:4200/user_panel/appointments?success=true"})
         else:
+            await emitter.emit_event(
+                _make_event(
+                    request,
+                    action=AuditAction.PAYMENT_FAILED,
+                    severity=AuditSeverity.WARNING,
+                    target_id=UUID(data["turn_id"]),
+                    details={"reason": "cash_detail_not_created", "services": data.get("services")},
+                )
+            )
             return Response(status_code=307, headers={"Location": f"http://localhost:4200/user_panel/appointments?success=false&{urlencode({"services":data["services"]})}"})
 
     except Exception as e:
@@ -59,7 +142,32 @@ async def pay_success(session: SessionDep, a:str = Query(...)):
 
 
 @public_router.get("/pay/cancel")
-async def pay_cansel(b: str = Query(...)):
+async def pay_cansel(
+    request: Request,
+    b: str = Query(...),
+    emitter: AuditEmitter = Depends(get_audit_emitter),
+):
+    """
+    Maneja la cancelación de pago desde Stripe.
+    
+    Procesa cuando el usuario cancela el pago en Stripe,
+    decodifica los datos de la transacción cancelada y
+    redirige al usuario de vuelta al panel.
+    
+    Args:
+        b (str): Datos de transacción codificados en hexadecimal
+        
+    Returns:
+        Response: Redirección HTTP al panel de citas del usuario
+        
+    Raises:
+        HTTPException: 500 si hay errores procesando los datos
+        
+    Note:
+        - No requiere procesamiento especial de cancelación
+        - Simplemente redirige al panel de usuario
+        - Mantiene logs para debugging
+    """
     try:
         data = decode(
             bytes.fromhex(b)
@@ -67,6 +175,15 @@ async def pay_cansel(b: str = Query(...)):
 
         console.print(data)
 
+        await emitter.emit_event(
+            _make_event(
+                request,
+                action=AuditAction.PAYMENT_CANCELLED,
+                severity=AuditSeverity.WARNING,
+                target_id=UUID(data.get("turn_id")) if data.get("turn_id") else None,
+                details={"reason": "user_cancelled"},
+            )
+        )
         return Response(status_code=302, headers={"Location": "http://localhost:4200/user_panel/appointments"})
 
     except Exception as e:
@@ -76,6 +193,33 @@ async def pay_cansel(b: str = Query(...)):
 
 @private_router.get("/", response_model=List[CashesRead])
 async def get_cashes(request: Request, session: SessionDep):
+    """
+    Obtiene todos los registros de transacciones del sistema de cajas.
+    
+    Lista todas las transacciones financieras (ingresos y gastos) 
+    registradas en el sistema. Solo accesible por administradores.
+    
+    Args:
+        request (Request): Request con información de autenticación
+        session (SessionDep): Sesión de base de datos
+        
+    Returns:
+        ORJSONResponse: Lista de transacciones serializadas con:
+            - id: ID de la transacción
+            - income: Monto de ingreso
+            - expense: Monto de gasto  
+            - date: Fecha de la transacción
+            - time_transaction: Hora de la transacción
+            - balance: Balance después de la transacción
+            
+    Raises:
+        HTTPException: 401 si no tiene scopes de administrador
+        
+    Note:
+        - Requiere scope "admin" para acceso
+        - Incluye todas las transacciones históricas
+        - Útil para reportes financieros y auditorías
+    """
     if "admin" not in request.state.scopes:
         raise HTTPException(
             status_code=401,
