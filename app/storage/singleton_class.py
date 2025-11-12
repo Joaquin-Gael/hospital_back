@@ -132,7 +132,10 @@ class Singleton(metaclass=PurgeMeta):
 
     def _load(self):
         raw = STORAGE_PATH.read_bytes()
-        self.data = Storage.model_validate_json(raw)
+        if not raw or raw == b'':
+            self.data = Storage.model_validate_json(raw)
+        else:
+            self.data = Storage.model_validate({"tables": {}})
 
 
     def _auto_flush(self):
@@ -166,11 +169,12 @@ class Singleton(metaclass=PurgeMeta):
 
     def _get_internal_all(self, table_name: str):
         self._load()
-        items = self.data.tables.get(table_name, {}).items
+        items = self.data.tables.get(table_name, Table(name=table_name, items={})).items
         if not items:
             return None
 
         items_response = []
+        console.print(type(items))
         for item in items.values():
             #console.print(item)
             items_response.append(
@@ -288,13 +292,13 @@ class Singleton(metaclass=PurgeMeta):
         self._mark_dirty()
 
     def update(self, key, value, table_name, long_live: bool = False) -> None:
-        item = self.get(key, table_name)
+        item: GetItem = self.get(key, table_name)
         if item is None:
             self.set(key, value, table_name)
             return
         item = SetItem(
             key=item.key,
-            value=item.value,
+            value=item.value.value,
             created=item.value.created,
             updated=datetime.now(),
             id=uuid4(),

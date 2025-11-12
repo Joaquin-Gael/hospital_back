@@ -6,7 +6,7 @@ import time
 
 from pydantic import BaseModel
 
-from fastapi import Header, HTTPException, status, Request, WebSocket
+from fastapi import Header, HTTPException, status, Request, WebSocket, Cookie
 
 from functools import singledispatch, wraps
 
@@ -22,7 +22,7 @@ from uuid import UUID
 
 from rich.console import Console
 
-from app.config import token_key, api_name, version, debug
+from app.config import token_key, api_name, version, debug, token_expire_minutes, token_refresh_expire_days
 from app.models import Doctors, User
 from app.db.session import session_factory
 from app.storage import storage
@@ -231,10 +231,10 @@ def gen_token(payload: dict, refresh: bool = False):
     payload.setdefault("iat", datetime.now())
     payload.setdefault("iss", f"{api_name}/{version}")
     if refresh:
-        payload["exp"] = int((datetime.now() + timedelta(days=1)).timestamp())
+        payload["exp"] = int((datetime.now() + timedelta(days=token_refresh_expire_days)).timestamp())
         payload.setdefault("type", "refresh_token")
     else:
-        payload["exp"] = int((datetime.now() + timedelta(minutes=15)).timestamp())
+        payload["exp"] = int((datetime.now() + timedelta(minutes=token_expire_minutes)).timestamp())
     return jwt.encode(payload, token_key, algorithm="HS256")
 
 def decode_token(token: str):
@@ -375,7 +375,7 @@ class JWTBearer:
         - Establece user y scopes en request.state
     """
     
-    async def __call__(self, request: Request, authorization: Optional[str] = Header(None)) -> User | Doctors | None:
+    async def __call__(self, request: Request, authorization: Optional[str] = Cookie(None)) -> User | Doctors | None:
         """
         Procesa autenticación JWT para una request HTTP.
         
@@ -400,13 +400,14 @@ class JWTBearer:
             - Maneja warnings para cuentas Google
             - Establece request.state.user y request.state.scopes
         """
-        if authorization is None or not authorization.startswith("Bearer"):
-            raise HTTPException(
+
+        if not authorization:
+            return HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="No credentials provided or invalid format"
             )
 
-        token = authorization.split(" ")[1]
+        token = authorization
 
         try:
             payload = decode_token(token)

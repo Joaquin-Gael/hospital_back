@@ -22,6 +22,7 @@ from app.schemas.medica_area import (
     PayTurnResponse,
     ServiceResponse,
     SpecialtyResponse,
+    TurnReschedule,
     TurnsCreate,
     TurnsDelete,
     TurnsResponse,
@@ -282,6 +283,80 @@ async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
 
     except Exception as exc:  # pragma: no cover - keep behaviour
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.patch("/{turn_id}/reschedule", response_model=TurnsResponse)
+async def reschedule_turn(
+    request: Request,
+    session: SessionDep,
+    turn_id: UUID,
+    payload: TurnReschedule,
+):
+    user = getattr(request.state, "user", None)
+
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You are not authorized")
+
+    turn = session.get(Turns, turn_id)
+
+    if turn is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Turn not found")
+
+    scopes = getattr(request.state, "scopes", []) or []
+    is_superuser = getattr(user, "is_superuser", False)
+    is_doctor = "doc" in scopes
+
+    if not is_superuser:
+        if is_doctor and turn.doctor_id != getattr(user, "id", None):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized")
+        if not is_doctor and turn.user_id != getattr(user, "id", None):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized")
+
+    try:
+        updated_turn = await TurnAndAppointmentRepository.reschedule_turn(
+            session=session,
+            turn=turn,
+            date=payload.date,
+            time=payload.time,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover - preserve logging behaviour
+        console.print_exception(show_locals=True)
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+    session.refresh(updated_turn)
+
+    services = [
+        ServiceResponse(
+            id=service.id,
+            name=service.name,
+            description=service.description,
+            price=service.price,
+            specialty_id=service.specialty_id,
+        ).model_dump()
+        for service in updated_turn.services
+    ]
+
+    return ORJSONResponse(
+        TurnsResponse(
+            id=updated_turn.id,
+            reason=updated_turn.reason,
+            state=updated_turn.state,
+            date=updated_turn.date,
+            date_limit=updated_turn.date_limit,
+            date_created=updated_turn.date_created,
+            user_id=updated_turn.user_id,
+            doctor_id=updated_turn.doctor_id,
+            appointment_id=str(updated_turn.appointment.id)
+            if updated_turn.appointment
+            else None,
+            time=updated_turn.time,
+            service=services,
+        ).model_dump()
+    )
 
 
 @router.delete("/delete/{turn_id}", response_model=TurnsDelete)

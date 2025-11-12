@@ -62,6 +62,8 @@ db_url = os.getenv("DB_URL")
 cors_host = os.getenv("DOMINIO")
 
 token_key = os.getenv("TOKEN_KEY")
+token_expire_minutes = _get_env_int("TOKEN_EXPIRE", 60)
+token_refresh_expire_days = _get_env_int("TOKEN_REFRESH_EXPIRE", 7)
 
 google_client_secret = os.getenv("CLIENT_SECRET_GOOGLE")
 google_client_id = os.getenv("CLIENT_ID_GOOGLE")
@@ -101,6 +103,8 @@ audit_list_default_limit = _get_env_int("AUDIT_LIST_DEFAULT_LIMIT", 100)
 audit_list_max_limit = _get_env_int("AUDIT_LIST_MAX_LIMIT", 500)
 audit_export_default_limit = _get_env_int("AUDIT_EXPORT_DEFAULT_LIMIT", 1000)
 audit_export_max_limit = _get_env_int("AUDIT_EXPORT_MAX_LIMIT", 2000)
+
+timezone = os.getenv("TIMEZONE", "America/Argentina/Buenos_Aires")
 
 audit_redact_fields = {
     value.strip().lower()

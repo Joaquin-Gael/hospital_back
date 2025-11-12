@@ -76,7 +76,6 @@ async def get_departments(request: Request, session: SessionDep):
                     department_id=department.id,
                     services=services_list,
                     doctors=doctors_list,
-                    icon_type=speciality.icon_code,
                 )
             )
 
