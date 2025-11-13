@@ -3,9 +3,13 @@ from typing import List, Optional, TypeVar
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import ORJSONResponse
+from fastapi.responses import ORJSONResponse, Response
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
+
+import os
+
+import pymupdf as fitz
 
 from app.db.main import SessionDep
 from app.models import (
@@ -131,6 +135,68 @@ def serialize_model(
 
     return serializer_instance
 
+
+@router.get("/user/pdf/{user_id}/{turn_id}")
+async def get_turn_data_pdf(request: Request, session: SessionDep, user_id: UUID, turn_id: UUID):
+    """Endpoint to get turn data in PDF format."""
+    user = request.state.user
+    
+    if not user.is_superuser and user_id != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unauthorized to inspect other users turns",
+        )
+    
+    target_turn = None
+    
+    try:
+        user = session.merge(user)
+        session.refresh(user)
+        turns = user.turns
+        console.print(f"[Debug]: Retrieved {len(turns)} turns for user {user.id}")
+        target_turn: Turns = [turn for turn in turns][0] if Turns else None
+        
+        if target_turn is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Turn not found for the user",
+            )
+        
+        session.refresh(target_turn)
+        
+        doc_pdf = fitz.open()
+        turn_page = doc_pdf.new_page()
+        
+        turn_page.insert_text((72, 72), f"Turn ID: {target_turn.id}")
+        turn_page.insert_text((72, 84), f"Doctor ID: {target_turn.doctor_id} | Doctor Name: {target_turn.doctor.first_name} {target_turn.doctor.last_name}")
+        turn_page.insert_text((72, 100), f"User ID: {target_turn.user_id} | User Name: {user.name}")
+        turn_page.insert_text((72, 128), f"Reason: {target_turn.reason}")
+        
+        turn_page.insert_text((72, 156), f"Date: {target_turn.date}")
+        turn_page.insert_text((72, 184), f"Time: {target_turn.time}")
+        
+        doc_bytes = doc_pdf.tobytes()
+        doc_pdf.close()
+        
+        pdf_path = ""
+            
+        
+        return Response(
+            content=doc_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=turn_{target_turn.id}.pdf"
+            }
+        )
+    
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while generating the PDF",
+        ) from e
+        
 
 @router.get("/user/{user_id}", response_model=Optional[List[TurnsResponse]])
 async def get_turns_by_user_id(
