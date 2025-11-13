@@ -460,6 +460,9 @@ class TurnDocumentDownload(SQLModel, table=True):
         ondelete="CASCADE",
     )
     downloaded_at: datetime = Field(default_factory=datetime.utcnow)
+    channel: str = Field(sa_type=VARCHAR(length=64), default="api")
+    client_ip: Optional[str] = Field(default=None, sa_type=VARCHAR(length=45))
+    user_agent: Optional[str] = Field(default=None, sa_type=VARCHAR(length=512))
 
     document: TurnDocument = Relationship(back_populates="downloads")
     turn: Turns = Relationship(back_populates="document_downloads")

@@ -1,5 +1,6 @@
 """Turn management routes."""
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterable, List, Optional, TypeVar
 from uuid import UUID
 
@@ -9,8 +10,6 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 import os
-
-import pymupdf as fitz
 
 from app.db.main import SessionDep
 from app.models import (
@@ -36,6 +35,10 @@ from app.schemas.medica_area import (
     TurnsState,
 )
 from app.core.interfaces.medic_area import TurnAndAppointmentRepository
+from app.core.services.pdf import (
+    get_or_create_turn_document,
+    register_turn_document_download,
+)
 from app.core.services.stripe_payment import StripeServices
 from app.audit import (
     AuditAction,
@@ -190,65 +193,100 @@ def serialize_model(
 
 
 @router.get("/user/pdf/{user_id}/{turn_id}")
-async def get_turn_data_pdf(request: Request, session: SessionDep, user_id: UUID, turn_id: UUID):
+async def get_turn_data_pdf(
+    request: Request,
+    session: SessionDep,
+    user_id: UUID,
+    turn_id: UUID,
+    emitter: AuditEmitter = Depends(get_audit_emitter),
+):
     """Endpoint to get turn data in PDF format."""
-    user = request.state.user
-    
-    if not user.is_superuser and user_id != user.id:
+
+    request_user = request.state.user
+
+    if not request_user.is_superuser and user_id != request_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Unauthorized to inspect other users turns",
         )
-    
-    target_turn = None
-    
+
     try:
-        user = session.merge(user)
-        session.refresh(user)
-        turns = user.turns
-        console.print(f"[Debug]: Retrieved {len(turns)} turns for user {user.id}")
-        target_turn: Turns = [turn for turn in turns][0] if Turns else None
-        
-        if target_turn is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Turn not found for the user",
+        turn, access = get_turn_with_relations(
+            session=session,
+            turn_id=turn_id,
+            request_user=request_user,
+            scopes=getattr(request.state, "scopes", []) or [],
+        )
+
+        is_authorized = (
+            access.is_superuser
+            or (access.has_doctor_scope and access.is_assigned_doctor)
+            or (not access.has_doctor_scope and access.is_owner)
+        )
+
+        if not is_authorized:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized")
+
+        document, pdf_bytes, created = get_or_create_turn_document(session, turn)
+
+        if created:
+            await emitter.emit_event(
+                _make_event(
+                    request,
+                    action=AuditAction.TURN_DOCUMENT_GENERATED,
+                    actor_id=getattr(request_user, "id", None),
+                    target_id=document.id,
+                    target_type=AuditTargetType.TURN_DOCUMENT,
+                    details={
+                        "turn_id": str(turn.id),
+                        "file_path": document.file_path,
+                    },
+                )
             )
-        
-        session.refresh(target_turn)
-        
-        doc_pdf = fitz.open()
-        turn_page = doc_pdf.new_page()
-        
-        turn_page.insert_text((72, 72), f"Turn ID: {target_turn.id}")
-        turn_page.insert_text((72, 84), f"Doctor ID: {target_turn.doctor_id} | Doctor Name: {target_turn.doctor.first_name} {target_turn.doctor.last_name}")
-        turn_page.insert_text((72, 100), f"User ID: {target_turn.user_id} | User Name: {user.name}")
-        turn_page.insert_text((72, 128), f"Reason: {target_turn.reason}")
-        
-        turn_page.insert_text((72, 156), f"Date: {target_turn.date}")
-        turn_page.insert_text((72, 184), f"Time: {target_turn.time}")
-        
-        doc_bytes = doc_pdf.tobytes()
-        doc_pdf.close()
-        
-        pdf_path = ""
-            
-        
+
+        download = register_turn_document_download(
+            session,
+            document=document,
+            user_id=getattr(request_user, "id", document.user_id),
+            channel=request.headers.get("x-download-channel", "api"),
+            client_ip=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+        )
+
+        await emitter.emit_event(
+            _make_event(
+                request,
+                action=AuditAction.TURN_DOCUMENT_DOWNLOADED,
+                actor_id=getattr(request_user, "id", None),
+                target_id=document.id,
+                target_type=AuditTargetType.TURN_DOCUMENT,
+                details={
+                    "turn_id": str(turn.id),
+                    "download_id": str(download.id),
+                    "channel": download.channel,
+                    "client_ip": download.client_ip,
+                },
+            )
+        )
+
+        filename = Path(document.file_path).name
+
         return Response(
-            content=doc_bytes,
+            content=pdf_bytes,
             media_type="application/pdf",
             headers={
-                "Content-Disposition": f"attachment; filename=turn_{target_turn.id}.pdf"
-            }
+                "Content-Disposition": f"attachment; filename={filename}",
+            },
         )
-    
-    except Exception as e:
+
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover - preserve behaviour
         console.print_exception(show_locals=True)
-        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while generating the PDF",
-        ) from e
+        ) from exc
         
 
 @router.get("/user/{user_id}", response_model=Optional[List[TurnsResponse]])

@@ -34,6 +34,9 @@ class AuditAction(str, Enum):
     PAYMENT_CANCELLED = "payment_cancelled"
     PAYMENT_FAILED = "payment_failed"
 
+    TURN_DOCUMENT_GENERATED = "turn_document_generated"
+    TURN_DOCUMENT_DOWNLOADED = "turn_document_downloaded"
+
 
 class AuditTargetType(str, Enum):
     """Entity types that commonly appear in audit records."""
@@ -45,6 +48,7 @@ class AuditTargetType(str, Enum):
     STORAGE_ENTRY = "StorageEntry"
     AUTH_TOKEN = "AuthToken"
     WEB_SESSION = "Session"
+    TURN_DOCUMENT = "TurnDocument"
 
 
 class AuditSeverity(str, Enum):
