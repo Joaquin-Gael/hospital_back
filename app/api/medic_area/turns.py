@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import ORJSONResponse
+from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.db.main import SessionDep
@@ -11,6 +12,7 @@ from app.models import (
     Appointments,
     Departments,
     Doctors,
+    Services,
     Specialties,
     Turns,
     User,
@@ -134,11 +136,55 @@ def serialize_model(
 async def get_turns_by_user_id(
     request: Request, session: SessionDep, user_id: UUID
 ):
-    user = session.get(User, user_id)
+    request_user: User | None = getattr(request.state, "user", None)
+
+    if request_user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You are not authorized")
+
+    if not request_user.is_superuser and user_id != request_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unauthorized to inspect other users turns",
+        )
+
+    load_options = (
+        selectinload(User.turns),
+        selectinload(User.turns)
+        .selectinload(Turns.doctor)
+        .selectinload(Doctors.speciality)
+        .selectinload(Specialties.departament),
+        selectinload(User.turns)
+        .selectinload(Turns.services)
+        .selectinload(Services.speciality)
+        .selectinload(Specialties.departament),
+    )
+
+    def _load_user_with_turns(target_user_id: UUID) -> User | None:
+        statement = select(User).where(User.id == target_user_id).options(*load_options)
+        return session.exec(statement).first()
+
+    db_request_user = _load_user_with_turns(request_user.id)
+
+    if db_request_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Authenticated user not found",
+        )
+
+    if request_user.is_superuser and user_id != request_user.id:
+        target_user = _load_user_with_turns(user_id)
+    else:
+        target_user = db_request_user
+
+    if target_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
 
     def serialize_departament(department: Departments):
-        session.merge(department)
-        session.refresh(department)
+        if department is None:
+            return None
         return DepartmentResponse(
             id=department.id,
             name=department.name,
@@ -147,8 +193,8 @@ async def get_turns_by_user_id(
         )
 
     def serialize_speciality(speciality: Specialties):
-        session.merge(speciality)
-        session.refresh(speciality)
+        if speciality is None:
+            return None
         return SpecialtyResponse(
             id=speciality.id,
             name=speciality.name,
@@ -168,18 +214,22 @@ async def get_turns_by_user_id(
                 date_created=turn.date_created,
                 user_id=turn.user_id,
                 time=turn.time,
-                doctor=DoctorResponse(
-                    id=turn.doctor.id,
-                    dni=turn.doctor.dni,
-                    username=turn.doctor.name,
-                    speciality_id=turn.doctor.speciality_id,
-                    date_joined=turn.doctor.date_joined,
-                    is_active=turn.doctor.is_active,
-                    email=turn.doctor.email,
-                    first_name=turn.doctor.first_name,
-                    last_name=turn.doctor.last_name,
-                    telephone=turn.doctor.telephone,
-                ).model_dump(),
+                doctor=(
+                    DoctorResponse(
+                        id=turn.doctor.id,
+                        dni=turn.doctor.dni,
+                        username=turn.doctor.name,
+                        speciality_id=turn.doctor.speciality_id,
+                        date_joined=turn.doctor.date_joined,
+                        is_active=turn.doctor.is_active,
+                        email=turn.doctor.email,
+                        first_name=turn.doctor.first_name,
+                        last_name=turn.doctor.last_name,
+                        telephone=turn.doctor.telephone,
+                    ).model_dump()
+                    if turn.doctor
+                    else None
+                ),
                 service=[
                     ServiceResponse(
                         id=service.id,
@@ -191,7 +241,7 @@ async def get_turns_by_user_id(
                     for service in turn.services
                 ],
             ).model_dump()
-            for turn in user.turns
+            for turn in target_user.turns
         ]
 
         return ORJSONResponse(turns_serialized, status_code=200)
