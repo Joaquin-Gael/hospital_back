@@ -98,6 +98,9 @@ class TurnDocumentDownloadLog(BaseModel):
     turn_id: UUID
     user_id: UUID
     downloaded_at: datetime
+    channel: str
+    client_ip: Optional[str] = None
+    user_agent: Optional[str] = None
     user: Optional[UserRead] = None
     turn: Optional[TurnsResponse] = None
 
