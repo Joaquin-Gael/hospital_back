@@ -71,7 +71,7 @@ oauth_router = APIRouter(
 )
 
 @router.get("/scopes", response_model=Dict[str, List[str]])
-async def get_scopes(request: Request, _=Depends(auth)):
+async def get_scopes(request: Request, user: User | Doctors = Depends(auth)):
     """
     Obtiene los scopes/permisos del usuario autenticado.
     
@@ -80,7 +80,7 @@ async def get_scopes(request: Request, _=Depends(auth)):
     
     Args:
         request (Request): Request con estado de autenticación
-        _ (User): Usuario autenticado (inyectado por dependency)
+        user (User | Doctors): Usuario autenticado (inyectado por dependency)
         
     Returns:
         ORJSONResponse: Diccionario con lista de scopes del usuario
@@ -89,9 +89,30 @@ async def get_scopes(request: Request, _=Depends(auth)):
     Note:
         Requiere autenticación válida. Los scopes se establecen durante login.
     """
-    scopes = request.state.scopes
+    # Los scopes se establecen en request.state por el JWTBearer
+    # pero para asegurarnos, también los extraemos del usuario
+    scopes = getattr(request.state, 'scopes', None)
+    
+    # Si por alguna razón no están en request.state, construirlos desde el usuario
+    if scopes is None:
+        scopes = []
+        
+        if isinstance(user, Doctors):
+            scopes.append("doc")
+            if user.is_active:
+                scopes.append("active")
+        else:  # Es un User
+            if user.is_admin:
+                scopes.append("admin")
+            if user.is_superuser:
+                scopes.append("superuser")
+            else:
+                scopes.append("user")
+            if user.is_active:
+                scopes.append("active")
+    
     return ORJSONResponse({
-        "scopes":scopes,
+        "scopes": scopes,
     })
 
 @router.post("/decode/")

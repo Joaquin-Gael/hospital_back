@@ -375,16 +375,22 @@ class JWTBearer:
         - Establece user y scopes en request.state
     """
     
-    async def __call__(self, request: Request, authorization: Optional[str] = Cookie(None)) -> User | Doctors | None:
+    async def __call__(
+        self, 
+        request: Request, 
+        authorization: Optional[str] = Header(None),  # ← Prioridad: Header
+        authorization_cookie: Optional[str] = Cookie(None, alias="authorization")  # ← Fallback: Cookie
+    ) -> User | Doctors | None:
         """
         Procesa autenticación JWT para una request HTTP.
         
-        Extrae el token del header Authorization, lo valida, y carga
-        los datos del usuario correspondiente en el estado de la request.
+        Extrae el token del header Authorization o de la cookie (en ese orden),
+        lo valida, y carga los datos del usuario correspondiente en el estado de la request.
         
         Args:
             request (Request): Request HTTP de FastAPI
             authorization (str, optional): Header "Authorization: Bearer {token}"
+            authorization_cookie (str, optional): Cookie "authorization" con el token
             
         Returns:
             User | Doctors | None: Usuario o médico autenticado
@@ -395,19 +401,33 @@ class JWTBearer:
             HTTPException: 403 si token está baneado
             
         Note:
-            - Valida formato "Bearer {token}"
+            - Prioriza Header sobre Cookie (mejor para desarrollo cross-origin)
+            - Valida formato "Bearer {token}" solo en Header
             - Previene uso de refresh tokens en endpoints normales
             - Maneja warnings para cuentas Google
             - Establece request.state.user y request.state.scopes
         """
-
-        if not authorization:
-            return HTTPException(
+        
+        # Prioridad: Header > Cookie
+        token = None
+        
+        if authorization:
+            # Viene del Header Authorization
+            if not authorization.startswith("Bearer "):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Invalid authorization header format. Expected 'Bearer {token}'"
+                )
+            token = authorization.replace("Bearer ", "")
+        elif authorization_cookie:
+            # Fallback a Cookie (para producción o cuando el front está en el mismo dominio)
+            token = authorization_cookie
+        
+        if not token:
+            raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="No credentials provided or invalid format"
             )
-
-        token = authorization
 
         try:
             payload = decode_token(token)
@@ -416,13 +436,12 @@ class JWTBearer:
                 request,
                 action=AuditAction.TOKEN_INVALID,
                 severity=AuditSeverity.WARNING,
-                details={"reason": "invalid_or_expired", "token_prefix": token[:8]},
+                details={"reason": "invalid_or_expired", "token_prefix": token[:8] if token else "none"},
             )
-            raise HTTPException(status_code=401, detail=e.args) from e
+            raise HTTPException(status_code=401, detail=str(e)) from e
 
+        # Validar que no se use refresh token en endpoints normales
         if request.scope["route"].name != "refresh_token":
-            #console.rule(request.scope["route"].name)
-            #console.print(f"Se intento hacer el refresh: {payload}")
             if payload.get("type") == "refresh_token":
                 await _emit_security_event(
                     request,
@@ -430,43 +449,51 @@ class JWTBearer:
                     severity=AuditSeverity.WARNING,
                     details={"reason": "refresh_token_used", "route": request.scope["route"].name},
                 )
-                raise HTTPException(status_code=401, detail="No credentials provided or invalid format")
+                raise HTTPException(status_code=401, detail="Refresh tokens cannot be used for regular endpoints")
 
         user_id = payload.get("sub")
+        
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid token payload: missing subject")
 
-        ban_token = storage.get(key=payload.get("sub"), table_name="ban-token")
-
-        #console.print(">>> ", ban_token, " <<<") if debug else None
+        # Verificar tokens baneados
+        ban_token = storage.get(key=user_id, table_name="ban-token")
 
         if ban_token is not None:
-            #console.print(f"Token banned: {ban_token.value}") if debug else None
             stored_token = getattr(getattr(ban_token, "value", None), "value", None)
             if stored_token and token == stored_token:
                 await _emit_security_event(
                     request,
                     action=AuditAction.TOKEN_REVOKED,
                     severity=AuditSeverity.WARNING,
-                    actor_id=UUID(user_id) if user_id else None,
-                    target_id=UUID(user_id) if user_id else None,
+                    actor_id=UUID(user_id),
+                    target_id=UUID(user_id),
                     target_type=AuditTargetType.AUTH_TOKEN,
                     details={"reason": "banned_token"},
                 )
-                raise HTTPException(status_code=403, detail="Token banned")
+                raise HTTPException(status_code=403, detail="Token has been revoked")
 
         try:
-            if user_id is None:
-                raise HTTPException(status_code=401, detail="Invalid token payload")
-
-
+            # Determinar si es doctor o usuario
             statement = select(User).where(User.id == user_id)
 
-            if "doc" in payload.get("scopes"):
+            if "doc" in payload.get("scopes", []):
                 statement = select(Doctors).where(Doctors.id == user_id)
 
             with session_factory() as session:
                 user = session.exec(statement).first()
 
-            if "google" in payload.get("scopes") and not "doc" in payload.get("scopes"):
+            if not user:
+                await _emit_security_event(
+                    request,
+                    action=AuditAction.TOKEN_INVALID,
+                    severity=AuditSeverity.WARNING,
+                    details={"reason": "user_not_found", "user_id": user_id},
+                )
+                raise HTTPException(status_code=401, detail="User not found")
+
+            # Enviar warning para cuentas Google si aplica
+            if "google" in payload.get("scopes", []) and "doc" not in payload.get("scopes", []):
                 EmailService.send_warning_google_account(
                     email=user.email,
                     first_name=user.first_name,
@@ -475,14 +502,24 @@ class JWTBearer:
                     to_delete=datetime.now() + timedelta(days=7)
                 )
 
+            # CRÍTICO: Establecer user y scopes en request.state
             request.state.user = user
-            request.state.scopes = payload.get("scopes")
+            request.state.scopes = payload.get("scopes", [])
 
             return user
 
+        except HTTPException:
+            # Re-raise HTTPExceptions sin modificar
+            raise
         except Exception as e:
-            console.print(e) if debug else None
-            raise HTTPException(status_code=401, detail="Invalid or expired token")
+            console.print_exception(show_locals=True) if debug else None
+            await _emit_security_event(
+                request,
+                action=AuditAction.TOKEN_INVALID,
+                severity=AuditSeverity.ERROR,
+                details={"reason": "unexpected_error", "error": str(e)},
+            )
+            raise HTTPException(status_code=401, detail="Authentication failed") from e
 
 class JWTWebSocket:
     async def __call__(self, websocket: WebSocket) -> tuple[User | Doctors, list[str]] | tuple[None, None] | None:

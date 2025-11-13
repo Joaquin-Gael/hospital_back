@@ -40,7 +40,7 @@ def timeit(func):
     return wrapper
 
 class PurgeMeta(type):
-    ignore_methods = {"__init__", "__new__", "create_table", "purge_expired"}
+    ignore_methods = {"__init__", "__new__", "create_table", "purge_expired", "_load", "_auto_flush", "_mark_dirty", "__init_storage", "_get_internal_all"}
 
     def __new__(mcs, name, bases, namespace):
         for attr, val in namespace.items():
@@ -55,9 +55,9 @@ class PurgeMeta(type):
         @timeit
         def wrapper(self, *args, **kwargs):
             table_name = kwargs.get("table_name")
-            if table_name:
+            # Solo purgar si la tabla existe
+            if table_name and table_name in self.data.tables:
                 self.purge_expired(table_name)
-                self._mark_dirty()
             return method(self, *args, **kwargs)
         return wrapper
 
@@ -97,23 +97,28 @@ class Storage(BaseModel):
 class Singleton(metaclass=PurgeMeta):
     _instance = None
     _cache = TTLCache(maxsize=100, ttl=timedelta(minutes=1).total_seconds())
+    
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance.__init_storage()
-        else:
-            pass
-
         return cls._instance
 
     def purge_expired(self, table_name: str) -> None:
+        """Elimina items expirados de una tabla"""
+        # Validar que la tabla existe
+        if table_name not in self.data.tables:
+            console.print(f"[yellow]Table '{table_name}' does not exist, skipping purge[/yellow]")
+            return
+            
         items = self._get_internal_all(table_name=table_name)
         if items is None:
             return
+            
         now = datetime.now()
         self.data.tables[table_name].items = {
             item.key: item.value for item in items
-            if item.value.expired > now
+            if item.value.expired and item.value.expired > now
         }
 
     def __init_storage(self):
@@ -121,62 +126,97 @@ class Singleton(metaclass=PurgeMeta):
         self._flush_event = threading.Event()
         self.data = None
         self._dirty = False
+        
+        # Asegurar que el directorio existe
+        STORAGE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        
         if not STORAGE_PATH.exists():
-            STORAGE_PATH.touch()
-            STORAGE_PATH.write_bytes(orjson.dumps({"tables": {}}, default=str))
+            # Crear archivo con estructura inicial válida
+            initial_data = {"tables": {}}
+            STORAGE_PATH.write_bytes(orjson.dumps(initial_data, default=str))
+        
         self._load()
 
+        # Iniciar thread de auto-flush
         t = threading.Thread(target=self._auto_flush, daemon=True)
         t.start()
 
-
     def _load(self):
-        raw = STORAGE_PATH.read_bytes()
-        if not raw or raw == b'':
-            self.data = Storage.model_validate_json(raw)
-        else:
-            self.data = Storage.model_validate({"tables": {}})
-
+        """Carga los datos desde el archivo JSON"""
+        try:
+            raw = STORAGE_PATH.read_bytes()
+            
+            # Si el archivo está vacío o solo tiene espacios en blanco
+            if not raw or not raw.strip():
+                console.print("[yellow]Storage file is empty, initializing with default structure[/yellow]")
+                self.data = Storage(tables={})
+                self._mark_dirty()  # Guardar la estructura inicial
+                return
+            
+            # Intentar parsear el JSON
+            try:
+                self.data = Storage.model_validate_json(raw)
+            except Exception as json_error:
+                console.print(f"[red]Error parsing JSON: {json_error}[/red]")
+                console.print("[yellow]Resetting storage to default structure[/yellow]")
+                # Si falla el parseo, crear estructura limpia
+                self.data = Storage(tables={})
+                self._mark_dirty()
+                
+        except FileNotFoundError:
+            console.print("[yellow]Storage file not found, creating new one[/yellow]")
+            self.data = Storage(tables={})
+            self._mark_dirty()
+        except Exception as e:
+            console.print(f"[red]Unexpected error loading storage: {e}[/red]")
+            self.data = Storage(tables={})
+            self._mark_dirty()
 
     def _auto_flush(self):
+        """Thread que guarda automáticamente los cambios cada segundo si hay cambios pendientes"""
         while True:
             self._flush_event.wait(timeout=1)
             with self._lock:
                 if self._dirty:
-                    data_bytes = orjson.dumps(self.data.model_dump(), default=date_encoder)
-                    STORAGE_PATH.write_bytes(data_bytes)
-                    self._dirty = False
-                # Resetea el evento
+                    try:
+                        data_bytes = orjson.dumps(self.data.model_dump(), default=date_encoder)
+                        STORAGE_PATH.write_bytes(data_bytes)
+                        self._dirty = False
+                        console.print("[green]Storage flushed successfully[/green]")
+                    except Exception as e:
+                        console.print(f"[red]Error flushing storage: {e}[/red]")
                 self._flush_event.clear()
 
     def _mark_dirty(self):
+        """Marca que hay cambios pendientes de guardar"""
         with self._lock:
             self._dirty = True
             self._flush_event.set()
 
     def create_table(self, table_name: str):
-        self._load()
+        """Crea una nueva tabla si no existe"""
+        # No necesitamos recargar en cada operación si usamos el singleton correctamente
         if table_name in self.data.tables:
+            console.print(f"[yellow]Table '{table_name}' already exists[/yellow]")
             return None
-        table = Table(
-            name=table_name,
-            items={}
-        )
+        
+        table = Table(name=table_name, items={})
         self.data.tables[table_name] = table
-        #console.print(self.data)
         self._mark_dirty()
+        console.print(f"[green]Table '{table_name}' created successfully[/green]")
         return table
 
     def _get_internal_all(self, table_name: str):
-        self._load()
-        items = self.data.tables.get(table_name, Table(name=table_name, items={})).items
+        """Método interno para obtener todos los items sin cache"""
+        if table_name not in self.data.tables:
+            return None
+            
+        items = self.data.tables[table_name].items
         if not items:
             return None
 
         items_response = []
-        console.print(type(items))
         for item in items.values():
-            #console.print(item)
             items_response.append(
                 GetItem(
                     key=item.key,
@@ -190,13 +230,14 @@ class Singleton(metaclass=PurgeMeta):
                     )
                 )
             )
-
         return items_response
 
-    @cached(_cache)
     def get_all(self, table_name: str = None) -> List[GetItem] | None:
-        self._load()
-        items = self.data.tables.get(table_name, {}).items
+        """Obtiene todos los items de una tabla (con cache)"""
+        if table_name not in self.data.tables:
+            return None
+            
+        items = self.data.tables[table_name].items
         if not items:
             return None
 
@@ -215,15 +256,21 @@ class Singleton(metaclass=PurgeMeta):
                     )
                 )
             )
-
         return items_response
 
-    @cached(_cache)
     def get(self, key: str, table_name: str) -> GetItem | None:
-        self._load()
-        item = self.data.tables[table_name].items.get(key, None)
-        if not item:
+        """Obtiene un item específico por key"""
+        # Validar que la tabla existe
+        if table_name not in self.data.tables:
+            console.print(f"[yellow]Table '{table_name}' does not exist, returning None[/yellow]")
             return None
+            
+        items = self.data.tables[table_name].items
+        if not items or key not in items:
+            return None
+        
+        item = items[key]
+        
         return GetItem(
             key=item.key,
             value=Response(
@@ -237,72 +284,92 @@ class Singleton(metaclass=PurgeMeta):
         )
     
     def get_by_parameter(self, parameter: str, equals: Any, table_name: str) -> GetItem:
-        self._load()
+        """Busca un item por un parámetro específico"""
+        if table_name not in self.data.tables:
+            raise NoneResultException(f"Table '{table_name}' does not exist")
+            
         for item in self.data.tables[table_name].items.values():
-            #console.print(item)
             data = item.value.get(parameter, None)
-            if data:
+            if data is not None:
                 if type(data) == type(equals) and data == equals:
                     return GetItem(key=item.key, value=item)
-                else:
-                    continue
-        raise NoneResultException(f"No exist item whit {parameter} = {equals}")
+                    
+        raise NoneResultException(f"No item found with {parameter} = {equals}")
 
-    def set(self, key = None, value = None, table_name: str = "", long_live: bool = False, short_live: bool = False) -> SetItem:
+    def set(self, key=None, value=None, table_name: str = "", long_live: bool = False, short_live: bool = False, auto_create_table: bool = True) -> SetItem:
+        """Crea o actualiza un item"""
+        # Auto-crear tabla si no existe y auto_create_table es True
+        if table_name not in self.data.tables:
+            if auto_create_table:
+                console.print(f"[yellow]Table '{table_name}' does not exist, creating it automatically[/yellow]")
+                self.create_table(table_name)
+            else:
+                raise ValueError(f"Table '{table_name}' does not exist. Create it first with create_table()")
+            
         if long_live and short_live:
             raise ValueError("Only one of long_live or short_live can be True")
-        elif long_live:
-            item = SetItem(
-                key=key,
-                value=value,
-                created=datetime.now(),
-                updated=datetime.now(),
-                id=uuid4(),
-                expired=datetime.now() + timedelta(days=30)
-            )
+        
+        # Determinar tiempo de expiración
+        if long_live:
+            expired = datetime.now() + timedelta(days=30)
         elif short_live:
-            item = SetItem(
-                key=key,
-                value=value,
-                created=datetime.now(),
-                updated=datetime.now(),
-                id=uuid4(),
-                expired=datetime.now() + timedelta(minutes=1)
-            )
+            expired = datetime.now() + timedelta(minutes=1)
         else:
-            item = SetItem(
-                key=key,
-                value=value,
-                created=datetime.now(),
-                updated=datetime.now(),
-                id=uuid4(),
-                expired=datetime.now() + timedelta(minutes=15)
-            )
+            expired = datetime.now() + timedelta(minutes=15)
+        
+        item = SetItem(
+            key=key,
+            value=value,
+            created=datetime.now(),
+            updated=datetime.now(),
+            id=uuid4(),
+            expired=expired
+        )
             
         self.data.tables[table_name].items[key] = item
         self._mark_dirty()
         return item
 
     def delete(self, key, table_name: str) -> None:
-        del self.data.tables[table_name].items[key]
-        self._mark_dirty()
+        """Elimina un item por key"""
+        if table_name not in self.data.tables:
+            raise ValueError(f"Table '{table_name}' does not exist")
+            
+        if key in self.data.tables[table_name].items:
+            del self.data.tables[table_name].items[key]
+            self._mark_dirty()
 
     def clear(self, table_name: str = None) -> None:
-        self.data.tables[table_name].clear()
+        """Limpia todos los items de una tabla"""
+        if table_name not in self.data.tables:
+            raise ValueError(f"Table '{table_name}' does not exist")
+            
+        self.data.tables[table_name].items.clear()
         self._mark_dirty()
 
     def update(self, key, value, table_name, long_live: bool = False) -> None:
+        """Actualiza un item existente o lo crea si no existe"""
+        if table_name not in self.data.tables:
+            raise ValueError(f"Table '{table_name}' does not exist")
+            
         item: GetItem = self.get(key, table_name)
+        
         if item is None:
-            self.set(key, value, table_name)
+            # Si no existe, crear uno nuevo
+            self.set(key, value, table_name, long_live=long_live)
             return
-        item = SetItem(
+        
+        # Actualizar el existente
+        expired = datetime.now() + timedelta(days=30) if long_live else datetime.now() + timedelta(minutes=15)
+        
+        updated_item = SetItem(
             key=item.key,
-            value=item.value.value,
+            value=value,  # Usar el nuevo valor, no el viejo
             created=item.value.created,
             updated=datetime.now(),
             id=uuid4(),
-            expired=datetime.now() + timedelta(minutes=15) if not long_live else datetime.now() + timedelta(days=30)
+            expired=expired
         )
-        self.data.tables[table_name].items[key] = item
+        
+        self.data.tables[table_name].items[key] = updated_item
         self._mark_dirty()
