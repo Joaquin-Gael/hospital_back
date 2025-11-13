@@ -23,6 +23,7 @@ from app.models import (
     Doctors,
     User,
     DayOfWeek,
+    Specialties
 )
 
 class DoctorRepository(BaseInterface):
@@ -251,8 +252,14 @@ class TurnAndAppointmentRepository(BaseInterface):
         if turn is None:
             raise ValueError("Turn not found")
 
-        if turn.doctor_id is None:
-            raise ValueError("Turn has no assigned doctor")
+        if not turn.services:
+            raise ValueError("Turn has no associated services")
+
+        # ✅ Obtener la especialidad del turno desde los servicios
+        specialty = turn.services[0].speciality
+        
+        if not specialty:
+            raise ValueError("Service has no associated specialty")
 
         day_map = {
             1: DayOfWeek.monday,
@@ -271,6 +278,8 @@ class TurnAndAppointmentRepository(BaseInterface):
 
         session.refresh(turn)
 
+        # ✅ CAMBIO CRÍTICO: Buscar schedules de CUALQUIER doctor de la especialidad
+        # Primero intentar con el doctor actual
         schedule = session.exec(
             select(MedicalSchedules)
             .join(MedicalSchedules.doctors)
@@ -281,9 +290,52 @@ class TurnAndAppointmentRepository(BaseInterface):
             .limit(1)
         ).first()
 
+        assigned_doctor_id = turn.doctor_id
+        
+        # Si el doctor actual no tiene horario ese día, buscar otro doctor de la especialidad
         if schedule is None:
-            raise ValueError("No matching schedule found for the selected date")
+            console.print(f"⚠️ Doctor {turn.doctor_id} no disponible para {target_day}, buscando alternativa...")
+            
+            # Obtener todos los schedules de la especialidad para ese día
+            available_schedules = session.exec(
+                select(MedicalSchedules)
+                .join(MedicalSchedules.doctors)
+                .join(Doctors.speciality)
+                .where(
+                    Specialties.id == specialty.id,
+                    MedicalSchedules.day == target_day,
+                    MedicalSchedules.available == True,
+                )
+            ).all()
+            
+            if not available_schedules:
+                raise ValueError("No matching schedule found for the selected date")
+            
+            # Buscar el schedule con más capacidad disponible
+            best_schedule = None
+            for sched in available_schedules:
+                if sched.max_patients is None:
+                    best_schedule = sched
+                    break
+                
+                available_slots = sched.max_patients - len(sched.turns)
+                if available_slots > 0:
+                    if best_schedule is None:
+                        best_schedule = sched
+                    else:
+                        current_best_slots = (best_schedule.max_patients or 0) - len(best_schedule.turns)
+                        if available_slots > current_best_slots:
+                            best_schedule = sched
+            
+            if best_schedule is None:
+                raise ValueError("No available slots in the schedule")
+            
+            schedule = best_schedule
+            # ✅ Cambiar al nuevo doctor
+            assigned_doctor_id = schedule.doctors[0].id if schedule.doctors else turn.doctor_id
+            console.print(f"✅ Turno reasignado a doctor {assigned_doctor_id}")
 
+        # Validar que hay espacio disponible
         turn_is_already_assigned = schedule in turn.schedules
         scheduled_patients = len(schedule.turns) - (1 if turn_is_already_assigned else 0)
 
@@ -291,6 +343,7 @@ class TurnAndAppointmentRepository(BaseInterface):
             raise ValueError("No available slots in the schedule")
 
         try:
+            # Remover turno de schedules anteriores
             previous_schedules = list(turn.schedules)
 
             for previous_schedule in previous_schedules:
@@ -308,10 +361,13 @@ class TurnAndAppointmentRepository(BaseInterface):
             turn.schedules.clear()
             session.flush()
 
+            # ✅ Actualizar el turno con nueva fecha, hora y posiblemente nuevo doctor
             turn.date = date
             turn.date_limit = date + timedelta(days=1)
             turn.time = time
+            turn.doctor_id = assigned_doctor_id  # ← Puede cambiar de doctor
 
+            # Agregar turno al nuevo schedule
             schedule.turns.append(turn)
 
             if schedule.max_patients is not None:
@@ -319,11 +375,17 @@ class TurnAndAppointmentRepository(BaseInterface):
             else:
                 schedule.available = True
 
+            # ✅ Actualizar appointment si el doctor cambió
+            if turn.appointment and turn.appointment.doctor_id != assigned_doctor_id:
+                turn.appointment.doctor_id = assigned_doctor_id
+                session.add(turn.appointment)
+
             session.add(schedule)
             session.add(turn)
             session.commit()
 
-        except Exception:
+        except Exception as exc:
+            console.print_exception(show_locals=True)
             session.rollback()
             raise
 

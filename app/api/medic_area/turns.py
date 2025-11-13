@@ -132,7 +132,7 @@ def serialize_model(
     return serializer_instance
 
 
-@router.get("/{user_id}", response_model=Optional[List[TurnsResponse]])
+@router.get("/user/{user_id}", response_model=Optional[List[TurnsResponse]])
 async def get_turns_by_user_id(
     request: Request, session: SessionDep, user_id: UUID
 ):
@@ -260,10 +260,21 @@ async def get_turn_by_id(request: Request, session: SessionDep, turn_id: UUID):
         secure_turn = session.exec(select(Turns).where(Turns.id == turn_id)).first()
 
         if secure_turn is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Turn not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="Turn not found"
+            )
 
-        if secure_turn.user_id != user.id or secure_turn.doctor_id != user.id:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+        # ✅ Permitir acceso a superusers, owners y doctors
+        is_superuser = getattr(user, 'is_superuser', False)
+        is_owner = secure_turn.user_id == user.id
+        is_doctor = secure_turn.doctor_id == user.id
+        
+        if not (is_superuser or is_owner or is_doctor):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, 
+                detail="You don't have permission to access this turn"
+            )
 
         return ORJSONResponse(
             TurnsResponse(
@@ -274,10 +285,28 @@ async def get_turn_by_id(request: Request, session: SessionDep, turn_id: UUID):
                 date_limit=secure_turn.date_limit,
                 date_created=secure_turn.date_created,
                 user_id=secure_turn.user_id,
+                doctor_id=secure_turn.doctor_id,
+                time=secure_turn.time,
+                # Incluir servicios si están disponibles
+                service=[
+                    ServiceResponse(
+                        id=service.id,
+                        name=service.name,
+                        description=service.description,
+                        price=service.price,
+                        specialty_id=service.specialty_id,
+                    ).model_dump()
+                    for service in secure_turn.services
+                ] if secure_turn.services else []
             ).model_dump()
         )
-    except Exception as exc:  # pragma: no cover - behaviour preserved
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail=str(exc)
+        ) from exc
 
 
 @router.post("/add", response_model=PayTurnResponse)
@@ -345,22 +374,39 @@ async def reschedule_turn(
     user = getattr(request.state, "user", None)
 
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You are not authorized")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="You are not authorized"
+        )
 
     turn = session.get(Turns, turn_id)
 
     if turn is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Turn not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Turn not found"
+        )
 
     scopes = getattr(request.state, "scopes", []) or []
     is_superuser = getattr(user, "is_superuser", False)
     is_doctor = "doc" in scopes
+    is_owner = turn.user_id == getattr(user, "id", None)
+    is_assigned_doctor = turn.doctor_id == getattr(user, "id", None)
 
-    if not is_superuser:
-        if is_doctor and turn.doctor_id != getattr(user, "id", None):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized")
-        if not is_doctor and turn.user_id != getattr(user, "id", None):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized")
+    # Superusers pueden reprogramar cualquier turno
+    # Doctores solo pueden reprogramar sus propios turnos
+    # Pacientes solo pueden reprogramar sus propios turnos
+    is_authorized = (
+        is_superuser or 
+        (is_doctor and is_assigned_doctor) or 
+        (not is_doctor and is_owner)
+    )
+
+    if not is_authorized:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="You are not authorized to reschedule this turn"
+        )
 
     try:
         updated_turn = await TurnAndAppointmentRepository.reschedule_turn(
@@ -370,12 +416,18 @@ async def reschedule_turn(
             time=payload.time,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, 
+            detail=str(exc)
+        ) from exc
     except HTTPException:
         raise
     except Exception as exc:  # pragma: no cover - preserve logging behaviour
         console.print_exception(show_locals=True)
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=str(exc)
+        ) from exc
 
     session.refresh(updated_turn)
 
@@ -407,7 +459,6 @@ async def reschedule_turn(
             service=services,
         ).model_dump()
     )
-
 
 @router.delete("/delete/{turn_id}", response_model=TurnsDelete)
 async def delete_turn(
