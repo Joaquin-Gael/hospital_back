@@ -55,28 +55,24 @@ async def lifespan(app: FastAPI):
     Inicializa la base de datos, ejecuta migraciones, configura el usuario administrador
     y crea las tablas de almacenamiento necesarias. En modo debug, también limpia
     recursos al cerrar la aplicación.
-    
-    Args:
-        app: Instancia de la aplicación FastAPI
-        
-    Yields:
-        None: Punto de ejecución de la aplicación
-        
-    Note:
-        En modo debug, intenta eliminar la base de datos SQLite al cerrar.
     """
+    from app.storage.main import storage
+    from rich.console import Console
+    
+    console = Console()
+    
+    # Inicializar DB
     init_db()
     migrate()
     set_admin()
     storage.create_table("google-user-data")
     if AUDIT_ENABLED:
         await audit_pipeline.start()
+        
     console.rule("[green]Server Opened[/green]")
     if DEBUG:
         # Línea destacada con título
         console.rule("[bold green]🔍 Documentación Scalar activa[/bold green]")
-
-        # Panel con el mensaje y detalles
         mensaje = (
             "[bold cyan]La documentación de tu API está disponible en:[/bold cyan]\n"
             f"  [bold magenta]http://localhost:8000/{ID_PREFIX}/scalar[/bold magenta]\n\n"
@@ -90,6 +86,7 @@ async def lifespan(app: FastAPI):
                 padding=(1, 2),
             )
         )
+    
     try:
         yield None
     finally:
@@ -118,9 +115,6 @@ async def lifespan(app: FastAPI):
                         except PermissionError:
                             console.print_exception()
                             time.sleep(1)
-                else:
-                    pass
-
             except OSError:
                 console.print_exception(show_locals=True)
 

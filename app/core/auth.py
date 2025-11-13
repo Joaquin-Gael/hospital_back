@@ -424,13 +424,12 @@ class JWTBearer:
                 request,
                 action=AuditAction.TOKEN_INVALID,
                 severity=AuditSeverity.WARNING,
-                details={"reason": "invalid_or_expired", "token_prefix": token[:8]},
+                details={"reason": "invalid_or_expired", "token_prefix": token[:8] if token else "none"},
             )
-            raise HTTPException(status_code=401, detail=e.args) from e
+            raise HTTPException(status_code=401, detail=str(e)) from e
 
+        # Validar que no se use refresh token en endpoints normales
         if request.scope["route"].name != "refresh_token":
-            #console.rule(request.scope["route"].name)
-            #console.print(f"Se intento hacer el refresh: {payload}")
             if payload.get("type") == "refresh_token":
                 await _emit_security_event(
                     request,
@@ -438,7 +437,7 @@ class JWTBearer:
                     severity=AuditSeverity.WARNING,
                     details={"reason": "refresh_token_used", "route": request.scope["route"].name},
                 )
-                raise HTTPException(status_code=401, detail="No credentials provided or invalid format")
+                raise HTTPException(status_code=401, detail="Refresh tokens cannot be used for regular endpoints")
 
         user_id = payload.get("sub")
 
@@ -451,19 +450,26 @@ class JWTBearer:
                 raise HTTPException(status_code=403, detail="Token banned")
 
         try:
-            if user_id is None:
-                raise HTTPException(status_code=401, detail="Invalid token payload")
-
-
+            # Determinar si es doctor o usuario
             statement = select(User).where(User.id == user_id)
 
-            if "doc" in payload.get("scopes"):
+            if "doc" in payload.get("scopes", []):
                 statement = select(Doctors).where(Doctors.id == user_id)
 
             with session_factory() as session:
                 user = session.exec(statement).first()
 
-            if "google" in payload.get("scopes") and not "doc" in payload.get("scopes"):
+            if not user:
+                await _emit_security_event(
+                    request,
+                    action=AuditAction.TOKEN_INVALID,
+                    severity=AuditSeverity.WARNING,
+                    details={"reason": "user_not_found", "user_id": user_id},
+                )
+                raise HTTPException(status_code=401, detail="User not found")
+
+            # Enviar warning para cuentas Google si aplica
+            if "google" in payload.get("scopes", []) and "doc" not in payload.get("scopes", []):
                 EmailService.send_warning_google_account(
                     email=user.email,
                     first_name=user.first_name,
@@ -472,11 +478,15 @@ class JWTBearer:
                     to_delete=datetime.now() + timedelta(days=7)
                 )
 
+            # CRÍTICO: Establecer user y scopes en request.state
             request.state.user = user
-            request.state.scopes = payload.get("scopes")
+            request.state.scopes = payload.get("scopes", [])
 
             return user
 
+        except HTTPException:
+            # Re-raise HTTPExceptions sin modificar
+            raise
         except Exception as e:
             console.print(e) if DEBUG else None
             raise HTTPException(status_code=401, detail="Invalid or expired token")

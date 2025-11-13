@@ -72,9 +72,6 @@ class Singleton:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance.__init_storage()
-        else:
-            pass
-
         return cls._instance
 
     @timeit
@@ -135,7 +132,6 @@ class Singleton:
 
     def __init_storage(self):
         self.data = Storage(tables={})
-
 
     def _load(self):
         return None
