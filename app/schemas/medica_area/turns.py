@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from datetime import date as date_type, datetime, time as time_type
+from pathlib import Path
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field, field_serializer
 
 from app.schemas import UserRead
 
@@ -64,3 +65,44 @@ class PayTurnResponse(BaseModel):
 class TurnsDelete(BaseModel):
     id: UUID
     message: str
+
+
+class TurnDocumentSummary(BaseModel):
+    """DTO con los metadatos principales del PDF generado para un turno."""
+
+    id: UUID
+    turn_id: UUID
+    user_id: UUID
+    file_path: str
+    generated_at: datetime
+    turn: Optional[TurnsResponse] = None
+
+    @computed_field(return_type=str)
+    def filename(self) -> str:
+        """Nombre del archivo derivado del path, útil para listados en frontend."""
+
+        return Path(self.file_path).name
+
+    @field_serializer("generated_at")
+    def serialize_generated_at(self, generated_at: datetime) -> str:
+        """Normaliza el timestamp para entrega consistente al frontend."""
+
+        return generated_at.replace(microsecond=0).isoformat()
+
+
+class TurnDocumentDownloadLog(BaseModel):
+    """DTO que describe un evento de descarga de un PDF de turno."""
+
+    id: UUID
+    turn_document_id: UUID
+    turn_id: UUID
+    user_id: UUID
+    downloaded_at: datetime
+    user: Optional[UserRead] = None
+    turn: Optional[TurnsResponse] = None
+
+    @field_serializer("downloaded_at")
+    def serialize_downloaded_at(self, downloaded_at: datetime) -> str:
+        """Expone el timestamp de descarga en formato ISO 8601 sin microsegundos."""
+
+        return downloaded_at.replace(microsecond=0).isoformat()
