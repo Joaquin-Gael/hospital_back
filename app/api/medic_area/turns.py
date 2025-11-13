@@ -1,5 +1,6 @@
 """Turn management routes."""
-from typing import List, Optional, TypeVar
+from dataclasses import dataclass
+from typing import Iterable, List, Optional, TypeVar
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -52,6 +53,58 @@ router = APIRouter(
     default_response_class=default_response_class,
     dependencies=[auth_dependency()],
 )
+
+
+@dataclass(frozen=True)
+class TurnAccessContext:
+    """Contextual information about a user's relationship with a turn."""
+
+    is_superuser: bool
+    is_owner: bool
+    is_assigned_doctor: bool
+    has_doctor_scope: bool
+
+
+def get_turn_with_relations(
+    *,
+    session: SessionDep,
+    turn_id: UUID,
+    request_user: User,
+    scopes: Iterable[str] | None = None,
+) -> tuple[Turns, TurnAccessContext]:
+    """Retrieve a turn with related entities and evaluate user access."""
+
+    statement = (
+        select(Turns)
+        .where(Turns.id == turn_id)
+        .options(
+            selectinload(Turns.user),
+            selectinload(Turns.doctor)
+            .selectinload(Doctors.speciality)
+            .selectinload(Specialties.departament),
+            selectinload(Turns.services)
+            .selectinload(Services.speciality)
+            .selectinload(Specialties.departament),
+        )
+    )
+
+    turn = session.exec(statement).first()
+
+    if turn is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Turn not found",
+        )
+
+    scope_set = set(scopes or [])
+    access_context = TurnAccessContext(
+        is_superuser=getattr(request_user, "is_superuser", False),
+        is_owner=turn.user_id == getattr(request_user, "id", None),
+        is_assigned_doctor=turn.doctor_id == getattr(request_user, "id", None),
+        has_doctor_scope="doc" in scope_set,
+    )
+
+    return turn, access_context
 
 
 def _make_event(
@@ -257,20 +310,14 @@ async def get_turn_by_id(request: Request, session: SessionDep, turn_id: UUID):
     user = request.state.user
 
     try:
-        secure_turn = session.exec(select(Turns).where(Turns.id == turn_id)).first()
+        turn, access = get_turn_with_relations(
+            session=session,
+            turn_id=turn_id,
+            request_user=user,
+            scopes=getattr(request.state, "scopes", []) or [],
+        )
 
-        if secure_turn is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, 
-                detail="Turn not found"
-            )
-
-        # ✅ Permitir acceso a superusers, owners y doctors
-        is_superuser = getattr(user, 'is_superuser', False)
-        is_owner = secure_turn.user_id == user.id
-        is_doctor = secure_turn.doctor_id == user.id
-        
-        if not (is_superuser or is_owner or is_doctor):
+        if not (access.is_superuser or access.is_owner or access.is_assigned_doctor):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, 
                 detail="You don't have permission to access this turn"
@@ -278,15 +325,15 @@ async def get_turn_by_id(request: Request, session: SessionDep, turn_id: UUID):
 
         return ORJSONResponse(
             TurnsResponse(
-                id=secure_turn.id,
-                reason=secure_turn.reason,
-                state=secure_turn.state,
-                date=secure_turn.date,
-                date_limit=secure_turn.date_limit,
-                date_created=secure_turn.date_created,
-                user_id=secure_turn.user_id,
-                doctor_id=secure_turn.doctor_id,
-                time=secure_turn.time,
+                id=turn.id,
+                reason=turn.reason,
+                state=turn.state,
+                date=turn.date,
+                date_limit=turn.date_limit,
+                date_created=turn.date_created,
+                user_id=turn.user_id,
+                doctor_id=turn.doctor_id,
+                time=turn.time,
                 # Incluir servicios si están disponibles
                 service=[
                     ServiceResponse(
@@ -296,8 +343,8 @@ async def get_turn_by_id(request: Request, session: SessionDep, turn_id: UUID):
                         price=service.price,
                         specialty_id=service.specialty_id,
                     ).model_dump()
-                    for service in secure_turn.services
-                ] if secure_turn.services else []
+                    for service in turn.services
+                ] if turn.services else []
             ).model_dump()
         )
     except HTTPException:
@@ -379,27 +426,21 @@ async def reschedule_turn(
             detail="You are not authorized"
         )
 
-    turn = session.get(Turns, turn_id)
-
-    if turn is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
-            detail="Turn not found"
-        )
-
     scopes = getattr(request.state, "scopes", []) or []
-    is_superuser = getattr(user, "is_superuser", False)
-    is_doctor = "doc" in scopes
-    is_owner = turn.user_id == getattr(user, "id", None)
-    is_assigned_doctor = turn.doctor_id == getattr(user, "id", None)
+    turn, access = get_turn_with_relations(
+        session=session,
+        turn_id=turn_id,
+        request_user=user,
+        scopes=scopes,
+    )
 
     # Superusers pueden reprogramar cualquier turno
     # Doctores solo pueden reprogramar sus propios turnos
     # Pacientes solo pueden reprogramar sus propios turnos
     is_authorized = (
-        is_superuser or 
-        (is_doctor and is_assigned_doctor) or 
-        (not is_doctor and is_owner)
+        access.is_superuser
+        or (access.has_doctor_scope and access.is_assigned_doctor)
+        or (not access.has_doctor_scope and access.is_owner)
     )
 
     if not is_authorized:
@@ -469,8 +510,19 @@ async def delete_turn(
 ):
     session_user = request.state.user
     try:
-        turn = session.get(Turns, turn_id)
-        if session_user.id != turn.user_id or session_user.id != turn.doctor_id:
+        turn, access = get_turn_with_relations(
+            session=session,
+            turn_id=turn_id,
+            request_user=session_user,
+            scopes=getattr(request.state, "scopes", []) or [],
+        )
+        is_authorized = (
+            access.is_superuser
+            or (access.has_doctor_scope and access.is_assigned_doctor)
+            or (not access.has_doctor_scope and access.is_owner)
+        )
+
+        if not is_authorized:
             raise HTTPException(status_code=403, detail="You are not authorized")
         deleted = TurnAndAppointmentRepository.delete_turn_and_appointment(session, turn)
         if not deleted:
