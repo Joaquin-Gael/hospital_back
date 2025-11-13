@@ -365,6 +365,8 @@ class Turns(BaseModelTurns, table=True):
     )
 
     appointment: Optional["Appointments"] = Relationship(back_populates="turn")
+    documents: List["TurnDocument"] = Relationship(back_populates="turn")
+    document_downloads: List["TurnDocumentDownload"] = Relationship(back_populates="turn")
 
     def get_details(self) -> dict[str, list]:
         details: dict = {
@@ -393,6 +395,75 @@ class Turns(BaseModelTurns, table=True):
             total += service.price
 
         return total
+
+class TurnDocument(SQLModel, table=True):
+    __tablename__ = "turn_documents"
+
+    id: UUID = Field(
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name": "turn_document_id"},
+        default_factory=uuid4,
+        primary_key=True,
+        unique=True,
+    )
+    turn_id: UUID = Field(
+        sa_type=UUID_TYPE,
+        foreign_key="turns.turn_id",
+        nullable=False,
+        index=True,
+        ondelete="CASCADE",
+    )
+    user_id: UUID = Field(
+        sa_type=UUID_TYPE,
+        foreign_key="users.user_id",
+        nullable=False,
+        index=True,
+        ondelete="CASCADE",
+    )
+    file_path: str = Field(sa_type=VARCHAR(length=512))
+    generated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    turn: "Turns" = Relationship(back_populates="documents")
+    user: "User" = Relationship(back_populates="documents")
+    downloads: List["TurnDocumentDownload"] = Relationship(back_populates="document")
+
+
+class TurnDocumentDownload(SQLModel, table=True):
+    __tablename__ = "turn_document_downloads"
+
+    id: UUID = Field(
+        sa_type=UUID_TYPE,
+        sa_column_kwargs={"name": "turn_document_download_id"},
+        default_factory=uuid4,
+        primary_key=True,
+        unique=True,
+    )
+    turn_document_id: UUID = Field(
+        sa_type=UUID_TYPE,
+        foreign_key="turn_documents.turn_document_id",
+        nullable=False,
+        index=True,
+        ondelete="CASCADE",
+    )
+    turn_id: UUID = Field(
+        sa_type=UUID_TYPE,
+        foreign_key="turns.turn_id",
+        nullable=False,
+        index=True,
+        ondelete="CASCADE",
+    )
+    user_id: UUID = Field(
+        sa_type=UUID_TYPE,
+        foreign_key="users.user_id",
+        nullable=False,
+        index=True,
+        ondelete="CASCADE",
+    )
+    downloaded_at: datetime = Field(default_factory=datetime.utcnow)
+
+    document: TurnDocument = Relationship(back_populates="downloads")
+    turn: Turns = Relationship(back_populates="document_downloads")
+    user: "User" = Relationship(back_populates="turn_document_downloads")
 
 class Appointments(SQLModel, table=True):
     id: UUID = Field(
@@ -591,6 +662,8 @@ class User(BaseUser, table=True):
     )
     turns: list["Turns"] = Relationship(back_populates="user")
     appointments: list["Appointments"] = Relationship(back_populates="user")
+    documents: List["TurnDocument"] = Relationship(back_populates="user")
+    turn_document_downloads: List["TurnDocumentDownload"] = Relationship(back_populates="user")
 
     health_insurance: List["HealthInsurance"] = Relationship(
         back_populates="users",

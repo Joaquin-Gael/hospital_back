@@ -24,6 +24,8 @@ from app.models import (
     Departments,
     Locations,
     Turns,
+    TurnDocument,
+    TurnDocumentDownload,
     Appointments,
     CashDetails,
     Cashes,
