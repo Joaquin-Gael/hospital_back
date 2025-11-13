@@ -49,7 +49,8 @@ from app.core.interfaces.emails import EmailService
 from app.core.interfaces.users import UserRepository
 from app.core.auth import encode, decode
 from app.storage import storage
-from app.config import cors_host, email_host_user, binaries_dir
+from app.db.cache import redis_client as rc
+from app.config import CORS_HOST, EMAIL_HOST_USER, BINARIES_DIR
 
 from app.audit import (
     AuditAction,
@@ -591,7 +592,7 @@ async def update_user(request: Request, user_id: UUID, session_db: SessionDep, u
 @public_router.post("/update/petition/password")
 async def update_petition_password(
     request: Request,
-    session: SessionDep,
+    session_db: SessionDep,
     data: Annotated[UserPetitionPasswordUpdate, Form(...)],
     emitter: AuditEmitter = Depends(get_audit_emitter),
 ):
@@ -615,7 +616,7 @@ async def update_petition_password(
             "state": False
         }
 
-        storage.set(key=user.email, value=r_code_data, table_name="recovery-codes", short_live=True)
+        rc.setex(f"recovery-codes:{user.email}", 60, dumps(r_code_data))
 
         await emitter.emit_event(
             _make_event(
@@ -645,12 +646,17 @@ async def verify_code(session_db: SessionDep, email: str = Form(...), code: str 
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        code_storage = storage.get(key=user.email, table_name="recovery-codes")
-        
-        if not code_storage or code_storage.value.value["r_cod"] != code or code_storage.value.expired <= datetime.now():
+        raw = rc.get(f"recovery-codes:{user.email}")
+        if not raw:
             raise HTTPException(status_code=400, detail="Invalid code")
-        
-        code_storage.value.value["state"] = True
+        data = loads(raw)
+        if data.get("r_cod") != code:
+            raise HTTPException(status_code=400, detail="Invalid code")
+        data["state"] = True
+        key_name = f"recovery-codes:{user.email}"
+        ttl = rc.ttl(key_name)
+        ttl = ttl if ttl and ttl > 0 else 60
+        rc.setex(key_name, ttl, dumps(data))
         
         return {"message": "Code verified successfully", "success": True}
     
@@ -678,12 +684,14 @@ async def update_confirm_password(
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        code_storage = storage.get(key=user.email, table_name="recovery-codes")
-        
-        if not code_storage.value.value["state"]:
+        raw = rc.get(f"recovery-codes:{user.email}")
+        if not raw:
+            raise HTTPException(status_code=400, detail="Invalid code")
+        data = loads(raw)
+        if not data.get("state"):
             raise HTTPException(status_code=401, detail="Unautorized")
 
-        if not code_storage or code_storage.value.value["r_cod"] != code or code_storage.value.expired <= datetime.now():
+        if data.get("r_cod") != code:
             raise HTTPException(status_code=400, detail="Invalid code")
 
         user.set_password(new_password)

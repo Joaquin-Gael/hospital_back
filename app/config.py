@@ -13,9 +13,13 @@ from zoneinfo import ZoneInfo
 
 from fastapi.templating import Jinja2Templates
 
+from rich.console import Console
+
 from app.models import User
 
 load_dotenv()
+
+console = Console()
 
 TIME_ZONE = ZoneInfo(os.getenv("TIME_ZONE", "America/Argentina/Buenos_Aires"))
 
@@ -54,6 +58,8 @@ STORAGE_DIR_NAME = os.getenv("STORAGE_DIR_NAME", "sets")
 CORS_HOST = os.getenv("DOMINIO")
 
 TOKEN_KEY = os.getenv("TOKEN_KEY")
+TOKEN_EXPIRE_MINUTES = int(os.getenv("TOKEN_EXPIRE_MINUTES", 240))
+TOKEN_REFRESH_EXPIRE_DAYS = int(os.getenv("TOKEN_REFRESH_EXPIRE_DAYS", 7))
 
 GOOGLE_CLIENT_SECRET = os.getenv("CLIENT_SECRET_GOOGLE")
 GOOGLE_CLIENT_ID = os.getenv("CLIENT_ID_GOOGLE")
@@ -75,6 +81,30 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")
 
 LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "gpt2")
+
+
+AUDIT_ENABLED: bool = os.getenv("AUDIT_ENABLED", "True").lower() == "true"
+
+AUDIT_MINIMUM_SEVERITY: str = os.getenv("AUDIT_MINIMUM_SEVERITY", "info").lower()
+
+AUDIT_RETENTION_DAYS_RAW: int = int(os.getenv("AUDIT_RETENTION_DAYS", 180))
+AUDIT_RETENTION_DAYS: int = AUDIT_RETENTION_DAYS_RAW if AUDIT_RETENTION_DAYS_RAW > 0 else 0
+
+AUDIT_QUEUE_SIZE: int = int(os.getenv("AUDIT_QUEUE_SIZE", 512))
+AUDIT_BATCH_SIZE: int = int(os.getenv("AUDIT_BATCH_SIZE", 50))
+AUDIT_LINGER_SECONDS: float = float(os.getenv("AUDIT_LINGER_SECONDS", 0.5))
+AUDIT_RETRY_DELAY: float = float(os.getenv("AUDIT_RETRY_DELAY", 1.0))   
+
+AUDIT_LIST_DEFAULT_LIMIT: int = int(os.getenv("AUDIT_LIST_DEFAULT_LIMIT", 100))
+AUDIT_LIST_MAX_LIMIT: int = int(os.getenv("AUDIT_LIST_MAX_LIMIT", 500))
+AUDIT_EXPORT_DEFAULT_LIMIT: int = int(os.getenv("AUDIT_EXPORT_DEFAULT_LIMIT", 1000))
+AUDIT_EXPORT_MAX_LIMIT: int = int(os.getenv("AUDIT_EXPORT_MAX_LIMIT", 2000))
+
+AUDIT_REDACT_FIELDS: set[str] = {
+    value.strip().lower()
+    for value in os.getenv("AUDIT_REDACT_FIELDS", "password,token,secret").split(",")
+    if value.strip()
+}
 
 
 ADMIN_USER = User(

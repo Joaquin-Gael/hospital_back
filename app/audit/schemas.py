@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from app.config import timezone as env_timezone
+from app.config import TIME_ZONE
 
 from datetime import datetime
-from zoneinfo import ZoneInfo
 from typing import Any, Dict, Optional
 from uuid import UUID
 
@@ -15,7 +14,7 @@ from .taxonomy import AuditAction, AuditSeverity, AuditTargetType
 
 
 def _utcnow() -> datetime:
-    return datetime.now(ZoneInfo(env_timezone))
+    return datetime.now(TIME_ZONE)
 
 
 class AuditEventBase(BaseModel):

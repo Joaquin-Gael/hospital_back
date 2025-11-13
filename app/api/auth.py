@@ -7,7 +7,6 @@ from typing import Optional, Dict, List, Annotated
 
 from sqlmodel import select
 
-from datetime import datetime
 from uuid import UUID
 
 from app.models import Doctors, User
@@ -20,7 +19,8 @@ from app.schemas.users import UserAuth
 from app.schemas.auth import TokenUserResponse, TokenDoctorsResponse, OauthCodeInput
 from app.schemas.medica_area import DoctorAuth, DoctorResponse
 from app.storage import storage
-from app.config import token_expire_minutes, token_refresh_expire_days
+from app.db.cache import redis_client as rc
+from app.config import TOKEN_EXPIRE_MINUTES, TOKEN_REFRESH_EXPIRE_DAYS, DEBUG
 
 from app.audit import (
     AuditAction,
@@ -37,6 +37,9 @@ console = Console()
 
 auth = JWTBearer()
 
+
+COOKIE_SECURE = False
+COOKIE_SAMESITE = "lax" if DEBUG else "strict"
 
 def _make_event(
     request: Request,
@@ -119,7 +122,7 @@ async def decode_hex(request: Request, data: OauthCodeInput):
 
 @router.post("/doc/login", response_model=TokenDoctorsResponse)
 @time_out(10)
-async def doc_login(request: Request, session_db: SessionDep, credentials: Annotated[DoctorAuth, Form(...)]):
+async def doc_login(request: Request, session_db: SessionDep, credentials: Annotated[DoctorAuth, Form(...)], emitter: AuditEmitter = Depends(get_audit_emitter)):
     """
     Autentica médicos en el sistema.
     
@@ -189,9 +192,9 @@ async def doc_login(request: Request, session_db: SessionDep, credentials: Annot
     except ValueError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
-    session.add(doc)
-    session.commit()
-    session.refresh(doc)
+    session_db.add(doc)
+    session_db.commit()
+    session_db.refresh(doc)
 
     await emitter.emit_record(
         record,
@@ -235,21 +238,21 @@ async def doc_login(request: Request, session_db: SessionDep, credentials: Annot
     )
     
     response.set_cookie(
-        key="authorization",
+        key="session",
         value=token,
         httponly=True,
-        secure=True,
-        samesite="strict",
-        max_age=token_expire_minutes * 60
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        max_age=TOKEN_EXPIRE_MINUTES * 60
     )
     
     response.set_cookie(
-        key="authorization_refresh",
+        key="refresh",
         value=refresh_token,
         httponly=True,
-        secure=True,
-        samesite="strict",
-        max_age=token_refresh_expire_days * 24 * 60 * 60
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        max_age=TOKEN_REFRESH_EXPIRE_DAYS * 24 * 60 * 60
     )
     
 
@@ -257,7 +260,7 @@ async def doc_login(request: Request, session_db: SessionDep, credentials: Annot
 
 @router.post("/login", response_model=TokenUserResponse)
 @time_out(10)
-async def login(request: Request, session_db: SessionDep, credentials: Annotated[UserAuth, Form(...)]):
+async def login(request: Request, session_db: SessionDep, credentials: Annotated[UserAuth, Form(...)], emitter: AuditEmitter = Depends(get_audit_emitter)):
     """
     Autentica usuarios regulares del sistema.
     
@@ -354,21 +357,21 @@ async def login(request: Request, session_db: SessionDep, credentials: Annotated
     )
     
     response.set_cookie(
-        key="authorization",
+        key="session",
         value=token,
         httponly=True,
-        secure=True,
-        samesite="strict",
-        max_age=token_expire_minutes * 60
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        max_age=TOKEN_EXPIRE_MINUTES * 60
     )
     
     response.set_cookie(
-        key="authorization_refresh",
+        key="refresh",
         value=refresh_token,
         httponly=True,
-        secure=True,
-        samesite="strict",
-        max_age=token_refresh_expire_days * 24 * 60 * 60
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        max_age=TOKEN_REFRESH_EXPIRE_DAYS * 24 * 60 * 60
     )
 
     return response
@@ -516,21 +519,21 @@ async def refresh(
         )
         
         response.set_cookie(
-            key="authorization",
+            key="session",
             value=token,
             httponly=True,
-            secure=True,
-            samesite="strict",
-            max_age=token_expire_minutes * 60
+            secure=COOKIE_SECURE,
+            samesite=COOKIE_SAMESITE,
+            max_age=TOKEN_EXPIRE_MINUTES * 60
         )
     
         response.set_cookie(
-            key="authorization_refresh",
+            key="refresh",
             value=refresh_token,
             httponly=True,
-            secure=True,
-            samesite="strict",
-            max_age=token_refresh_expire_days * 24 * 60 * 60
+            secure=COOKIE_SECURE,
+            samesite=COOKIE_SAMESITE,
+            max_age=TOKEN_REFRESH_EXPIRE_DAYS * 24 * 60 * 60
         )
         
         return response
@@ -577,27 +580,27 @@ async def refresh(
     )
     
     response.set_cookie(
-            key="authorization",
+            key="session",
             value=token,
             httponly=True,
-            secure=True,
-            samesite="strict",
-            max_age=token_expire_minutes * 60
+            secure=COOKIE_SECURE,
+            samesite=COOKIE_SAMESITE,
+            max_age=TOKEN_EXPIRE_MINUTES * 60
         )
     
     response.set_cookie(
-            key="authorization_refresh",
+            key="refresh",
             value=refresh_token,
             httponly=True,
-            secure=True,
-            samesite="strict",
-            max_age=token_refresh_expire_days * 24 * 60 * 60
+            secure=COOKIE_SECURE,
+            samesite=COOKIE_SAMESITE,
+            max_age=TOKEN_REFRESH_EXPIRE_DAYS * 24 * 60 * 60
         )
         
     return response
 
 @router.delete("/logout")
-async def logout(request: Request, session: Optional[str] = Cookie(None), _=Depends(auth)):
+async def logout(request: Request, session: Optional[str] = Cookie(None), _=Depends(auth), emitter: AuditEmitter = Depends(get_audit_emitter)):
     """
     Cierra la sesión del usuario invalidando su token.
     
@@ -625,20 +628,19 @@ async def logout(request: Request, session: Optional[str] = Cookie(None), _=Depe
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No credentials provided or invalid format"
         )
-    
-    
-    token = authorization
 
     session_user = request.state.user
 
     token = session
 
     table_name = "ban-token"
-
-    if not storage.get(key=str(session_user.id), table_name="ban-token") is None:
-        storage.update(key=str(session_user.id), value=token, table_name=table_name)
-
-    result = storage.set(key=str(session_user.id), value=token, table_name=table_name)
+    try:
+        payload = decode_token(token)
+        exp_ts = int(payload.get("exp", 0))
+    except Exception:
+        exp_ts = int(time.time()) + TOKEN_EXPIRE_MINUTES * 60
+    ttl = max(0, exp_ts - int(time.time()))
+    rc.setex(f"ban-token:{str(session_user.id)}", ttl, token)
 
     await emitter.emit_event(
         _make_event(
@@ -652,22 +654,20 @@ async def logout(request: Request, session: Optional[str] = Cookie(None), _=Depe
         )
     )
 
-    response = ORJSONResponse(
-        result.model_dump()
+    response = ORJSONResponse({"status":"ok"})
+    
+    response.delete_cookie(
+            key="session",
+            httponly=True,
+            secure=COOKIE_SECURE,
+            samesite=COOKIE_SAMESITE,
         )
     
     response.delete_cookie(
-            key="authorization",
+            key="refresh",
             httponly=True,
-            secure=True,
-            samesite="strict",
-        )
-    
-    response.delete_cookie(
-            key="authorization_refresh",
-            httponly=True,
-            secure=True,
-            samesite="strict",
+            secure=COOKIE_SECURE,
+            samesite=COOKIE_SAMESITE,
         )
     
     return response

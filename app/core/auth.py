@@ -22,10 +22,11 @@ from uuid import UUID
 
 from rich.console import Console
 
-from app.config import TOKEN_KEY, API_NAME, VERSION, DEBUG
+from app.config import TOKEN_KEY, API_NAME, VERSION, DEBUG, TOKEN_EXPIRE_MINUTES, TOKEN_REFRESH_EXPIRE_DAYS
 from app.models import Doctors, User
 from app.db.session import session_factory
 from app.storage import storage
+from app.db.cache import redis_client as rc
 from app.core.interfaces.emails import EmailService
 from app.storage import storage
 from app.audit import (
@@ -231,10 +232,10 @@ def gen_token(payload: dict, refresh: bool = False):
     payload.setdefault("iat", datetime.now())
     payload.setdefault("iss", f"{API_NAME}/{VERSION}")
     if refresh:
-        payload["exp"] = int((datetime.now() + timedelta(days=token_refresh_expire_days)).timestamp())
+        payload["exp"] = int((datetime.now() + timedelta(days=TOKEN_REFRESH_EXPIRE_DAYS)).timestamp())
         payload.setdefault("type", "refresh_token")
     else:
-        payload["exp"] = int((datetime.now() + timedelta(minutes=15)).timestamp())
+        payload["exp"] = int((datetime.now() + timedelta(minutes=TOKEN_EXPIRE_MINUTES)).timestamp())
     return jwt.encode(payload, TOKEN_KEY, algorithm="HS256")
 
 def decode_token(token: str):
@@ -305,12 +306,18 @@ def time_out(seconds: Optional[float] = 1.0, max_trys: Optional[int] = 5) -> Cal
             # Obtener la IP del cliente
             client_ip = request.client.host
             current_time = time.time()
-            current_try = storage.get(key=client_ip, table_name="ip-time-out")
-            
-            if current_try is not None:
-                storage.set(key=client_ip, value={"current_try": 1, "max_trys": max_trys}, table_name="ip-time-out")
-            elif isinstance(current_try, dict):
-                if current_try.get("current_try", 0) >= current_try.get("max_trys", max_trys):
+            key_name = f"ip-time-out:{client_ip}"
+            raw = rc.get(key_name)
+            data = None
+            if raw:
+                try:
+                    data = loads(raw)
+                except Exception:
+                    data = None
+            if data is None:
+                rc.setex(key_name, int(seconds), dumps({"current_try": 1, "max_trys": max_trys}))
+            elif isinstance(data, dict):
+                if data.get("current_try", 0) >= data.get("max_trys", max_trys):
                     await _emit_security_event(
                         request,
                         action=AuditAction.RATE_LIMIT_TRIGGERED,
@@ -322,8 +329,10 @@ def time_out(seconds: Optional[float] = 1.0, max_trys: Optional[int] = 5) -> Cal
                         detail=f"Has excedido el número máximo de intentos. Por favor espera {seconds} segundos antes de intentar de nuevo."
                     )
                 else:
-                    current_try["current_try"] += 1
-                    storage.set(key=client_ip, value=current_try, table_name="ip-time-out")
+                    data["current_try"] += 1
+                    ttl = rc.ttl(key_name)
+                    ttl = ttl if ttl and ttl > 0 else int(seconds)
+                    rc.setex(key_name, ttl, dumps(data))
             
             # Verificar si existe un acceso previo para esta IP
             if client_ip in last_access:
@@ -433,13 +442,12 @@ class JWTBearer:
 
         user_id = payload.get("sub")
 
-        ban_token = storage.get(key=payload.get("sub"), table_name="ban-token")
+        ban_token_raw = rc.get(f"ban-token:{payload.get('sub')}")
 
             #console.print(">>> ", ban_token, " <<<") if DEBUG else None
 
-        if ban_token is not None:
-            #console.print(f"Token banned: {ban_token.value}") if DEBUG else None
-            if token == ban_token.value:
+        if ban_token_raw is not None:
+            if token == ban_token_raw:
                 raise HTTPException(status_code=403, detail="Token banned")
 
         try:

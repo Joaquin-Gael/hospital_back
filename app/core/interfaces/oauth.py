@@ -53,7 +53,6 @@ def gen_token_from_user_data(user_data: User) -> str:
 class OauthRepository:
     @staticmethod
     def google_oauth() -> Response:
-
         payload:Dict = {
             'client_id': GOOGLE_CLIENT_ID,
             'redirect_uri': f'{CORS_HOST}/oauth/webhook/google_callback',

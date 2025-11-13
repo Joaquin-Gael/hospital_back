@@ -11,6 +11,7 @@ use pyo3::exceptions::PyRuntimeError;
 //use rusqlite::Connection;
 use uuid::Uuid;
 use chrono::Utc;
+use chrono::Duration;
 
 const KEY: &[u8; 32] = b"01234567890123456789012345678901";
 
@@ -48,6 +49,10 @@ pub struct Item {
     #[pyo3(get, set)]
     pub created_at: i64,
     #[pyo3(get, set)]
+    pub updated_at: i64,
+    #[pyo3(get, set)]
+    pub expired_at: i64,
+    #[pyo3(get, set)]
     pub data_type: String
 }
 
@@ -76,6 +81,8 @@ impl Item {
             item_name,
             content,
             created_at: Utc::now().timestamp(),
+            updated_at: Utc::now().timestamp(),
+            expired_at: Utc::now().timestamp() + Duration::days(30).num_seconds(),
             data_type: DATA_TYPE.to_string(),
         }
     }
@@ -103,7 +110,7 @@ impl Item {
         Ok(())
     }
 
-    pubasync fn write_str(&mut self, data: String) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn write_str(&mut self, data: String) -> Result<(), Box<dyn std::error::Error>> {
         self.content = data;
         Ok(())
     }
@@ -297,6 +304,11 @@ pub async fn create_item_from_json(input_json: String) -> Result<Item, Box<dyn s
     Ok(item)
 }
 
+pub async fn create_item(set_name: String, item_name: String, content: String) -> Result<Item, Box<dyn std::error::Error>> {
+    let item = Item::new(set_name, item_name, content).await;
+    Ok(item)
+}
+
 // Añade un Item al Set correspondiente a partir del JSON del Item y retorna el Set serializado
 pub async fn add_item_from_json(item_json: String) -> Result<bool, Box<dyn std::error::Error>> {
     let item: Item = serde_json::from_str(&item_json)?;
@@ -413,6 +425,13 @@ fn py_create_item_from_json(input_json: &str) -> PyResult<Item> {
 }
 
 #[pyfunction]
+fn py_create_item(set_name: &str, item_name: &str, content: &str) -> PyResult<Item> {
+    let rt = tokio::runtime::Runtime::new().map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+    rt.block_on(create_item(set_name.to_string(), item_name.to_string(), content.to_string()))
+        .map_err(|e| PyRuntimeError::new_err(e.to_string()))
+}
+
+#[pyfunction]
 fn py_add_item_from_json(item_json: &str) -> PyResult<bool> {
     let rt = tokio::runtime::Runtime::new().map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
     rt.block_on(add_item_from_json(item_json.to_string()))
@@ -482,6 +501,11 @@ impl Item {
         )
     }
 
+    fn update_content(&mut self, new_content: &str) {
+        self.content = new_content.to_string();
+        self.updated_at = Utc::now().timestamp();
+    }
+
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(self).map_err(|e| PyRuntimeError::new_err(e.to_string()))
     }
@@ -513,6 +537,7 @@ impl Set {
 #[pymodule]
 fn encript_storage(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(py_create_item_from_json, m)?)?;
+    m.add_function(wrap_pyfunction!(py_create_item, m)?)?;
     m.add_function(wrap_pyfunction!(py_add_item_from_json, m)?)?;
     m.add_function(wrap_pyfunction!(py_add_item, m)?)?;
     m.add_function(wrap_pyfunction!(py_update_item_content_by_id, m)?)?;

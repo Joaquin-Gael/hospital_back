@@ -1,5 +1,5 @@
 import redis
-from config import REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_PASSWORD, REDIS_SSL
+from app.config import REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_PASSWORD, REDIS_SSL
 
 redis_client = redis.Redis(
     host=REDIS_HOST,

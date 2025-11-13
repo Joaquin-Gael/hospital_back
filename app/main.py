@@ -22,11 +22,11 @@ from pathlib import Path
 from app.api import users, medic_area, auth, cashes, ai_assistant
 from app.config import API_NAME, VERSION, DEBUG, CORS_HOST, TEMPLATES, parser_name
 from app.audit.pipeline import audit_pipeline
-from app.db.main import init_db, set_admin, migrate, test_db, DB_URL
+from app.db.main import init_db, set_admin, migrate, test_db, db_url
 from app.api import users, medic_area, auth, cashes, ai_assistant, audit
 from app.config import (
     API_NAME,
-    audit_enabled,
+    AUDIT_ENABLED,
     VERSION,
     DEBUG,
     CORS_HOST,
@@ -68,11 +68,8 @@ async def lifespan(app: FastAPI):
     init_db()
     migrate()
     set_admin()
-    storage.create_table("ban-token")
     storage.create_table("google-user-data")
-    storage.create_table("recovery-codes")
-    storage.create_table("ip-time-out")
-    if audit_enabled:
+    if AUDIT_ENABLED:
         await audit_pipeline.start()
     console.rule("[green]Server Opened[/green]")
     if DEBUG:
@@ -96,26 +93,19 @@ async def lifespan(app: FastAPI):
     try:
         yield None
     finally:
-        if audit_enabled:
+        if AUDIT_ENABLED:
             await audit_pipeline.stop()
         console.rule("[red]Server Closed[/red]")
-        if debug:
+        yield None
+        console.rule("[red]Server Closed[/red]")
+        if DEBUG:
             try:
                 import os
                 from pathlib import Path
                 import time
-    yield None
-    console.rule("[red]Server Closed[/red]")
-    if DEBUG:
-        try:
-            import os
-            from pathlib import Path
-            import time
 
                 db_name = db_url.split("/")[-1]
                 db_driver = db_url.split(":")[0]
-            db_name = DB_URL.split("/")[-1]
-            db_driver = DB_URL.split(":")[0]
 
                 if db_driver == "sqlite":
                     db_path = Path(db_name).resolve()
@@ -236,15 +226,15 @@ main_router.include_router(users.router)
 main_router.include_router(medic_area.router)
 main_router.include_router(auth.router)
 main_router.include_router(cashes.router)
-if audit_enabled:
+if AUDIT_ENABLED:
     main_router.include_router(audit.router)
 main_router.include_router(ai_assistant.router)
 
 app.include_router(main_router)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], #if DEBUG else [CORS_HOST],
-    allow_credentials=True,
+    allow_origins=[CORS_HOST],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -373,12 +363,12 @@ async def websocket_endpoint(websocket: WebSocket, secret: str):
         console.print(f"Error en WebSocket: {str(e)}")
 
 @app.get("/login-admin")
-@time_out(120)
+@time_out(10, 20)
 async def login_admin(request: Request):
     return TEMPLATES.TemplateResponse(parser_name(["admin", "login"], "login"), {"request": request})
 
 @app.get("/admin")
-@time_out(120)
+@time_out(10, 20)
 async def admin(request: Request):
     session = request.cookies.get("session")
     try:
@@ -387,5 +377,4 @@ async def admin(request: Request):
     except:
         return TEMPLATES.TemplateResponse(parser_name(["admin", "login"], "login"), {"request": request})
 
-#app.mount("/", SPAStaticFiles(), name="spa")
 app.mount("/", SPAStaticFiles(), name="spa")
