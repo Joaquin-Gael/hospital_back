@@ -404,18 +404,18 @@ async def login(
     response.set_cookie(
         key="authorization",
         value=token,
-        httponly=True,
-        secure=True,
-        samesite="strict",
+        httponly=False,
+        secure=False,
+        samesite="lax",
         max_age=token_expire_minutes * 60
     )
     
     response.set_cookie(
         key="authorization_refresh",
         value=refresh_token,
-        httponly=True,
-        secure=True,
-        samesite="strict",
+        httponly=False,
+        secure=False,
+        samesite="lax",
         max_age=token_refresh_expire_days * 24 * 60 * 60
     )
 
@@ -627,18 +627,18 @@ async def refresh(
     response.set_cookie(
             key="authorization",
             value=token,
-            httponly=True,
-            secure=True,
-            samesite="strict",
+            httponly=False,
+            secure=False,
+            samesite="lax",
             max_age=token_expire_minutes * 60
         )
     
     response.set_cookie(
             key="authorization_refresh",
             value=refresh_token,
-            httponly=True,
-            secure=True,
-            samesite="strict",
+            httponly=False,
+            secure=False,
+            samesite="lax",
             max_age=token_refresh_expire_days * 24 * 60 * 60
         )
         
