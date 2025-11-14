@@ -6,9 +6,13 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from uuid import UUID, uuid4
 
+from enum import Enum
+
+from pydantic import field_validator
 from sqlalchemy import Column, JSON
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import UUID as UUID_TYPE
+from sqlalchemy.orm import validates
 
 from sqlmodel import Field, SQLModel
 
@@ -25,6 +29,54 @@ class AuditEvent(SQLModel, table=True):
     """Persistent representation of a domain audit event."""
 
     __tablename__ = "audit_events"
+
+    def __init__(self, **data: Any) -> None:  # type: ignore[override]
+        if "action" in data:
+            data["action"] = self._coerce_enum_value(data["action"], AuditAction)
+        if "severity" in data:
+            data["severity"] = self._coerce_enum_value(data["severity"], AuditSeverity)
+        if "target_type" in data:
+            data["target_type"] = self._coerce_enum_value(data["target_type"], AuditTargetType)
+        super().__init__(**data)
+
+    @staticmethod
+    def _coerce_enum_value(value: Any, enum: type[Enum]) -> Any:
+        if isinstance(value, str):
+            try:
+                return enum(value)
+            except ValueError:
+                try:
+                    return enum[value]
+                except KeyError:
+                    return value
+        return value
+
+    @field_validator("action", mode="before")
+    @classmethod
+    def _coerce_action(cls, value: Any) -> Any:
+        return cls._coerce_enum_value(value, AuditAction)
+
+    @field_validator("severity", mode="before")
+    @classmethod
+    def _coerce_severity(cls, value: Any) -> Any:
+        return cls._coerce_enum_value(value, AuditSeverity)
+
+    @field_validator("target_type", mode="before")
+    @classmethod
+    def _coerce_target_type(cls, value: Any) -> Any:
+        return cls._coerce_enum_value(value, AuditTargetType)
+
+    @validates("action")
+    def _validate_action_enum(self, key: str, value: Any) -> Any:
+        return self._coerce_enum_value(value, AuditAction)
+
+    @validates("severity")
+    def _validate_severity_enum(self, key: str, value: Any) -> Any:
+        return self._coerce_enum_value(value, AuditSeverity)
+
+    @validates("target_type")
+    def _validate_target_type_enum(self, key: str, value: Any) -> Any:
+        return self._coerce_enum_value(value, AuditTargetType)
 
     id: UUID = Field(
         default_factory=uuid4,
@@ -43,18 +95,33 @@ class AuditEvent(SQLModel, table=True):
         description="When the audit event was persisted by the backend.",
     )
     action: AuditAction = Field(
-        sa_type=SQLEnum(AuditAction, name="audit_action"),
+        sa_type=SQLEnum(
+            AuditAction,
+            name="audit_action",
+            values_callable=lambda enum: [member.value for member in enum],
+            validate_strings=True,
+        ),
         index=True,
         nullable=False,
     )
     severity: AuditSeverity = Field(
         default=AuditSeverity.INFO,
-        sa_type=SQLEnum(AuditSeverity, name="audit_severity"),
+        sa_type=SQLEnum(
+            AuditSeverity,
+            name="audit_severity",
+            values_callable=lambda enum: [member.value for member in enum],
+            validate_strings=True,
+        ),
         nullable=False,
         index=True,
     )
     target_type: AuditTargetType = Field(
-        sa_type=SQLEnum(AuditTargetType, name="audit_target_type"),
+        sa_type=SQLEnum(
+            AuditTargetType,
+            name="audit_target_type",
+            values_callable=lambda enum: [member.value for member in enum],
+            validate_strings=True,
+        ),
         nullable=False,
         index=True,
     )

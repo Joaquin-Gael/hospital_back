@@ -77,3 +77,49 @@ def test_repository_persists_audit_events(tmp_path) -> None:
     assert stored.action == AuditAction.TOKEN_INVALID
     assert stored.severity == AuditSeverity.WARNING
     assert stored.target_type == AuditTargetType.AUTH_TOKEN
+
+
+def test_audit_event_persists_enum_variants(tmp_path) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'audit_variants.db'}", echo=False)
+    SQLModel.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        event_from_enum = AuditEvent(
+            action=AuditAction.TOKEN_REVOKED,
+            severity=AuditSeverity.CRITICAL,
+            target_type=AuditTargetType.AUTH_TOKEN,
+        )
+        session.add(event_from_enum)
+        session.commit()
+
+        raw_event_from_enum = session.exec(
+            select(
+                AuditEvent.__table__.c.action,
+                AuditEvent.__table__.c.severity,
+                AuditEvent.__table__.c.target_type,
+            ).where(AuditEvent.__table__.c.audit_event_id == event_from_enum.id)
+        ).one()
+
+        assert raw_event_from_enum.action == AuditAction.TOKEN_REVOKED.value
+        assert raw_event_from_enum.severity == AuditSeverity.CRITICAL.value
+        assert raw_event_from_enum.target_type == AuditTargetType.AUTH_TOKEN.value
+
+        event_from_name = AuditEvent(
+            action=AuditAction.TOKEN_REVOKED.name,
+            severity=AuditSeverity.INFO.name,
+            target_type=AuditTargetType.AUTH_TOKEN.name,
+        )
+        session.add(event_from_name)
+        session.commit()
+
+        raw_event_from_name = session.exec(
+            select(
+                AuditEvent.__table__.c.action,
+                AuditEvent.__table__.c.severity,
+                AuditEvent.__table__.c.target_type,
+            ).where(AuditEvent.__table__.c.audit_event_id == event_from_name.id)
+        ).one()
+
+        assert raw_event_from_name.action == AuditAction.TOKEN_REVOKED.value
+        assert raw_event_from_name.severity == AuditSeverity.INFO.value
+        assert raw_event_from_name.target_type == AuditTargetType.AUTH_TOKEN.value
