@@ -33,7 +33,7 @@ class EnumSyncState:
         return [label for label in self.expected_labels if label not in existing]
 
     @property
-    def statements(self) -> list[str]:
+    def statements(self) -> list[text]:
         """SQL statements required to bring the database enum up to date."""
 
         return [make_add_enum_value_sql(self.name, label) for label in self.missing_labels]
@@ -69,14 +69,18 @@ def database_enum_labels(session: Session, enum_name: str) -> list[str]:
     return [row[0] for row in result]
 
 
-def make_add_enum_value_sql(enum_name: str, label: str) -> str:
+def make_add_enum_value_sql(enum_name: str, label: str) -> text:
     """Return an ``ALTER TYPE`` statement to add ``label`` to ``enum_name``."""
 
-    quoted_enum = _PREPARER.format_type(enum_name)
+    # Usar quote en lugar de format_type para strings
+    quoted_enum = _PREPARER.quote(enum_name)
     literal_label = literal(label).compile(
         dialect=_POSTGRES_DIALECT, compile_kwargs={"literal_binds": True}
     )
-    return f"ALTER TYPE {quoted_enum} ADD VALUE IF NOT EXISTS {literal_label};"
+    sql_string = f"ALTER TYPE {quoted_enum} ADD VALUE IF NOT EXISTS {literal_label};"
+    
+    # Retornar como objeto text() para SQLAlchemy
+    return text(sql_string)
 
 
 def load_enum_sync_state(session: Session, enum_name: str, enum: type[Enum]) -> EnumSyncState:
@@ -95,10 +99,10 @@ def build_sync_plan(
     return [load_enum_sync_state(session, name, enum) for name, enum in enum_definitions.items()]
 
 
-def missing_statements(states: Iterable[EnumSyncState]) -> list[str]:
+def missing_statements(states: Iterable[EnumSyncState]) -> list[text]:
     """Collect SQL statements for every enum state that is out of sync."""
 
-    statements: list[str] = []
+    statements: list[text] = []
     for state in states:
         statements.extend(state.statements)
     return statements
