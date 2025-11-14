@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import io
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -13,11 +13,11 @@ from app.audit import AuditAction, AuditEventRead, AuditRepository, AuditTargetT
 from app.core.auth import JWTBearer
 from app.db.main import SessionDep
 from app.config import (
-    audit_enabled,
-    audit_export_default_limit,
-    audit_export_max_limit,
-    audit_list_default_limit,
-    audit_list_max_limit,
+    AUDIT_ENABLED,
+    AUDIT_EXPORT_DEFAULT_LIMIT,
+    AUDIT_EXPORT_MAX_LIMIT,
+    AUDIT_LIST_DEFAULT_LIMIT,
+    AUDIT_LIST_MAX_LIMIT,
 )
 
 
@@ -27,12 +27,12 @@ router = APIRouter(
     prefix="/audit",
     tags=["audit"],
     dependencies=[Depends(auth)],
-    include_in_schema=audit_enabled,
+    include_in_schema=AUDIT_ENABLED,
 )
 
 
 def _ensure_admin(request: Request) -> None:
-    if not audit_enabled:
+    if not AUDIT_ENABLED:
         raise HTTPException(status_code=503, detail="Audit trail disabled")
 
     user = getattr(request.state, "user", None)
@@ -44,31 +44,36 @@ def _ensure_admin(request: Request) -> None:
 def _serialize(events: List[AuditEventRead]) -> List[dict]:
     return [event.model_dump() for event in events]
 
-
-@router.get("/", response_model=List[AuditEventRead])
-async def list_audit_events(
-    request: Request,
-    session: SessionDep,
+def _format_request(
     actor_id: Optional[UUID] = Query(None),
     action: Optional[AuditAction] = Query(None),
     target_type: Optional[AuditTargetType] = Query(None),
     occurred_after: Optional[datetime] = Query(None, alias="from"),
     occurred_before: Optional[datetime] = Query(None, alias="to"),
-    limit: int = Query(audit_list_default_limit, ge=1, le=audit_list_max_limit),
+    limit: int = Query(AUDIT_EXPORT_DEFAULT_LIMIT, ge=1, le=AUDIT_EXPORT_MAX_LIMIT),
+):
+    return {
+        "actor_id": actor_id,
+        "action": action,
+        "target_type": target_type,
+        "occurred_after": occurred_after,
+        "occurred_before": occurred_before,
+        "limit": limit,
+    }
+
+
+@router.get("/", response_model=List[AuditEventRead])
+async def list_audit_events(
+    request: Request,
+    session: SessionDep,
+    audit_parameters: Annotated[dict, Depends(_format_request)],
 ):
     _ensure_admin(request)
 
     repo = AuditRepository(session)
     events = [
         AuditEventRead.model_validate(event)
-        for event in repo.list(
-            actor_id=actor_id,
-            action=action,
-            target_type=target_type,
-            occurred_after=occurred_after,
-            occurred_before=occurred_before,
-            limit=limit,
-        )
+        for event in repo.list(**audit_parameters)
     ]
     return ORJSONResponse(_serialize(events))
 
@@ -77,12 +82,7 @@ async def list_audit_events(
 async def export_audit_events(
     request: Request,
     session: SessionDep,
-    actor_id: Optional[UUID] = Query(None),
-    action: Optional[AuditAction] = Query(None),
-    target_type: Optional[AuditTargetType] = Query(None),
-    occurred_after: Optional[datetime] = Query(None, alias="from"),
-    occurred_before: Optional[datetime] = Query(None, alias="to"),
-    limit: int = Query(audit_export_default_limit, ge=1, le=audit_export_max_limit),
+    audit_parameters: Annotated[dict, Depends(_format_request)],
     format: str = Query("csv", pattern="^(csv|json)$"),
 ):
     _ensure_admin(request)
@@ -90,15 +90,43 @@ async def export_audit_events(
     repo = AuditRepository(session)
     events = [
         AuditEventRead.model_validate(event)
-        for event in repo.list(
-            actor_id=actor_id,
-            action=action,
-            target_type=target_type,
-            occurred_after=occurred_after,
-            occurred_before=occurred_before,
-            limit=limit,
-        )
+        for event in repo.list(**audit_parameters)
     ]
+
+    if format == "json":
+        return ORJSONResponse(_serialize(events))
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "id",
+            "occurred_at",
+            "recorded_at",
+            "action",
+            "severity",
+            "target_type",
+            "target_id",
+            "actor_id",
+            "request_id",
+            "details",
+        ]
+    )
+    for event in events:
+        writer.writerow(
+            [
+                str(event.id),
+                event.occurred_at.isoformat(),
+                event.recorded_at.isoformat(),
+                event.action.value,
+                event.severity.value,
+                event.target_type.value,
+                str(event.target_id) if event.target_id else "",
+                str(event.actor_id) if event.actor_id else "",
+                event.request_id or "",
+                event.details,
+        ]
+    )
 
     if format == "json":
         return ORJSONResponse(_serialize(events))

@@ -49,7 +49,8 @@ from app.core.interfaces.emails import EmailService
 from app.core.interfaces.users import UserRepository
 from app.core.auth import encode, decode
 from app.storage import storage
-from app.config import cors_host, email_host_user, binaries_dir
+from app.db.cache import redis_client as rc
+from app.config import CORS_HOST, EMAIL_HOST_USER, BINARIES_DIR
 
 from app.audit import (
     AuditAction,
@@ -64,7 +65,7 @@ from app.audit import (
 
 TESS_DIGITS = "-c tessedit_char_whitelist=0123456789 --oem 3"
 
-pytesseract.pytesseract.tesseract_cmd = binaries_dir / "tesseract.exe"
+pytesseract.pytesseract.tesseract_cmd = BINARIES_DIR / "tesseract.exe"
 
 console = Console()
 
@@ -104,7 +105,7 @@ public_router = APIRouter(
 )
 
 @private_router.get("/", response_model=List[UserRead])
-async def get_users(session: SessionDep):
+async def get_users(session_db: SessionDep):
     """
     Obtiene lista completa de todos los usuarios del sistema.
     
@@ -126,7 +127,7 @@ async def get_users(session: SessionDep):
         Requiere autenticación. Incluye logs de debug para troubleshooting.
     """
     statement = select(User).where(True)
-    result: List[User] = session.exec(statement).scalars().all()
+    result: List[User] = session_db.exec(statement).scalars().all()
     users = []
     console.print(result)
     console.print(User.__table__)
@@ -159,7 +160,7 @@ async def get_users(session: SessionDep):
     return ORJSONResponse(users)
 
 @private_router.get("/{user_id}/")
-async def get_user_by_id(session: SessionDep, user_id: UUID):
+async def get_user_by_id(session_db: SessionDep, user_id: UUID):
     """
     Obtiene información detallada de un usuario específico por su ID.
     
@@ -179,7 +180,7 @@ async def get_user_by_id(session: SessionDep, user_id: UUID):
     Note:
         Requiere autenticación válida.
     """
-    user: User = session.get(User, user_id)
+    user: User = session_db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="Not found")
 
@@ -205,7 +206,7 @@ async def get_user_by_id(session: SessionDep, user_id: UUID):
     )
 
 @private_router.get("/me", response_model=UserRead)
-async def me_user(request: Request, session: SessionDep):
+async def me_user(request: Request, session_db: SessionDep):
     """
     Obtiene el perfil del usuario autenticado actualmente.
     
@@ -230,9 +231,9 @@ async def me_user(request: Request, session: SessionDep):
     if not isinstance(user, User):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Not authorized: {user}")
 
-    user = session.merge(user)
-    session.commit()
-    session.refresh(user)
+    user = session_db.merge(user)
+    session_db.commit()
+    session_db.refresh(user)
 
     return ORJSONResponse({
         "user":UserRead(
@@ -256,7 +257,7 @@ async def me_user(request: Request, session: SessionDep):
     })
 
 @public_router.post("/add/", response_model=UserRead)
-async def add_user(session: SessionDep, user: Annotated[UserCreate, Form(...)]):
+async def add_user(session_db: SessionDep, user: Annotated[UserCreate, Form(...)]):
     """
     Registra un nuevo usuario en el sistema.
     
@@ -292,9 +293,9 @@ async def add_user(session: SessionDep, user: Annotated[UserCreate, Form(...)]):
         )
         user_db.set_password(user.password)
         await user_db.save_profile_image(user.img_profile) if user.img_profile else None
-        session.add(user_db)
-        session.commit()
-        session.refresh(user_db)
+        session_db.add(user_db)
+        session_db.commit()
+        session_db.refresh(user_db)
         return ORJSONResponse(
             UserRead(
                 id=user_db.id,
@@ -320,7 +321,7 @@ async def add_user(session: SessionDep, user: Annotated[UserCreate, Form(...)]):
         return ORJSONResponse({"error": str(e)}, status_code=400)
     
 @private_router.post("/verify/dni")
-async def verify_dni(request: Request, dni_form: Annotated[DniForm, Form(...)], session: SessionDep):
+async def verify_dni(request: Request, dni_form: Annotated[DniForm, Form(...)], session_db: SessionDep):
     """
     Endpoint para extraer número de DNI de fotos del frente y dorso.
     
@@ -454,7 +455,7 @@ async def verify_dni(request: Request, dni_form: Annotated[DniForm, Form(...)], 
             raise HTTPException(status_code=400, detail="No DNI found in images")
 
         try:
-            user = session.get(User, request.state.user.id)
+            user = session_db.get(User, request.state.user.id)
             
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
@@ -463,9 +464,9 @@ async def verify_dni(request: Request, dni_form: Annotated[DniForm, Form(...)], 
 
             user.dni = mrz1[0] if mrz1 else mrz2[0]
 
-            session.add(user)
-            session.commit()
-            session.refresh(user)
+            session_db.add(user)
+            session_db.commit()
+            session_db.refresh(user)
 
             assert user.dni == pre_change_dni, "DNI did not change"
 
@@ -483,7 +484,7 @@ async def verify_dni(request: Request, dni_form: Annotated[DniForm, Form(...)], 
         raise HTTPException(status_code=400, detail=f"Invalid images or OCR error: {str(e)}")
 
 @private_router.delete("/delete/{user_id}/", response_model=UserDelete)
-async def delete_user(request: Request, user_id: UUID, session: SessionDep):
+async def delete_user(request: Request, user_id: UUID, session_db: SessionDep):
     """
     Elimina permanentemente un usuario del sistema.
     
@@ -508,10 +509,10 @@ async def delete_user(request: Request, user_id: UUID, session: SessionDep):
     if not request.state.user.is_superuser or str(request.state.user.id) == user_id:
         raise HTTPException(status_code=403, detail="Not authorized")
     try:
-        user: User = session.get(User, user_id)
+        user: User = session_db.get(User, user_id)
 
-        session.delete(user)
-        session.commit()
+        session_db.delete(user)
+        session_db.commit()
         user_deleted = UserDelete(
             id=user.id,
             username=user.name,
@@ -526,7 +527,7 @@ async def delete_user(request: Request, user_id: UUID, session: SessionDep):
         return ORJSONResponse({"error": "User not found"}, status_code=404)
 
 @private_router.patch("/update/{user_id}/", response_model=UserRead)
-async def update_user(request: Request, user_id: UUID, session: SessionDep, user_form: Annotated[UserUpdate, Form(...)]):
+async def update_user(request: Request, user_id: UUID, session_db: SessionDep, user_form: Annotated[UserUpdate, Form(...)]):
 
     if not request.state.user.id == user_id and not request.state.user.is_superuser:
         raise HTTPException(
@@ -534,7 +535,7 @@ async def update_user(request: Request, user_id: UUID, session: SessionDep, user
             detail="scopes have not un unauthorized",
         )
 
-    user: User = session.get(User, user_id)
+    user: User = session_db.get(User, user_id)
 
     console.print(user_form.health_insurance)
     
@@ -553,7 +554,7 @@ async def update_user(request: Request, user_id: UUID, session: SessionDep, user
             user.name = user_form.username
         elif field  == "health_insurance" and value is not None:
             for health_insurance_i in user_form.health_insurance:
-                health_insurance_oj = session.get(HealthInsurance, health_insurance_i)
+                health_insurance_oj = session_db.get(HealthInsurance, health_insurance_i)
                 if not health_insurance_oj in user.health_insurance:
                     user.health_insurance.append(health_insurance_oj)
             else:
@@ -564,9 +565,9 @@ async def update_user(request: Request, user_id: UUID, session: SessionDep, user
     if user_form.img_profile and not "google" in request.state.scopes:
         await user.save_profile_image(user_form.img_profile)
 
-    session.add(user)
-    session.commit()
-    session.refresh(user)
+    session_db.add(user)
+    session_db.commit()
+    session_db.refresh(user)
 
     return ORJSONResponse(
         UserRead(
@@ -591,12 +592,12 @@ async def update_user(request: Request, user_id: UUID, session: SessionDep, user
 @public_router.post("/update/petition/password")
 async def update_petition_password(
     request: Request,
-    session: SessionDep,
+    session_db: SessionDep,
     data: Annotated[UserPetitionPasswordUpdate, Form(...)],
     emitter: AuditEmitter = Depends(get_audit_emitter),
 ):
     try:
-        user: User = session.exec(
+        user: User = session_db.exec(
             select(User).where(User.email == data.email)
         ).first()[0]
 
@@ -615,7 +616,7 @@ async def update_petition_password(
             "state": False
         }
 
-        storage.set(key=user.email, value=r_code_data, table_name="recovery-codes", short_live=True)
+        rc.setex(f"recovery-codes:{user.email}", 60, dumps(r_code_data))
 
         await emitter.emit_event(
             _make_event(
@@ -635,22 +636,27 @@ async def update_petition_password(
         return ORJSONResponse({"detail":"Ok 200"}, status_code=200)
     
 @public_router.post("update/verify/code")
-async def verify_code(session: SessionDep, email: str = Form(...), code: str = Form(...)):
+async def verify_code(session_db: SessionDep, email: str = Form(...), code: str = Form(...)):
     try:
         # Usar scalar_one_or_none para obtener un objeto User directo o None
-        user = session.scalar(
+        user = session_db.scalar(
             select(User).where(User.email == email)
         )
         
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        code_storage = storage.get(key=user.email, table_name="recovery-codes")
-        
-        if not code_storage or code_storage.value.value["r_cod"] != code or code_storage.value.expired <= datetime.now():
+        raw = rc.get(f"recovery-codes:{user.email}")
+        if not raw:
             raise HTTPException(status_code=400, detail="Invalid code")
-        
-        code_storage.value.value["state"] = True
+        data = loads(raw)
+        if data.get("r_cod") != code:
+            raise HTTPException(status_code=400, detail="Invalid code")
+        data["state"] = True
+        key_name = f"recovery-codes:{user.email}"
+        ttl = rc.ttl(key_name)
+        ttl = ttl if ttl and ttl > 0 else 60
+        rc.setex(key_name, ttl, dumps(data))
         
         return {"message": "Code verified successfully", "success": True}
     
@@ -671,19 +677,21 @@ async def update_confirm_password(
     emitter: AuditEmitter = Depends(get_audit_emitter),
 ):
     try:
-        user: User = session.exec(
+        user: User = session_db.exec(
             select(User).where(User.email == email)
         ).first()[0]
 
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        code_storage = storage.get(key=user.email, table_name="recovery-codes")
-        
-        if not code_storage.value.value["state"]:
+        raw = rc.get(f"recovery-codes:{user.email}")
+        if not raw:
+            raise HTTPException(status_code=400, detail="Invalid code")
+        data = loads(raw)
+        if not data.get("state"):
             raise HTTPException(status_code=401, detail="Unautorized")
 
-        if not code_storage or code_storage.value.value["r_cod"] != code or code_storage.value.expired <= datetime.now():
+        if data.get("r_cod") != code:
             raise HTTPException(status_code=400, detail="Invalid code")
 
         user.set_password(new_password)
@@ -703,8 +711,8 @@ async def update_confirm_password(
 
         EmailService.send_password_changed_notification_email(
             user.email,
-            help_link=f"{cors_host}/support",
-            contact_email=email_host_user,
+            help_link=f"{CORS_HOST}/support",
+            contact_email=EMAIL_HOST_USER,
             contact_number="1234567890"
         )
 
@@ -815,7 +823,7 @@ async def ban_user(
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    user: User = session.get(User, user_id)
+    user: User = session_db.get(User, user_id)
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -864,7 +872,7 @@ async def unban_user(
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    user: User = session.get(User, user_id)
+    user: User = session_db.get(User, user_id)
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

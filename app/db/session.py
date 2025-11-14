@@ -7,12 +7,12 @@ from typing import Callable
 
 from sqlmodel import Session, create_engine
 
-from app.config import db_url
+from app.config import DB_URL
 
-if not db_url:
+if not DB_URL:
     raise RuntimeError("Database URL is not configured.")
 
-engine = create_engine(db_url, echo=False, future=True, pool_pre_ping=True)
+engine = create_engine(DB_URL, echo=False, future=True, pool_pre_ping=True)
 
 SessionFactory = Callable[[], Session]
 

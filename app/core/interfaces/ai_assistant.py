@@ -16,8 +16,8 @@ from app.core.utils import BaseInterface
 from app.core.interfaces.users import UserRepository
 from app.core.interfaces.medic_area import DoctorRepository, TurnAndAppointmentRepository
 from app.core.interfaces.emails import EmailService
-from app.config import llm_model_name
 from app.db.session import session_factory
+from app.config import LLM_MODEL_NAME
 
 console = Console()
 
@@ -35,15 +35,15 @@ def init_model_torch_class():
     global _model
     global _tokenizer
     try:
-        tokenizer = AutoTokenizer.from_pretrained(llm_model_name, cache_dir=model_cache_dir, use_fast=True, trust_remote_code=True)
-        model = AutoModelForCausalLM.from_pretrained(llm_model_name, cache_dir=model_cache_dir, dtype=th.float32, device_map="cpu", quantization_config=bnb_cfg, trust_remote_code=True)
+        tokenizer = AutoTokenizer.from_pretrained(LLM_MODEL_NAME, cache_dir=model_cache_dir, use_fast=True, trust_remote_code=True)
+        model = AutoModelForCausalLM.from_pretrained(LLM_MODEL_NAME, cache_dir=model_cache_dir, dtype=th.float32, device_map="cpu", quantization_config=bnb_cfg, trust_remote_code=True)
         
         _model = accelerator.prepare(model)
         _tokenizer = tokenizer
         
         console.print(f"model type: {type(model)}, {model.__class__} ")
         
-        console.print(f"AI model loaded successfully\n\nmodel name [blue]{llm_model_name}[/]", style="green")
+        console.print(f"AI model loaded successfully\n\nmodel name [blue]{LLM_MODEL_NAME}[/]", style="green")
         
     except Exception:
         console.print_exception(show_locals=False)

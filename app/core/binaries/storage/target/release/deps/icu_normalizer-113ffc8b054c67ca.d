@@ -1,0 +1,10 @@
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\icu_normalizer-113ffc8b054c67ca.d: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.0.0\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.0.0\src\properties.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.0.0\src\provider.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.0.0\src\uts46.rs
+
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\libicu_normalizer-113ffc8b054c67ca.rlib: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.0.0\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.0.0\src\properties.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.0.0\src\provider.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.0.0\src\uts46.rs
+
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\libicu_normalizer-113ffc8b054c67ca.rmeta: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.0.0\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.0.0\src\properties.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.0.0\src\provider.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.0.0\src\uts46.rs
+
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.0.0\src\lib.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.0.0\src\properties.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.0.0\src\provider.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.0.0\src\uts46.rs:

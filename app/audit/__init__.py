@@ -9,6 +9,7 @@ from .schemas import AuditEventCreate, AuditEventRead
 from .repository import AuditRepository
 from .service import AuditService
 from .utils import build_request_metadata, get_request_identifier
+from .pipeline import AuditPipeline, audit_pipeline, get_audit_emitter, AuditEmitter
 
 _PIPELINE_EXPORTS = {
     "AuditEmitter",

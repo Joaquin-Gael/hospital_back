@@ -8,14 +8,14 @@ from typing import Optional, TYPE_CHECKING
 
 from app.db.session import session_factory
 from app.config import (
-    audit_batch_size,
-    audit_enabled,
-    audit_linger_seconds,
-    audit_minimum_severity,
-    audit_queue_size,
-    audit_redact_fields,
-    audit_retention_days,
-    audit_retry_delay,
+    AUDIT_BATCH_SIZE,
+    AUDIT_ENABLED,
+    AUDIT_LINGER_SECONDS,
+    AUDIT_MINIMUM_SEVERITY,
+    AUDIT_QUEUE_SIZE,
+    AUDIT_REDACT_FIELDS,
+    AUDIT_RETENTION_DAYS,
+    AUDIT_RETRY_DELAY,
 )
 
 from .schemas import AuditEventCreate
@@ -35,7 +35,7 @@ _SEVERITY_RANK = {
 }
 
 try:
-    _configured_minimum_severity = AuditSeverity(audit_minimum_severity)
+    _configured_minimum_severity = AuditSeverity(AUDIT_MINIMUM_SEVERITY.lower())
 except ValueError:  # pragma: no cover - configuration fallback
     _configured_minimum_severity = AuditSeverity.INFO
 
@@ -145,8 +145,8 @@ class AuditPipeline:
 
 audit_service = AuditService(
     session_factory,
-    retention_days=audit_retention_days,
-    redacted_fields=audit_redact_fields,
+    retention_days=AUDIT_RETENTION_DAYS,
+    redacted_fields=AUDIT_REDACT_FIELDS,
 )
 
 
@@ -164,13 +164,13 @@ class _DisabledAuditPipeline:
         return None
 
 
-if audit_enabled:
+if AUDIT_ENABLED:
     audit_pipeline: AuditPipeline | _DisabledAuditPipeline = AuditPipeline(
         audit_service,
-        max_queue_size=audit_queue_size,
-        batch_size=audit_batch_size,
-        linger_seconds=audit_linger_seconds,
-        retry_delay=audit_retry_delay,
+        max_queue_size=AUDIT_QUEUE_SIZE,
+        batch_size=AUDIT_BATCH_SIZE,
+        linger_seconds=AUDIT_LINGER_SECONDS,
+        retry_delay=AUDIT_RETRY_DELAY,
     )
 else:
     audit_pipeline = _DisabledAuditPipeline()
@@ -244,6 +244,6 @@ def get_audit_emitter() -> "AuditEmitter":
     return AuditEmitter(
         audit_service,
         audit_pipeline,
-        enabled=audit_enabled,
+        enabled=AUDIT_ENABLED,
         minimum_severity=_configured_minimum_severity,
     )

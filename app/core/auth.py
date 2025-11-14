@@ -6,7 +6,7 @@ import time
 
 from pydantic import BaseModel
 
-from fastapi import Header, HTTPException, status, Request, WebSocket, Cookie
+from fastapi import Cookie, Header, HTTPException, status, Request, WebSocket
 
 from functools import singledispatch, wraps
 
@@ -22,10 +22,11 @@ from uuid import UUID
 
 from rich.console import Console
 
-from app.config import token_key, api_name, version, debug, token_expire_minutes, token_refresh_expire_days
+from app.config import TOKEN_KEY, API_NAME, VERSION, DEBUG, TOKEN_EXPIRE_MINUTES, TOKEN_REFRESH_EXPIRE_DAYS
 from app.models import Doctors, User
 from app.db.session import session_factory
 from app.storage import storage
+from app.db.cache import redis_client as rc
 from app.core.interfaces.emails import EmailService
 from app.storage import storage
 from app.audit import (
@@ -186,7 +187,7 @@ def decode(data: bytes, dtype: Type[T] | None = None) -> T | Any:
     try:
         plaintext: bytes = encoder_f.decrypt(data)
     except Exception as e:
-        console.print_exception(show_locals=True) if debug else None
+        console.print_exception(show_locals=True) if DEBUG else None
         raise ValueError("Token inválido o expirado") from e
 
 
@@ -229,13 +230,13 @@ def gen_token(payload: dict, refresh: bool = False):
         - Usa algoritmo HS256 con clave secreta del sistema
     """
     payload.setdefault("iat", datetime.now())
-    payload.setdefault("iss", f"{api_name}/{version}")
+    payload.setdefault("iss", f"{API_NAME}/{VERSION}")
     if refresh:
-        payload["exp"] = int((datetime.now() + timedelta(days=token_refresh_expire_days)).timestamp())
+        payload["exp"] = int((datetime.now() + timedelta(days=TOKEN_REFRESH_EXPIRE_DAYS)).timestamp())
         payload.setdefault("type", "refresh_token")
     else:
-        payload["exp"] = int((datetime.now() + timedelta(minutes=token_expire_minutes)).timestamp())
-    return jwt.encode(payload, token_key, algorithm="HS256")
+        payload["exp"] = int((datetime.now() + timedelta(minutes=TOKEN_EXPIRE_MINUTES)).timestamp())
+    return jwt.encode(payload, TOKEN_KEY, algorithm="HS256")
 
 def decode_token(token: str):
     """
@@ -259,10 +260,10 @@ def decode_token(token: str):
         - Solo acepta algoritmo HS256
     """
     try:
-        payload = jwt.decode(token, key=token_key, algorithms=["HS256"], leeway=20)
+        payload = jwt.decode(token, key=TOKEN_KEY, algorithms=["HS256"], leeway=20)
         return payload
     except PyJWTError as e:
-        print(e) if debug else None
+        print(e) if DEBUG else None
         raise ValueError("Value Not Found") from e
 
 P = ParamSpec("P")
@@ -305,12 +306,18 @@ def time_out(seconds: Optional[float] = 1.0, max_trys: Optional[int] = 5) -> Cal
             # Obtener la IP del cliente
             client_ip = request.client.host
             current_time = time.time()
-            current_try = storage.get(key=client_ip, table_name="ip-time-out")
-            
-            if current_try is not None:
-                storage.set(key=client_ip, value={"current_try": 1, "max_trys": max_trys}, table_name="ip-time-out")
-            elif isinstance(current_try, dict):
-                if current_try.get("current_try", 0) >= current_try.get("max_trys", max_trys):
+            key_name = f"ip-time-out:{client_ip}"
+            raw = rc.get(key_name)
+            data = None
+            if raw:
+                try:
+                    data = loads(raw)
+                except Exception:
+                    data = None
+            if data is None:
+                rc.setex(key_name, int(seconds), dumps({"current_try": 1, "max_trys": max_trys}))
+            elif isinstance(data, dict):
+                if data.get("current_try", 0) >= data.get("max_trys", max_trys):
                     await _emit_security_event(
                         request,
                         action=AuditAction.RATE_LIMIT_TRIGGERED,
@@ -322,8 +329,10 @@ def time_out(seconds: Optional[float] = 1.0, max_trys: Optional[int] = 5) -> Cal
                         detail=f"Has excedido el número máximo de intentos. Por favor espera {seconds} segundos antes de intentar de nuevo."
                     )
                 else:
-                    current_try["current_try"] += 1
-                    storage.set(key=client_ip, value=current_try, table_name="ip-time-out")
+                    data["current_try"] += 1
+                    ttl = rc.ttl(key_name)
+                    ttl = ttl if ttl and ttl > 0 else int(seconds)
+                    rc.setex(key_name, ttl, dumps(data))
             
             # Verificar si existe un acceso previo para esta IP
             if client_ip in last_access:
@@ -375,22 +384,16 @@ class JWTBearer:
         - Establece user y scopes en request.state
     """
     
-    async def __call__(
-        self, 
-        request: Request, 
-        authorization: Optional[str] = Header(None),  # ← Prioridad: Header
-        authorization_cookie: Optional[str] = Cookie(None, alias="authorization")  # ← Fallback: Cookie
-    ) -> User | Doctors | None:
+    async def __call__(self, request: Request, session: Optional[str] = Cookie(None), authorization: Optional[str] = Header(None)) -> User | Doctors | None:
         """
         Procesa autenticación JWT para una request HTTP.
         
-        Extrae el token del header Authorization o de la cookie (en ese orden),
-        lo valida, y carga los datos del usuario correspondiente en el estado de la request.
+        Extrae el token desde la cookie "session", lo valida, y carga
+        los datos del usuario correspondiente en el estado de la request.
         
         Args:
             request (Request): Request HTTP de FastAPI
-            authorization (str, optional): Header "Authorization: Bearer {token}"
-            authorization_cookie (str, optional): Cookie "authorization" con el token
+            session (str, optional): cookie "session" con el token
             
         Returns:
             User | Doctors | None: Usuario o médico autenticado
@@ -401,33 +404,18 @@ class JWTBearer:
             HTTPException: 403 si token está baneado
             
         Note:
-            - Prioriza Header sobre Cookie (mejor para desarrollo cross-origin)
-            - Valida formato "Bearer {token}" solo en Header
+            - Usa el token directamente desde la cookie
             - Previene uso de refresh tokens en endpoints normales
             - Maneja warnings para cuentas Google
             - Establece request.state.user y request.state.scopes
         """
-        
-        # Prioridad: Header > Cookie
-        token = None
-        
-        if authorization:
-            # Viene del Header Authorization
-            if not authorization.startswith("Bearer "):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Invalid authorization header format. Expected 'Bearer {token}'"
-                )
-            token = authorization.replace("Bearer ", "")
-        elif authorization_cookie:
-            # Fallback a Cookie (para producción o cuando el front está en el mismo dominio)
-            token = authorization_cookie
-        
-        if not token:
+        if session is None and not authorization:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="No credentials provided or invalid format"
             )
+
+        token = session if session else authorization.replace("Bearer ", "")
 
         try:
             payload = decode_token(token)
@@ -452,26 +440,14 @@ class JWTBearer:
                 raise HTTPException(status_code=401, detail="Refresh tokens cannot be used for regular endpoints")
 
         user_id = payload.get("sub")
-        
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid token payload: missing subject")
 
-        # Verificar tokens baneados
-        ban_token = storage.get(key=user_id, table_name="ban-token")
+        ban_token_raw = rc.get(f"ban-token:{payload.get('sub')}")
 
-        if ban_token is not None:
-            stored_token = getattr(getattr(ban_token, "value", None), "value", None)
-            if stored_token and token == stored_token:
-                await _emit_security_event(
-                    request,
-                    action=AuditAction.TOKEN_REVOKED,
-                    severity=AuditSeverity.WARNING,
-                    actor_id=UUID(user_id),
-                    target_id=UUID(user_id),
-                    target_type=AuditTargetType.AUTH_TOKEN,
-                    details={"reason": "banned_token"},
-                )
-                raise HTTPException(status_code=403, detail="Token has been revoked")
+            #console.print(">>> ", ban_token, " <<<") if DEBUG else None
+
+        if ban_token_raw is not None:
+            if token == ban_token_raw:
+                raise HTTPException(status_code=403, detail="Token banned")
 
         try:
             # Determinar si es doctor o usuario
@@ -512,14 +488,8 @@ class JWTBearer:
             # Re-raise HTTPExceptions sin modificar
             raise
         except Exception as e:
-            console.print_exception(show_locals=True) if debug else None
-            await _emit_security_event(
-                request,
-                action=AuditAction.TOKEN_INVALID,
-                severity=AuditSeverity.ERROR,
-                details={"reason": "unexpected_error", "error": str(e)},
-            )
-            raise HTTPException(status_code=401, detail="Authentication failed") from e
+            console.print(e) if DEBUG else None
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 class JWTWebSocket:
     async def __call__(self, websocket: WebSocket) -> tuple[User | Doctors, list[str]] | tuple[None, None] | None:

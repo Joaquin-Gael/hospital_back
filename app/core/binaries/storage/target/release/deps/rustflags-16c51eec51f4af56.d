@@ -1,0 +1,11 @@
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\rustflags-16c51eec51f4af56.d: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustflags-0.1.7\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustflags-0.1.7\src\parse.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustflags-0.1.7\src\render.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustflags-0.1.7\src\string.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustflags-0.1.7\src\write.rs
+
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\librustflags-16c51eec51f4af56.rlib: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustflags-0.1.7\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustflags-0.1.7\src\parse.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustflags-0.1.7\src\render.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustflags-0.1.7\src\string.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustflags-0.1.7\src\write.rs
+
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\librustflags-16c51eec51f4af56.rmeta: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustflags-0.1.7\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustflags-0.1.7\src\parse.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustflags-0.1.7\src\render.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustflags-0.1.7\src\string.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustflags-0.1.7\src\write.rs
+
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustflags-0.1.7\src\lib.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustflags-0.1.7\src\parse.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustflags-0.1.7\src\render.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustflags-0.1.7\src\string.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustflags-0.1.7\src\write.rs:

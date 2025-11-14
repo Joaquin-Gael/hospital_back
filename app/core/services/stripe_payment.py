@@ -13,12 +13,12 @@ from sqlmodel import Session, select
 from rich.console import Console
 
 from app.models import Cashes, CashDetails, Turns, HealthInsurance
-from app.config import stripe_secret_key, stripe_public_key, cors_host, id_prefix
+from app.config import STRIPE_SECRET_KEY, STRIPE_PUBLIC_KEY, CORS_HOST, ID_PREFIX
 from app.core.auth import encode
 
 console = Console()
 
-stripe.api_key = stripe_secret_key
+stripe.api_key = STRIPE_SECRET_KEY
 
 class StripeServices:
     @staticmethod
@@ -68,9 +68,9 @@ class StripeServices:
 
             payload_data = {
                 "turn_id": str(details["turn_id"]),
-                "total": total_with_discount,        # total YA con descuento
+                "total": total_with_discount,
                 "payment_method": "card",
-                "discount": discount,                # % de descuento usado
+                "discount": discount,
                 "services": encode(details["products_data"]).hex(),
             }
 

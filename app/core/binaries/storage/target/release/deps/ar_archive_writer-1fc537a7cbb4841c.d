@@ -1,0 +1,10 @@
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\ar_archive_writer-1fc537a7cbb4841c.d: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ar_archive_writer-0.2.0\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ar_archive_writer-0.2.0\src\alignment.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ar_archive_writer-0.2.0\src\archive.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ar_archive_writer-0.2.0\src\archive_writer.rs
+
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\libar_archive_writer-1fc537a7cbb4841c.rlib: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ar_archive_writer-0.2.0\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ar_archive_writer-0.2.0\src\alignment.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ar_archive_writer-0.2.0\src\archive.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ar_archive_writer-0.2.0\src\archive_writer.rs
+
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\libar_archive_writer-1fc537a7cbb4841c.rmeta: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ar_archive_writer-0.2.0\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ar_archive_writer-0.2.0\src\alignment.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ar_archive_writer-0.2.0\src\archive.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ar_archive_writer-0.2.0\src\archive_writer.rs
+
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ar_archive_writer-0.2.0\src\lib.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ar_archive_writer-0.2.0\src\alignment.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ar_archive_writer-0.2.0\src\archive.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ar_archive_writer-0.2.0\src\archive_writer.rs:

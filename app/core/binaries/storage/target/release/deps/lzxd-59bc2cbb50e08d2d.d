@@ -1,0 +1,11 @@
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\lzxd-59bc2cbb50e08d2d.d: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\lzxd-0.2.6\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\lzxd-0.2.6\src\bitstream.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\lzxd-0.2.6\src\block.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\lzxd-0.2.6\src\tree.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\lzxd-0.2.6\src\window.rs
+
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\liblzxd-59bc2cbb50e08d2d.rlib: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\lzxd-0.2.6\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\lzxd-0.2.6\src\bitstream.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\lzxd-0.2.6\src\block.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\lzxd-0.2.6\src\tree.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\lzxd-0.2.6\src\window.rs
+
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\liblzxd-59bc2cbb50e08d2d.rmeta: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\lzxd-0.2.6\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\lzxd-0.2.6\src\bitstream.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\lzxd-0.2.6\src\block.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\lzxd-0.2.6\src\tree.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\lzxd-0.2.6\src\window.rs
+
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\lzxd-0.2.6\src\lib.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\lzxd-0.2.6\src\bitstream.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\lzxd-0.2.6\src\block.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\lzxd-0.2.6\src\tree.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\lzxd-0.2.6\src\window.rs:

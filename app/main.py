@@ -1,5 +1,5 @@
 from fastapi import FastAPI, APIRouter, Request, WebSocket
-from fastapi.responses import ORJSONResponse, FileResponse, Response
+from fastapi.responses import ORJSONResponse, FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocketDisconnect
@@ -19,20 +19,22 @@ from uuid import UUID
 
 from pathlib import Path
 
+from app.api import users, medic_area, auth, cashes, ai_assistant
+from app.config import API_NAME, VERSION, DEBUG, CORS_HOST, TEMPLATES, parser_name
 from app.audit.pipeline import audit_pipeline
 from app.db.main import init_db, set_admin, migrate, test_db, db_url
 from app.api import users, medic_area, auth, cashes, ai_assistant, audit
 from app.config import (
-    api_name,
-    audit_enabled,
-    version,
-    debug,
-    cors_host,
-    templates,
+    API_NAME,
+    AUDIT_ENABLED,
+    VERSION,
+    DEBUG,
+    CORS_HOST,
+    TEMPLATES,
     parser_name,
-    id_prefix,
-    assets_dir,
-    media_dir,
+    ID_PREFIX,
+    ASSETS_DIR,
+    MEDIA_DIR,
 )
 from app.storage.main import storage
 from app.core.auth import time_out, gen_token, decode_token
@@ -42,7 +44,7 @@ install(show_locals=True)
 console = Console()
 
 main_router = APIRouter(
-    prefix=f"/{str(id_prefix)}",
+    prefix=f"/{str(ID_PREFIX)}",
 )
 
 @asynccontextmanager
@@ -117,12 +119,12 @@ async def lifespan(app: FastAPI):
         await audit_pipeline.start()
         
     console.rule("[green]Server Opened[/green]")
-    
-    if debug:
+    if DEBUG:
+        # Línea destacada con título
         console.rule("[bold green]🔍 Documentación Scalar activa[/bold green]")
         mensaje = (
             "[bold cyan]La documentación de tu API está disponible en:[/bold cyan]\n"
-            f"  [bold magenta]http://localhost:8000/{id_prefix}/scalar[/bold magenta]\n\n"
+            f"  [bold magenta]http://localhost:8000/{ID_PREFIX}/scalar[/bold magenta]\n\n"
             "[dim]Permanecerá accesible mientras debug esté activado.[/dim]"
         )
         console.print(
@@ -137,12 +139,12 @@ async def lifespan(app: FastAPI):
     try:
         yield None
     finally:
-        if audit_enabled:
+        if AUDIT_ENABLED:
             await audit_pipeline.stop()
         console.rule("[red]Server Closed[/red]")
-        
-        # Cleanup en debug mode...
-        if debug:
+        yield None
+        console.rule("[red]Server Closed[/red]")
+        if DEBUG:
             try:
                 import os
                 from pathlib import Path
@@ -167,9 +169,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     lifespan=lifespan,
-    title=api_name,
+    title=API_NAME,
     description="Esta API permite gestionar usuarios, pacientes y médicos.",
-    version=version,
+    version=VERSION,
     contact={
         "name": "JoaDev",
         "email": "tuemail@example.com",
@@ -181,7 +183,7 @@ app = FastAPI(
     },
     docs_url=None,
     redoc_url=None,
-    debug=debug,
+    debug=DEBUG,
     redirect_slashes=True
 )
 
@@ -239,7 +241,7 @@ class SearchHotKey(Enum):
     Y = "y"
     Z = "z"
 
-if debug:
+if DEBUG:
     @main_router.get("/scalar", include_in_schema=False)
     async def scalar_html():
         """
@@ -267,14 +269,14 @@ main_router.include_router(users.router)
 main_router.include_router(medic_area.router)
 main_router.include_router(auth.router)
 main_router.include_router(cashes.router)
-if audit_enabled:
+if AUDIT_ENABLED:
     main_router.include_router(audit.router)
 main_router.include_router(ai_assistant.router)
 
 app.include_router(main_router)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], #if debug else [cors_host],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -295,7 +297,7 @@ class SPAStaticFiles(StaticFiles):
         index_file (str): Archivo index a servir para rutas SPA
     """
     
-    def __init__(self, directory: str="templates", html: bool=True, check_dir: bool=True, api_prefix: UUID=id_prefix, index_file: str="index.html"):
+    def __init__(self, directory: str="templates", html: bool=True, check_dir: bool=True, api_prefix: UUID=ID_PREFIX, index_file: str="index.html"):
         """
         Inicializa el manejador de archivos estáticos SPA.
         
@@ -336,22 +338,25 @@ class SPAStaticFiles(StaticFiles):
         path = request.url.path.lstrip("/")
 
         if request.url.path.startswith(self.api_prefix):
+            console.print(f"Request to API: {request.url.path}")
             await self.app(scope, receive, send)
             return
 
         full_path = (Path(self.directory) / path).resolve()
         if full_path.exists():
+            console.print(f"Request to static file: {full_path}")
             await self.app(scope, receive, send)
             return
 
         index_path = Path(self.directory) /self.index_file
         response = FileResponse(index_path)
+        console.print(f"Request to SPA index file: {index_path}")
         await response(scope, receive, send)
 
-app.mount("/assets", StaticFiles(directory=assets_dir))
-app.mount("/media", StaticFiles(directory=media_dir))
+app.mount("/assets", StaticFiles(directory=ASSETS_DIR))
+app.mount("/media", StaticFiles(directory=MEDIA_DIR))
 
-@app.get("/id_prefix_api_secret/", include_in_schema=debug)
+@app.get("/id_prefix_api_secret/", include_in_schema=DEBUG)
 async def get_secret():
     """
     Obtiene el prefijo secreto de la API.
@@ -366,7 +371,7 @@ async def get_secret():
     Note:
         Solo incluido en el schema cuando debug=True
     """
-    return {"id_prefix_api_secret": str(id_prefix)}
+    return {"id_prefix_api_secret": str(ID_PREFIX)}
 
 @app.websocket("/{secret}/ws")
 async def websocket_endpoint(websocket: WebSocket, secret: str):
@@ -404,18 +409,20 @@ async def websocket_endpoint(websocket: WebSocket, secret: str):
         console.print(f"Error en WebSocket: {str(e)}")
 
 @app.get("/login-admin")
-@time_out(120)
+@time_out(10, 20)
 async def login_admin(request: Request):
-    return templates.TemplateResponse(parser_name(["admin", "login"], "login"), {"request": request})
+    return TEMPLATES.TemplateResponse(parser_name(["admin", "login"], "login"), {"request": request})
 
 @app.get("/admin")
-@time_out(120)
+@time_out(10, 20)
 async def admin(request: Request):
     session = request.cookies.get("session")
     try:
         decode_token(session)
-        return templates.TemplateResponse(parser_name(["admin", "panel"], "index"), {"request": request})
-    except:
-        return templates.TemplateResponse(parser_name(["admin", "login"], "login"), {"request": request})
+        return TEMPLATES.TemplateResponse(parser_name(["admin", "panel"], "index"), {"request": request})
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        console.print(f"Error en login_admin: {str(e)}")
+        return RedirectResponse(url="/login-admin", status_code=303)
 
 #app.mount("/", SPAStaticFiles(), name="spa")

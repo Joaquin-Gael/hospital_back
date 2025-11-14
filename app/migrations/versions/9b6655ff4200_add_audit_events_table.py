@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
@@ -18,7 +19,7 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-audit_action_enum = sa.Enum(
+audit_action_enum = postgresql.ENUM(
     "mark_login",
     "login_failed",
     "activate",
@@ -34,15 +35,18 @@ audit_action_enum = sa.Enum(
     "rate_limit_triggered",
     "password_reset_requested",
     "password_reset_completed",
+    "turn_document_generated",
+    "turn_document_downloaded",
     "payment_succeeded",
     "payment_cancelled",
     "payment_failed",
     name="audit_action",
+    create_type=False,
 )
 
-audit_severity_enum = sa.Enum("info", "warning", "critical", name="audit_severity")
+audit_severity_enum = postgresql.ENUM("info", "warning", "critical", name="audit_severity", create_type=False)
 
-audit_target_type_enum = sa.Enum(
+audit_target_type_enum = postgresql.ENUM(
     "User",
     "Doctor",
     "Turn",
@@ -51,6 +55,7 @@ audit_target_type_enum = sa.Enum(
     "AuthToken",
     "Session",
     name="audit_target_type",
+    create_type=False,
 )
 
 
@@ -61,6 +66,10 @@ def upgrade() -> None:
     audit_action_enum.create(bind, checkfirst=True)
     audit_severity_enum.create(bind, checkfirst=True)
     audit_target_type_enum.create(bind, checkfirst=True)
+
+    inspector = sa.inspect(bind)
+    if "audit_events" in inspector.get_table_names():
+        return
 
     op.create_table(
         "audit_events",

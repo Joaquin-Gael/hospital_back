@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68", "wheel>=0.38"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "backend"
 version = "0.3.8"
@@ -17,7 +21,6 @@ dependencies = [
     "fastapi[all]>=0.115.12",
     "fastmcp>=2.12.4",
     "matplotlib>=3.10.6",
-    "maturin>=1.9.6",
     "numpy>=2.3.3",
     "opencv-python>=4.11.0.86",
     "orjson>=3.10.16",

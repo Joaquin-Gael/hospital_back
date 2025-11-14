@@ -15,7 +15,7 @@ import time
 
 from typing import List, Tuple
 
-from app.config import debug, admin_user, User, db_url as _db_url
+from app.config import DEBUG, ADMIN_USER, User, DB_URL as _db_url
 from app.db.session import engine, get_session as _get_session, session_factory
 
 # Import audit models so their tables are registered in the global metadata
@@ -60,9 +60,9 @@ def migrate():
     out = run(["alembic", "upgrade", "head"], capture_output=True, text=True)
     print("Database migrated:\n")
     if out.stderr:
-        print(out.stderr) if debug else None
+        print(out.stderr) if DEBUG else None
     else:
-        print(out.stdout) if debug else None
+        print(out.stdout) if DEBUG else None
 
 def set_admin():
     """
@@ -85,22 +85,22 @@ def set_admin():
         with session_factory() as session:
             admin: User = session.exec(
                 select(User)
-                    .where(User.email == admin_user.email)
+                    .where(User.email == ADMIN_USER.email)
             ).first()
 
             if admin:
                 return
 
-            session.add(admin_user)
+            session.add(ADMIN_USER)
             session.commit()
-            session.refresh(admin_user)
+            session.refresh(ADMIN_USER)
         print("Admin created")
     except IntegrityError:
-        console.print_exception(show_locals=True) if debug else None
+        console.print_exception(show_locals=True) if DEBUG else None
         print("Admin already created")
 
     except Exception(BaseException):
-        console.print_exception(show_locals=True) if debug else None
+        console.print_exception(show_locals=True) if DEBUG else None
         print("Admin not created")
 
 
@@ -136,7 +136,7 @@ def test_db() -> Tuple[float, bool]:
 
     except Exception:
         end = time.time()
-        console.print_exception(show_locals=True) if debug else None
+        console.print_exception(show_locals=True) if DEBUG else None
         return (end - start), False
 
 
@@ -161,3 +161,4 @@ def get_session():
 SessionDep = Annotated[Session, Depends(get_session)]
 
 metadata = SQLModel.metadata
+

@@ -3,7 +3,6 @@ from typing import Optional, Any, Dict, List
 
 from uuid import UUID, uuid4
 
-from cachetools import cached, TTLCache
 from functools import wraps
 
 from datetime import datetime, timedelta
@@ -12,17 +11,18 @@ from time import time
 
 from pathlib import Path
 
-from rich.console import Console
+import json
 
-import orjson
+import os
 
-#import mmap TODO implementar
+from app.config import STORAGE_DIR_NAME, GET_CURRENT_TIME, console
 
-import threading
+os.environ["PATH_DIR"] = str(Path(__file__).parent / STORAGE_DIR_NAME)
+Path(os.environ["PATH_DIR"]).mkdir(parents=True, exist_ok=True)
 
-console = Console()
+import encript_storage as es
 
-STORAGE_PATH: Path = (Path(__file__).parent / "storage.json").resolve()
+ 
 
 class NoneResultException(Exception):
     def __init__(self, message: str = "Result is None"):
@@ -39,27 +39,6 @@ def timeit(func):
         return result
     return wrapper
 
-class PurgeMeta(type):
-    ignore_methods = {"__init__", "__new__", "create_table", "purge_expired", "_load", "_auto_flush", "_mark_dirty", "__init_storage", "_get_internal_all"}
-
-    def __new__(mcs, name, bases, namespace):
-        for attr, val in namespace.items():
-            if callable(val) and not attr.startswith('_') and attr not in mcs.ignore_methods:
-                namespace[attr] = mcs.wrap_with_purge(val)
-        return super().__new__(mcs, name, bases, namespace)
-
-    @staticmethod
-    def wrap_with_purge(method):
-        from functools import wraps
-        @wraps(method)
-        @timeit
-        def wrapper(self, *args, **kwargs):
-            table_name = kwargs.get("table_name")
-            # Solo purgar si la tabla existe
-            if table_name and table_name in self.data.tables:
-                self.purge_expired(table_name)
-            return method(self, *args, **kwargs)
-        return wrapper
 
 def date_encoder(o):
     if isinstance(o, datetime):
@@ -76,9 +55,6 @@ class Response(BaseModel):
     updated: Optional[datetime] = None
     id: Optional[UUID] = None
 
-class Item(Response):
-    pass
-
 class GetItem(BaseModel):
     key: str
     value: Optional[Response] = None
@@ -86,290 +62,318 @@ class GetItem(BaseModel):
 class SetItem(Response):
     key: Optional[str] = None
 
-class Table(BaseModel):
-    name: str
-    items: Optional[Dict[str, Item | SetItem]]
-
 class Storage(BaseModel):
-    tables: Dict[str, Table]
+    tables: Dict[str, Dict[str, Any]] = {}
 
 
-class Singleton(metaclass=PurgeMeta):
+class Singleton:
     _instance = None
-    _cache = TTLCache(maxsize=100, ttl=timedelta(minutes=1).total_seconds())
-    
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance.__init_storage()
         return cls._instance
 
+    @timeit
     def purge_expired(self, table_name: str) -> None:
-        """Elimina items expirados de una tabla"""
-        # Validar que la tabla existe
-        if table_name not in self.data.tables:
-            console.print(f"[yellow]Table '{table_name}' does not exist, skipping purge[/yellow]")
+        try:
+            set_obj: es.Set = es.py_read_set(table_name)
+        except Exception:
             return
-            
-        items = self._get_internal_all(table_name=table_name)
-        if items is None:
-            return
-            
-        now = datetime.now()
-        self.data.tables[table_name].items = {
-            item.key: item.value for item in items
-            if item.value.expired and item.value.expired > now
-        }
+        now = GET_CURRENT_TIME()
+        ttl = timedelta(days=30)
+        tz = now.tzinfo
+        try:
+            items = set_obj.items()
+            original_len = 0
+            filtered_items = []
+            for it in items:
+                original_len += 1
+                ca = getattr(it, "created_at", None)
+                created = None
+                if isinstance(ca, (int, float)):
+                    try:
+                        created = datetime.fromtimestamp(float(ca), tz=tz)
+                    except Exception:
+                        created = None
+                elif isinstance(ca, str):
+                    try:
+                        created = datetime.fromtimestamp(float(ca), tz=tz)
+                    except Exception:
+                        created = None
+                if created and (created + ttl) > now:
+                    filtered_items.append(json.loads(it.to_json()))
+            if len(filtered_items) != original_len:
+                new_set = {"name": set_obj.name, "content": filtered_items}
+                es.py_save_data(table_name, json.dumps(new_set, default=date_encoder))
+        except Exception:
+            set_dict = json.loads(set_obj.to_json())
+            content = set_dict.get("content", [])
+            original_len = len(content) if isinstance(content, list) else 0
+            filtered = []
+            for it in set_dict.get("content", []):
+                ca = it.get("created_at")
+                created = None
+                if isinstance(ca, (int, float)):
+                    try:
+                        created = datetime.fromtimestamp(float(ca), tz=tz)
+                    except Exception:
+                        created = None
+                elif isinstance(ca, str):
+                    try:
+                        created = datetime.fromtimestamp(float(ca), tz=tz)
+                    except Exception:
+                        created = None
+                if created and (created + ttl) > now:
+                    filtered.append(it)
+            if len(filtered) != original_len:
+                set_dict["content"] = filtered
+                es.py_save_data(table_name, orjson.dumps(set_dict, default=date_encoder).decode())
 
     def __init_storage(self):
-        self._lock = threading.Lock()
-        self._flush_event = threading.Event()
-        self.data = None
-        self._dirty = False
-        
-        # Asegurar que el directorio existe
-        STORAGE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        
-        if not STORAGE_PATH.exists():
-            # Crear archivo con estructura inicial válida
-            initial_data = {"tables": {}}
-            STORAGE_PATH.write_bytes(orjson.dumps(initial_data, default=str))
-        
-        self._load()
-
-        # Iniciar thread de auto-flush
-        t = threading.Thread(target=self._auto_flush, daemon=True)
-        t.start()
+        self.data = Storage(tables={})
 
     def _load(self):
-        """Carga los datos desde el archivo JSON"""
-        try:
-            raw = STORAGE_PATH.read_bytes()
-            
-            # Si el archivo está vacío o solo tiene espacios en blanco
-            if not raw or not raw.strip():
-                console.print("[yellow]Storage file is empty, initializing with default structure[/yellow]")
-                self.data = Storage(tables={})
-                self._mark_dirty()  # Guardar la estructura inicial
-                return
-            
-            # Intentar parsear el JSON
-            try:
-                self.data = Storage.model_validate_json(raw)
-            except Exception as json_error:
-                console.print(f"[red]Error parsing JSON: {json_error}[/red]")
-                console.print("[yellow]Resetting storage to default structure[/yellow]")
-                # Si falla el parseo, crear estructura limpia
-                self.data = Storage(tables={})
-                self._mark_dirty()
-                
-        except FileNotFoundError:
-            console.print("[yellow]Storage file not found, creating new one[/yellow]")
-            self.data = Storage(tables={})
-            self._mark_dirty()
-        except Exception as e:
-            console.print(f"[red]Unexpected error loading storage: {e}[/red]")
-            self.data = Storage(tables={})
-            self._mark_dirty()
+        return None
+
 
     def _auto_flush(self):
-        """Thread que guarda automáticamente los cambios cada segundo si hay cambios pendientes"""
-        while True:
-            self._flush_event.wait(timeout=1)
-            with self._lock:
-                if self._dirty:
-                    try:
-                        data_bytes = orjson.dumps(self.data.model_dump(), default=date_encoder)
-                        STORAGE_PATH.write_bytes(data_bytes)
-                        self._dirty = False
-                        console.print("[green]Storage flushed successfully[/green]")
-                    except Exception as e:
-                        console.print(f"[red]Error flushing storage: {e}[/red]")
-                self._flush_event.clear()
+        return None
 
-    def _mark_dirty(self):
-        """Marca que hay cambios pendientes de guardar"""
-        with self._lock:
-            self._dirty = True
-            self._flush_event.set()
+    
 
     def create_table(self, table_name: str):
-        """Crea una nueva tabla si no existe"""
-        # No necesitamos recargar en cada operación si usamos el singleton correctamente
-        if table_name in self.data.tables:
-            console.print(f"[yellow]Table '{table_name}' already exists[/yellow]")
+        try:
+            es.py_read_set(table_name)
             return None
-        
-        table = Table(name=table_name, items={})
-        self.data.tables[table_name] = table
-        self._mark_dirty()
-        console.print(f"[green]Table '{table_name}' created successfully[/green]")
-        return table
-
-    def _get_internal_all(self, table_name: str):
-        """Método interno para obtener todos los items sin cache"""
-        if table_name not in self.data.tables:
-            return None
-            
-        items = self.data.tables[table_name].items
-        if not items:
+        except Exception:
+            s = es.py_create_set(table_name)
+            es.py_save_data(table_name, s.to_json())
             return None
 
-        items_response = []
-        for item in items.values():
-            items_response.append(
-                GetItem(
-                    key=item.key,
-                    value=Response(
-                        key=item.key,
-                        value=item.value,
-                        expired=item.expired,
-                        created=item.created,
-                        updated=item.updated,
-                        id=item.id
+    def _get_internal_all(self, table_name: str) -> List[GetItem] | None:
+        try:
+            set_obj: es.Set = es.py_read_set(table_name)
+        except Exception:
+            return None
+        items_response: List[GetItem] = []
+        try:
+            for it in set_obj.items():
+                key = it.item_name
+                payload = it.content
+                if isinstance(payload, str):
+                    try:
+                        payload = orjson.loads(payload)
+                    except Exception:
+                        payload = {}
+                expired = it.expired_at
+                created = it.created_at
+                updated = it.updated_at
+                items_response.append(
+                    GetItem(
+                        key=key,
+                        value=Response(
+                            key=key,
+                            value=payload.get("value"),
+                            expired=datetime.fromisoformat(expired) if expired else None,
+                            created=datetime.fromisoformat(created) if created else None,
+                            updated=datetime.fromisoformat(updated) if updated else None,
+                            id=UUID(it.uuid_id),
+                        )
                     )
                 )
-            )
-        return items_response
+        except Exception:
+            set_dict = json.loads(set_obj.to_json())
+            content = set_dict.get("content", None)
+            if not content:
+                return None
+            for it in content:
+                key = it.item_name
+                payload = it.content
+                if isinstance(payload, str):
+                    try:
+                        payload = json.loads(payload)
+                    except Exception:
+                        payload = {}
+                created = it.created_at
+                updated = it.updated_at
+                expired = it.expired_at
+                items_response.append(
+                    GetItem(
+                        key=key,
+                        value=Response(
+                            key=key,
+                            value=payload.get("value"),
+                            expired=datetime.fromisoformat(expired) if expired else None,
+                            created=datetime.fromisoformat(created) if created else None,
+                            updated=datetime.fromisoformat(updated) if updated else None,
+                            id=UUID(it.uuid_id),
+                        )
+                    )
+                )
+        return items_response or None
 
     def get_all(self, table_name: str = None) -> List[GetItem] | None:
-        """Obtiene todos los items de una tabla (con cache)"""
-        if table_name not in self.data.tables:
-            return None
-            
-        items = self.data.tables[table_name].items
-        if not items:
-            return None
-
-        items_response = []
-        for item in items.values():
-            items_response.append(
-                GetItem(
-                    key=item.key,
-                    value=Response(
-                        key=item.key,
-                        value=item.value,
-                        expired=item.expired,
-                        created=item.created,
-                        updated=item.updated,
-                        id=item.id
-                    )
-                )
-            )
-        return items_response
+        return self._get_internal_all(table_name=table_name)
 
     def get(self, key: str, table_name: str) -> GetItem | None:
-        """Obtiene un item específico por key"""
-        # Validar que la tabla existe
-        if table_name not in self.data.tables:
-            console.print(f"[yellow]Table '{table_name}' does not exist, returning None[/yellow]")
+        try:
+            item: es.Item = es.py_find_item_in_set(table_name, item_name=key)
+        except Exception:
             return None
-            
-        items = self.data.tables[table_name].items
-        if not items or key not in items:
-            return None
-        
-        item = items[key]
-        
+        payload = item.content
+        if isinstance(payload, str):
+            try:
+                payload = orjson.loads(payload)
+            except Exception:
+                payload = {}
+        created = payload.get("created")
+        updated = payload.get("updated")
+        expired = payload.get("expired")
         return GetItem(
-            key=item.key,
+            key=item.item_name,
             value=Response(
-                key=item.key,
-                value=item.value,
-                expired=item.expired,
-                created=item.created,
-                updated=item.updated,
-                id=item.id
+                key=item.item_name,
+                value=payload.get("value"),
+                expired=datetime.fromisoformat(expired) if isinstance(expired, str) else None,
+                created=datetime.fromisoformat(created) if isinstance(created, str) else None,
+                updated=datetime.fromisoformat(updated) if isinstance(updated, str) else None,
+                id=UUID(payload.get("id")) if isinstance(payload.get("id"), str) else None,
             )
         )
     
     def get_by_parameter(self, parameter: str, equals: Any, table_name: str) -> GetItem:
-        """Busca un item por un parámetro específico"""
-        if table_name not in self.data.tables:
-            raise NoneResultException(f"Table '{table_name}' does not exist")
-            
-        for item in self.data.tables[table_name].items.values():
-            data = item.value.get(parameter, None)
-            if data is not None:
-                if type(data) == type(equals) and data == equals:
-                    return GetItem(key=item.key, value=item)
-                    
-        raise NoneResultException(f"No item found with {parameter} = {equals}")
+        try:
+            set_obj: es.Set = es.py_read_set(table_name)
+        except Exception:
+            raise NoneResultException(f"No exist set whit name = {table_name}")
+        try:
+            for it in set_obj.items():
+                key = it.item_name
+                payload = it.content
+                if isinstance(payload, str):
+                    try:
+                        payload = json.loads(payload)
+                    except Exception:
+                        continue
+                data = payload.get(parameter, None) if isinstance(payload, dict) else payload
+                if data is not None and type(data) == type(equals) and data == equals:
+                    created = it.created_at
+                    updated = it.updated_at
+                    expired = it.expired_at
+                    return GetItem(
+                        key=key,
+                        value=Response(
+                            key=key,
+                            value=val,
+                            expired=datetime.fromtimestamp(expired) if expired else None,
+                            created=datetime.fromtimestamp(created) if created else None,
+                            updated=datetime.fromtimestamp(updated) if updated else None,
+                            id=UUID(payload.get("id")) if isinstance(payload.get("id"), str) else None,
+                        )
+                    )
+        except Exception:
+            set_dict = json.loads(set_obj.to_json())
+            for it in set_dict.get("content", []):
+                key = it.get("item_name")
+                payload = it.get("content")
+                if isinstance(payload, str):
+                    try:
+                        payload = json.loads(payload)
+                    except Exception:
+                        continue
+                val = payload.get("value")
+                data = val.get(parameter, None) if isinstance(val, dict) else val
+                if data is not None and type(data) == type(equals) and data == equals:
+                    created = it.created_at
+                    updated = it.updated_at
+                    expired = it.expired_at
+                    return GetItem(
+                        key=key,
+                        value=Response(
+                            key=key,
+                            value=val,
+                            expired=datetime.fromtimestamp(expired) if expired else None,
+                            created=datetime.fromtimestamp(created) if created else None,
+                            updated=datetime.fromtimestamp(updated) if updated else None,
+                            id=UUID(payload.get("id")) if isinstance(payload.get("id"), str) else None,
+                        )
+                    )
+        raise NoneResultException(f"No exist item whit {parameter} = {equals}")
 
-    def set(self, key=None, value=None, table_name: str = "", long_live: bool = False, short_live: bool = False, auto_create_table: bool = True) -> SetItem:
-        """Crea o actualiza un item"""
-        # Auto-crear tabla si no existe y auto_create_table es True
-        if table_name not in self.data.tables:
-            if auto_create_table:
-                console.print(f"[yellow]Table '{table_name}' does not exist, creating it automatically[/yellow]")
-                self.create_table(table_name)
-            else:
-                raise ValueError(f"Table '{table_name}' does not exist. Create it first with create_table()")
-            
-        if long_live and short_live:
-            raise ValueError("Only one of long_live or short_live can be True")
-        
-        # Determinar tiempo de expiración
-        if long_live:
-            expired = datetime.now() + timedelta(days=30)
-        elif short_live:
-            expired = datetime.now() + timedelta(minutes=1)
-        else:
-            expired = datetime.now() + timedelta(minutes=15)
-        
-        item = SetItem(
-            key=key,
-            value=value,
-            created=datetime.now(),
-            updated=datetime.now(),
-            id=uuid4(),
-            expired=expired
+    def set(self, key = None, value = None, table_name: str = "") -> GetItem:
+
+        match type(value):
+            case dict:
+                value = json.dumps(value)
+
+        item = es.py_create_item(
+            set_name=table_name,
+            item_name=key,
+            content=value,
         )
-            
-        self.data.tables[table_name].items[key] = item
-        self._mark_dirty()
-        return item
+        try:
+            es.py_add_item(item)
+        except Exception:
+            console.print(f"Error to set item {key} in set {table_name} item already exist or another thing")
+            pass
+        item_model = GetItem(
+            key=key,
+            value=Response(
+                key=key,
+                value=value,
+                expired=datetime.fromtimestamp(item.expired_at) if item.expired_at else None,
+                created=datetime.fromtimestamp(item.created_at) if item.created_at else None,
+                updated=datetime.fromtimestamp(item.updated_at) if item.updated_at else None,
+                id=UUID(item.uuid_id),
+            )
+        )
+
+        return item_model
 
     def delete(self, key, table_name: str) -> None:
-        """Elimina un item por key"""
-        if table_name not in self.data.tables:
-            raise ValueError(f"Table '{table_name}' does not exist")
-            
-        if key in self.data.tables[table_name].items:
-            del self.data.tables[table_name].items[key]
-            self._mark_dirty()
+        try:
+            set_obj: es.Set = es.py_read_set(table_name)
+        except Exception:
+            return
+        try:
+            items = set_obj.items()
+            filtered_items = []
+            for it in items:
+                if getattr(it, "item_name", None) != key:
+                    filtered_items.append(orjson.loads(it.to_json()))
+            new_set = {"name": set_obj.name, "content": filtered_items}
+            es.py_save_data(table_name, orjson.dumps(new_set, default=date_encoder).decode())
+        except Exception:
+            set_dict = orjson.loads(set_obj.to_json())
+            content = set_dict.get("content", [])
+            set_dict["content"] = [it for it in content if it.get("item_name") != key]
+            es.py_save_data(table_name, orjson.dumps(set_dict, default=date_encoder).decode())
 
     def clear(self, table_name: str = None) -> None:
-        """Limpia todos los items de una tabla"""
-        if table_name not in self.data.tables:
-            raise ValueError(f"Table '{table_name}' does not exist")
-            
-        self.data.tables[table_name].items.clear()
-        self._mark_dirty()
+        try:
+            set_obj = es.py_read_set(table_name)
+        except Exception:
+            s = es.py_create_set(table_name)
+            es.py_save_data(table_name, s.to_json())
+            return
+        set_dict = json.loads(set_obj.to_json())
+        set_dict["content"] = []
+        es.py_save_data(table_name, json.dumps(set_dict, default=date_encoder))
 
-    def update(self, key, value, table_name, long_live: bool = False) -> None:
-        """Actualiza un item existente o lo crea si no existe"""
-        if table_name not in self.data.tables:
-            raise ValueError(f"Table '{table_name}' does not exist")
-            
-        item: GetItem = self.get(key, table_name)
-        
-        if item is None:
-            # Si no existe, crear uno nuevo
-            self.set(key, value, table_name, long_live=long_live)
+    def update(self, key, value, table_name) -> None:
+        try:
+            item: es.Item = es.py_find_item_in_set(table_name, item_name=key)
+        except Exception:
+            self.set(key=key, value=value, table_name=table_name)
             return
         
-        # Actualizar el existente
-        expired = datetime.now() + timedelta(days=30) if long_live else datetime.now() + timedelta(minutes=15)
-        
-        updated_item = SetItem(
-            key=item.key,
-            value=value,  # Usar el nuevo valor, no el viejo
-            created=item.value.created,
-            updated=datetime.now(),
-            id=uuid4(),
-            expired=expired
+        match type(value):
+            case dict:
+                value = json.dumps(value)
+
+        es.py_update_item_content_by_name(
+            table_name=table_name,
+            item_name=key,
+            content=value,
         )
-        
-        self.data.tables[table_name].items[key] = updated_item
-        self._mark_dirty()

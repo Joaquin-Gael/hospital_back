@@ -7,56 +7,375 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/x-icon" src="assets/logo-sdlg.png" />
     <style>
-      @layer properties {
-        @supports (((-webkit-hyphens: none)) and (not (margin-trim: inline))) or
-          ((-moz-orient: inline) and (not (color: rgb(from red r g b)))) {
-          *,
-          :before,
-          :after {
-            --tw-rotate-x: initial;
-            --tw-rotate-y: initial;
-            --tw-rotate-z: initial;
-            --tw-skew-x: initial;
-            --tw-skew-y: initial;
-            --tw-border-style: solid;
-            --tw-shadow: 0 0 #0000;
-            --tw-shadow-color: initial;
-            --tw-shadow-alpha: 100%;
-            --tw-inset-shadow: 0 0 #0000;
-            --tw-inset-shadow-color: initial;
-            --tw-inset-shadow-alpha: 100%;
-            --tw-ring-color: initial;
-            --tw-ring-shadow: 0 0 #0000;
-            --tw-inset-ring-color: initial;
-            --tw-inset-ring-shadow: 0 0 #0000;
-            --tw-ring-inset: initial;
-            --tw-ring-offset-width: 0px;
-            --tw-ring-offset-color: #fff;
-            --tw-ring-offset-shadow: 0 0 #0000;
-            --tw-blur: initial;
-            --tw-brightness: initial;
-            --tw-contrast: initial;
-            --tw-grayscale: initial;
-            --tw-hue-rotate: initial;
-            --tw-invert: initial;
-            --tw-opacity: initial;
-            --tw-saturate: initial;
-            --tw-sepia: initial;
-            --tw-drop-shadow: initial;
-            --tw-drop-shadow-color: initial;
-            --tw-drop-shadow-alpha: 100%;
-            --tw-drop-shadow-size: initial;
-            --tw-ease: initial;
-          }
-        }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 300;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2JL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF,
+          U+A640-A69F, U+FE2E-FE2F;
       }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 300;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa0ZL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 300;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2ZL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+1F00-1FFF;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 300;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C,
+          U+038E-03A1, U+03A3-03FF;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 300;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2pL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169,
+          U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309,
+          U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 300;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa25L7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
+          U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+          U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+          U+A720-A7FF;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 300;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2)
+          format("woff2");
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+          U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+          U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2JL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF,
+          U+A640-A69F, U+FE2E-FE2F;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa0ZL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2ZL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+1F00-1FFF;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C,
+          U+038E-03A1, U+03A3-03FF;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2pL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169,
+          U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309,
+          U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa25L7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
+          U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+          U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+          U+A720-A7FF;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2)
+          format("woff2");
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+          U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+          U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 500;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2JL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF,
+          U+A640-A69F, U+FE2E-FE2F;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 500;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa0ZL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 500;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2ZL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+1F00-1FFF;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 500;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C,
+          U+038E-03A1, U+03A3-03FF;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 500;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2pL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169,
+          U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309,
+          U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 500;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa25L7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
+          U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+          U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+          U+A720-A7FF;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 500;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2)
+          format("woff2");
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+          U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+          U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2JL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF,
+          U+A640-A69F, U+FE2E-FE2F;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa0ZL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2ZL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+1F00-1FFF;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C,
+          U+038E-03A1, U+03A3-03FF;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2pL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169,
+          U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309,
+          U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa25L7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
+          U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+          U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+          U+A720-A7FF;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2)
+          format("woff2");
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+          U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+          U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2JL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF,
+          U+A640-A69F, U+FE2E-FE2F;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa0ZL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2ZL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+1F00-1FFF;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C,
+          U+038E-03A1, U+03A3-03FF;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2pL7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169,
+          U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309,
+          U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa25L7SUc.woff2)
+          format("woff2");
+        unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
+          U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+          U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+          U+A720-A7FF;
+      }
+      @font-face {
+        font-family: Inter;
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2)
+          format("woff2");
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+          U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+          U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      @layer properties;
       :root {
         --notification-accent: #3b82f6;
         --notification-bg: #262626;
-        --notification-text: #fff;
+        --notification-text: #ffffff;
         --notification-text-secondary: #a3a3a3;
         --notification-border: 3px;
       }
+      @layer theme,base,components,utilities;
       @layer theme {
         :root {
           --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
@@ -80,14 +399,14 @@
         :after,
         :before {
           box-sizing: border-box;
-          border: 0 solid;
           margin: 0;
           padding: 0;
+          border: 0 solid;
         }
         html {
+          line-height: 1.5;
           -webkit-text-size-adjust: 100%;
           tab-size: 4;
-          line-height: 1.5;
           font-family: var(
             --default-font-family,
             ui-sans-serif,
@@ -106,102 +425,75 @@
           -webkit-tap-highlight-color: transparent;
         }
       }
-      @layer components;
       @layer utilities {
       }
       :root {
-        --primary: #0077b6;
-        --secondary: #00b4d8;
-        --accent: #90e0ef;
-        --success: #22c55e;
-        --warning: #f59e0b;
-        --error: #ef4444;
-        --medical-green: #10b981;
-        --emergency-red: #dc2626;
-        --text-primary: #1f2937;
-        --text-secondary: #6b7280;
-        --text-light: #9ca3af;
-        --text-white: #fff;
-        --text-shadow: #0000001a;
-        --text-shadow-strong: #0000004d;
-        --gradient-primary: linear-gradient(
-          135deg,
-          #0077b6 0%,
-          #00b4d8 50%,
-          #90e0ef 100%
-        );
-        --gradient-hero: linear-gradient(135deg, #0077b61a 0%, #00b4d80d 100%);
-        --border-radius-sm: 0.375rem;
-        --border-radius-md: 0.5rem;
-        --border-radius-lg: 0.75rem;
-        --border-radius-xl: 1rem;
-        --shadow-glass: 0 8px 32px #1f268726;
-        --shadow-glass-strong: 0 12px 40px #1f268740;
-        --shadow-medical: 0 10px 40px #0077b626;
-        --shadow-btn-primary: 0 4px 12px #0077b64d;
-        --shadow-btn-primary-hover: 0 8px 24px #0077b666;
-        --shadow-btn-success: 0 4px 12px #22c55e4d;
-        --shadow-btn-success-hover: 0 8px 24px #22c55e66;
-        --shadow-btn-emergency: 0 4px 12px #ef44444d;
-        --shadow-btn-emergency-hover: 0 8px 24px #ef444466;
+        @supports (color: color-mix(in lab, red, red)) {
+          --surface-hover: color-mix(
+            in srgb,
+            var(--color-primary) 8%,
+            var(--surface-primary) 92%
+          );
+        }
+        @supports (color: color-mix(in lab, red, red)) {
+          --border-focus: color-mix(
+            in srgb,
+            var(--color-primary) 60%,
+            transparent
+          );
+        }
       }
-      * {
+      *,
+      *:before,
+      *:after {
         box-sizing: border-box;
         margin: 0;
         padding: 0;
       }
       html {
-        scroll-behavior: smooth;
         height: 100%;
         overflow-x: hidden;
+        scroll-behavior: smooth;
       }
       body {
-        color: #424242;
-        background-color: #f5f5f5;
-        height: 100%;
         min-height: 100vh;
         margin: 0;
         padding: 0;
-        font-family: Inter, Roboto, Segoe UI, Tahoma, Geneva, Verdana,
-          sans-serif;
+        font-family: Inter, SF Pro Display, -apple-system, BlinkMacSystemFont,
+          Segoe UI, Roboto, sans-serif;
         font-size: 16px;
-        line-height: 1.5;
-        position: relative;
+        line-height: 1.6;
+        color: var(--text-primary);
+        background-color: var(--surface-canvas);
         overflow-x: hidden;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
       }
       app-root {
-        width: 100%;
-        min-height: 100vh;
         display: block;
-        position: relative;
+        min-height: 100vh;
+        width: 100%;
       }
       * {
         scrollbar-width: thin;
-        scrollbar-color: #7575754d transparent;
-      }
-      @media print {
-        * {
-          color: #000 !important;
-          box-shadow: none !important;
-          text-shadow: none !important;
-          background: 0 0 !important;
-        }
+        scrollbar-color: var(--border-strong) var(--surface-secondary);
       }
       @media (prefers-reduced-motion: reduce) {
         *,
-        :before,
-        :after {
-          scroll-behavior: auto !important;
-          transition-duration: 0.01ms !important;
+        *:before,
+        *:after {
           animation-duration: 0.01ms !important;
           animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
         }
       }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --text-white: #f8f9fa;
-          --text-secondary: #adb5bd;
-          --text-light: #6c757d;
+      @media print {
+        * {
+          background: transparent !important;
+          color: #000 !important;
+          box-shadow: none !important;
+          text-shadow: none !important;
         }
       }
       @property --tw-rotate-x {
@@ -282,7 +574,7 @@
       @property --tw-ring-offset-width {
         syntax: "<length>";
         inherits: false;
-        initial-value: 0;
+        initial-value: 0px;
       }
       @property --tw-ring-offset-color {
         syntax: "*";
@@ -351,6 +643,49 @@
         syntax: "*";
         inherits: false;
       }
+      @layer properties {
+        @supports ((-webkit-hyphens: none) and (not (margin-trim: inline))) or
+          ((-moz-orient: inline) and (not (color: rgb(from red r g b)))) {
+          *,
+          :before,
+          :after {
+            --tw-rotate-x: initial;
+            --tw-rotate-y: initial;
+            --tw-rotate-z: initial;
+            --tw-skew-x: initial;
+            --tw-skew-y: initial;
+            --tw-border-style: solid;
+            --tw-shadow: 0 0 #0000;
+            --tw-shadow-color: initial;
+            --tw-shadow-alpha: 100%;
+            --tw-inset-shadow: 0 0 #0000;
+            --tw-inset-shadow-color: initial;
+            --tw-inset-shadow-alpha: 100%;
+            --tw-ring-color: initial;
+            --tw-ring-shadow: 0 0 #0000;
+            --tw-inset-ring-color: initial;
+            --tw-inset-ring-shadow: 0 0 #0000;
+            --tw-ring-inset: initial;
+            --tw-ring-offset-width: 0px;
+            --tw-ring-offset-color: #fff;
+            --tw-ring-offset-shadow: 0 0 #0000;
+            --tw-blur: initial;
+            --tw-brightness: initial;
+            --tw-contrast: initial;
+            --tw-grayscale: initial;
+            --tw-hue-rotate: initial;
+            --tw-invert: initial;
+            --tw-opacity: initial;
+            --tw-saturate: initial;
+            --tw-sepia: initial;
+            --tw-drop-shadow: initial;
+            --tw-drop-shadow-color: initial;
+            --tw-drop-shadow-alpha: 100%;
+            --tw-drop-shadow-size: initial;
+            --tw-ease: initial;
+          }
+        }
+      }
       :root {
         --fa-style-family-brands: "Font Awesome 6 Brands";
         --fa-font-brands: normal 400 1em/1 "Font Awesome 6 Brands";
@@ -389,31 +724,31 @@
     </style>
     <link
       rel="stylesheet"
-      href="/assets/styles-HUBLXGPY.css"
+      href="assets/styles-PO2L73GG.css"
       media="print"
       onload="this.media='all'"
     />
-    <noscript><link rel="stylesheet" href="/assets/styles-HUBLXGPY.css" /></noscript>
+    <noscript><link rel="stylesheet" href="assets/styles-PO2L73GG.css" /></noscript>
   </head>
   <body>
     <app-root></app-root>
-    <link rel="modulepreload" href="/assets/chunk-PCFTSFGC.js" /><link
+    <link rel="modulepreload" href="assets/chunk-TCLVSNTR.js" /><link
       rel="modulepreload"
-      href="/assets/chunk-CAIHUQYF.js"
-    /><link rel="modulepreload" href="/assets/chunk-4BZVKNQ5.js" /><link
+      href="assets/chunk-V2GXZCAI.js"
+    /><link rel="modulepreload" href="assets/chunk-BHPGA6GI.js" /><link
       rel="modulepreload"
-      href="/assets/chunk-4PPNR7WW.js"
-    /><link rel="modulepreload" href="/assets/chunk-VO6ML35U.js" /><link
+      href="assets/chunk-MWWWPAY4.js"
+    /><link rel="modulepreload" href="assets/chunk-VO6ML35U.js" /><link
       rel="modulepreload"
-      href="/assets/chunk-QMYIRM4F.js"
-    /><link rel="modulepreload" href="/assets/chunk-BSEUEMQC.js" /><link
+      href="assets/chunk-QMYIRM4F.js"
+    /><link rel="modulepreload" href="assets/chunk-XYGGH2N6.js" /><link
       rel="modulepreload"
-      href="/assets/chunk-2WAWTWTY.js"
-    /><link rel="modulepreload" href="/assets/chunk-RYO32FGU.js" /><link
+      href="assets/chunk-KOR7JQL3.js"
+    /><link rel="modulepreload" href="assets/chunk-RYO32FGU.js" /><link
       rel="modulepreload"
-      href="/assets/chunk-Y6I3CS6I.js"
+      href="assets/chunk-FG3VCKV6.js"
     />
-    <script src="/assets/polyfills-B6TNHZQ6.js" type="module"></script>
-    <script src="/assets/main-P5PQRTHA.js" type="module"></script>
+    <script src="assets/polyfills-B6TNHZQ6.js" type="module"></script>
+    <script src="assets/main-3S5LD7BY.js" type="module"></script>
   </body>
 </html>

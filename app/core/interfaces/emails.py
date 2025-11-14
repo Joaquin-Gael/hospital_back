@@ -6,12 +6,12 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr
 
 from app.config import (
-    email_host,
-    email_port,
-    email_use_tls,
-    email_host_user,
-    email_host_password,
-    templates,
+    EMAIL_HOST,
+    EMAIL_PORT,
+    EMAIL_USE_TLS,
+    EMAIL_HOST_USER,
+    EMAIL_HOST_PASSWORD,
+    TEMPLATES,
     parser_name
 )
 from app.core.utils import BaseInterface
@@ -25,7 +25,7 @@ class MailSchema(BaseModel):
     
 def send_email(to: str, subject: str, html_content: str, message: str):
     msg = EmailMessage()
-    msg["From"] = email_host_user
+    msg["From"] = EMAIL_HOST_USER
     msg["To"] = to
     msg["Subject"] = subject
 
@@ -34,13 +34,13 @@ def send_email(to: str, subject: str, html_content: str, message: str):
     else:
         msg.add_alternative(html_content, subtype="html")
 
-    if email_use_tls:
-        server = smtplib.SMTP(email_host, email_port)
+    if EMAIL_USE_TLS:
+        server = smtplib.SMTP(EMAIL_HOST, EMAIL_PORT)
         server.starttls()
     else:
-        server = smtplib.SMTP_SSL(email_host, email_port)
+        server = smtplib.SMTP_SSL(EMAIL_HOST, EMAIL_PORT)
 
-    server.login(email_host_user, email_host_password)
+    server.login(EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)
     server.send_message(msg)
     server.quit()
     
@@ -52,7 +52,7 @@ class EmailService(BaseInterface):
             "first_name": first_name,
             "last_name": last_name
         }
-        html_content = templates.TemplateResponse(
+        html_content = TEMPLATES.TemplateResponse(
             parser_name(folders=["emails"], name=r"welcome_email"), {"request": {}, **context}
         ).body.decode("utf-8")
         
@@ -64,7 +64,7 @@ class EmailService(BaseInterface):
         context = {
             "reset_code": reset_code
         }
-        html_content = templates.TemplateResponse(
+        html_content = TEMPLATES.TemplateResponse(
             parser_name(folders=["emails"], name=r"password_reset_email"), {"request": {}, **context}
         ).body.decode("utf-8")
         
@@ -78,7 +78,7 @@ class EmailService(BaseInterface):
             "contact_number": contact_number,
             "contact_email": contact_email
         }
-        html_content = templates.TemplateResponse(
+        html_content = TEMPLATES.TemplateResponse(
             parser_name(folders=["emails"], name=r"password_changed_notification_email"), {"request": {}, **context}
         ).body.decode("utf-8")
         
@@ -90,7 +90,7 @@ class EmailService(BaseInterface):
         context = {
             "verification_code": verification_code
         }
-        html_content = templates.TemplateResponse(
+        html_content = TEMPLATES.TemplateResponse(
             parser_name(folders=["emails"], name=r"verification_email"), {"request": {}, **context}
         ).body.decode("utf-8")
         
@@ -104,7 +104,7 @@ class EmailService(BaseInterface):
             "last_name": last_name,
             "data_to_update": data_to_update # Nombre de el campo y el porque
         }
-        html_content = templates.TemplateResponse(
+        html_content = TEMPLATES.TemplateResponse(
             parser_name(folders=["emails"], name=r"update_data_notification_email"), {"request": {}, **context}
         ).body.decode("utf-8")
         
@@ -118,7 +118,7 @@ class EmailService(BaseInterface):
             "last_name": last_name,
             "provisional_password": raw_password
         }
-        html_content = templates.TemplateResponse(
+        html_content = TEMPLATES.TemplateResponse(
             parser_name(folders=["emails"], name=r"google_account_linked_email"), {"request": {}, **context}
         ).body.decode("utf-8")
         
@@ -134,7 +134,7 @@ class EmailService(BaseInterface):
             "last_name": last_name,
             "days": days
         }
-        html_content = templates.TemplateResponse(
+        html_content = TEMPLATES.TemplateResponse(
             parser_name(folders=["emails"], name=r"warning_google_account_email"), {"request": {}, **context}
         ).body.decode("utf-8")
 

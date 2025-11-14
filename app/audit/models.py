@@ -10,6 +10,7 @@ from enum import Enum
 
 from pydantic import field_validator
 from sqlalchemy import Column, JSON
+from sqlalchemy import Column, JSON, DateTime
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import UUID as UUID_TYPE
 from sqlalchemy.orm import validates
@@ -85,12 +86,14 @@ class AuditEvent(SQLModel, table=True):
     )
     occurred_at: datetime = Field(
         default_factory=_utcnow,
+        sa_type=DateTime(timezone=True),
         nullable=False,
         index=True,
         description="When the audited action happened in the domain.",
     )
     recorded_at: datetime = Field(
         default_factory=_utcnow,
+        sa_type=DateTime(timezone=True),
         nullable=False,
         description="When the audit event was persisted by the backend.",
     )
