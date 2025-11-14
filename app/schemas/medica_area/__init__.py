@@ -63,6 +63,8 @@ from .specialties import (
 )
 from .turns import (
     PayTurnResponse,
+    TurnDocumentDownloadLog,
+    TurnDocumentSummary,
     TurnReschedule,
     TurnsBase,
     TurnsCreate,
@@ -124,6 +126,8 @@ __all__ = [
     "SpecialtyDelete",
     "SpecialtyResponse",
     "SpecialtyUpdate",
+    "TurnDocumentDownloadLog",
+    "TurnDocumentSummary",
     "TurnReschedule",
     "TurnsBase",
     "TurnsCreate",
@@ -144,3 +148,5 @@ MessageResponse.model_rebuild()
 TurnsResponse.model_rebuild()
 AppointmentResponse.model_rebuild()
 HealthInsuranceRead.model_rebuild()
+TurnDocumentSummary.model_rebuild()
+TurnDocumentDownloadLog.model_rebuild()
