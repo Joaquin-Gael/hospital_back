@@ -104,11 +104,6 @@ class AuditEvent(SQLModel, table=True):
             values_callable=lambda enum: [member.value for member in enum],
             validate_strings=True,
         ),
-        sa_type=SQLEnum(
-            AuditAction,
-            name="audit_action",
-            values_callable=lambda enum: [member.value for member in enum],
-        ),
         index=True,
         nullable=False,
     )
@@ -120,11 +115,6 @@ class AuditEvent(SQLModel, table=True):
             values_callable=lambda enum: [member.value for member in enum],
             validate_strings=True,
         ),
-        sa_type=SQLEnum(
-            AuditSeverity,
-            name="audit_severity",
-            values_callable=lambda enum: [member.value for member in enum],
-        ),
         nullable=False,
         index=True,
     )
@@ -134,11 +124,6 @@ class AuditEvent(SQLModel, table=True):
             name="audit_target_type",
             values_callable=lambda enum: [member.value for member in enum],
             validate_strings=True,
-        ),
-        sa_type=SQLEnum(
-            AuditTargetType,
-            name="audit_target_type",
-            values_callable=lambda enum: [member.value for member in enum],
         ),
         nullable=False,
         index=True,
