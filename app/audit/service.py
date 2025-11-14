@@ -92,13 +92,26 @@ class AuditService:
                 repo.purge_older_than(cutoff)
         return payloads
 
-    def _coerce_action(self, raw: str) -> AuditAction:
+    def _coerce_action(self, raw: str | AuditAction) -> AuditAction:
+        if isinstance(raw, AuditAction):
+            return raw
+
         try:
             return AuditAction(raw)
         except ValueError:
-            return AuditAction.RECORD_UPDATED
+            try:
+                return AuditAction[raw]
+            except (KeyError, TypeError):
+                normalized = str(raw).lower() if raw is not None else ""
+                try:
+                    return AuditAction(normalized)
+                except ValueError:
+                    return AuditAction.RECORD_UPDATED
 
-    def _coerce_target_type(self, raw: str) -> AuditTargetType:
+    def _coerce_target_type(self, raw: str | AuditTargetType) -> AuditTargetType:
+        if isinstance(raw, AuditTargetType):
+            return raw
+
         aliases = {
             "Doctors": AuditTargetType.DOCTOR,
             "Turns": AuditTargetType.APPOINTMENT,
