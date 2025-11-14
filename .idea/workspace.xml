@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="b4bc8a52-d136-4846-a56b-bc992c22f43d" name="Changes" comment="saved changes" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ChangesViewManager" show_ignored="true" />
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="HTML File" />
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;ColeeGit&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/Joaquin-Gael/hospital_back.git&quot;,
+    &quot;accountId&quot;: &quot;b130b133-338a-4c87-a1cb-f45a8df03f3b&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;&quot;,
+  &quot;associatedIndex&quot;: 3
+}</component>
+  <component name="ProjectId" id="2xy7Y1KcfVr6sbW2wViYnAQ3YO0" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;DefaultHtmlFileTemplate&quot;: &quot;HTML File&quot;,
+    &quot;Python.stripe_payment.executor&quot;: &quot;Debug&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Projectos/hospital/hospital_back&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;configurable.group.appearance&quot;
+  }
+}</component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Projectos\hospital\hospital_back\app\templates\test\admin" />
+    </key>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-d9fa9deec7cb-d902c0275401-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-252.23892.515" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="b4bc8a52-d136-4846-a56b-bc992c22f43d" name="Changes" comment="" />
+      <created>1748898505845</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1748898505845</updated>
+    </task>
+    <task id="LOCAL-00001" summary="ptm el dolar esta a 1370">
+      <option name="closed" value="true" />
+      <created>1753991782721</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1753991782721</updated>
+    </task>
+    <task id="LOCAL-00002" summary="ptm el dolar esta a 1380">
+      <option name="closed" value="true" />
+      <created>1753996020716</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1753996020716</updated>
+    </task>
+    <task id="LOCAL-00003" summary="cambios">
+      <option name="closed" value="true" />
+      <created>1754077927014</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1754077927014</updated>
+    </task>
+    <task id="LOCAL-00004" summary="feat: doctor_status in update doctor">
+      <option name="closed" value="true" />
+      <created>1754524047116</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1754524047117</updated>
+    </task>
+    <task id="LOCAL-00005" summary="chore: hola">
+      <option name="closed" value="true" />
+      <created>1754682504239</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1754682504239</updated>
+    </task>
+    <task id="LOCAL-00006" summary="chore: hola">
+      <option name="closed" value="true" />
+      <created>1754682517402</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1754682517402</updated>
+    </task>
+    <task id="LOCAL-00007" summary="feat: get service by id">
+      <option name="closed" value="true" />
+      <created>1754696488922</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1754696488922</updated>
+    </task>
+    <task id="LOCAL-00008" summary="save changes">
+      <option name="closed" value="true" />
+      <created>1755042308562</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1755042308562</updated>
+    </task>
+    <task id="LOCAL-00009" summary="save changes">
+      <option name="closed" value="true" />
+      <created>1755042318090</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1755042318090</updated>
+    </task>
+    <task id="LOCAL-00010" summary="saved changes">
+      <option name="closed" value="true" />
+      <created>1755561062690</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1755561062690</updated>
+    </task>
+    <task id="LOCAL-00011" summary="saved changes">
+      <option name="closed" value="true" />
+      <created>1755647593673</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1755647593673</updated>
+    </task>
+    <option name="localTasksCounter" value="12" />
+    <servers />
+  </component>
+  <component name="UnknownFeatures">
+    <option featureType="com.intellij.facetType" implementationName="Python" />
+    <option featureType="dependencySupport" implementationName="executable:docker" />
+    <option featureType="dependencySupport" implementationName="executable:kubectl" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="ptm el dolar esta a 1380" />
+    <MESSAGE value="ptm el dolar esta a 1370" />
+    <MESSAGE value="cambios" />
+    <MESSAGE value="feat: doctor_status in update doctor" />
+    <MESSAGE value="chore: hola" />
+    <MESSAGE value="feat: get service by id" />
+    <MESSAGE value="save changes" />
+    <MESSAGE value="saved changes" />
+    <option name="LAST_COMMIT_MESSAGE" value="saved changes" />
+  </component>
+</project>

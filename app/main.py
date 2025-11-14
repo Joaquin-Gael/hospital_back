@@ -65,8 +65,57 @@ async def lifespan(app: FastAPI):
     init_db()
     migrate()
     set_admin()
-    storage.create_table("google-user-data")
-    if AUDIT_ENABLED:
+    
+    # ============ SINCRONIZAR ENUMS DE AUDITORÍA ============
+    if audit_enabled:
+        try:
+            from sqlmodel import Session
+            from app.db.main import engine
+            from app.audit.enum_utils import (
+                AUDIT_ENUM_DEFINITIONS,
+                build_sync_plan,
+                missing_statements,
+            )
+            
+            console.print("\n[bold cyan]🔄 Sincronizando enums de auditoría...[/bold cyan]")
+            
+            with Session(engine) as session:
+                states = build_sync_plan(session, AUDIT_ENUM_DEFINITIONS)
+                statements = missing_statements(states)
+                
+                if statements:
+                    console.print(f"  [yellow]Agregando {len(statements)} valores nuevos...[/yellow]")
+                    for stmt in statements:
+                        session.exec(stmt)
+                    session.commit()
+                    console.print("  [green]✓[/green] Enums sincronizados")
+                else:
+                    console.print("  [green]✓[/green] Enums actualizados")
+        except Exception as e:
+            console.print(f"  [red]✗[/red] Error sincronizando enums: {e}")
+            console.print_exception(show_locals=True)
+    # ========================================================
+    
+    # Crear todas las tablas necesarias
+    required_tables = [
+        "ban-token",
+        "google-user-data", 
+        "recovery-codes",
+        "ip-time-out"
+    ]
+    
+    console.print("\n[bold cyan]Inicializando tablas de storage...[/bold cyan]")
+    for table_name in required_tables:
+        try:
+            result = storage.create_table(table_name)
+            if result is not None:
+                console.print(f"  [green]✓[/green] Tabla '{table_name}' creada")
+            else:
+                console.print(f"  [yellow]○[/yellow] Tabla '{table_name}' ya existe")
+        except Exception as e:
+            console.print(f"  [red]✗[/red] Error creando tabla '{table_name}': {e}")
+    
+    if audit_enabled:
         await audit_pipeline.start()
         
     console.rule("[green]Server Opened[/green]")
