@@ -41,6 +41,55 @@ def test_audit_payload_serializes_enum_values() -> None:
     assert data["target_type"] == "AuthToken"
 
 
+@pytest.mark.parametrize(
+    "action_literal,severity_literal,target_literal",
+    [
+        (
+            AuditAction.TOKEN_INVALID,
+            AuditSeverity.WARNING,
+            AuditTargetType.AUTH_TOKEN,
+        ),
+        (
+            AuditAction.TOKEN_INVALID.name,
+            AuditSeverity.WARNING.name,
+            AuditTargetType.AUTH_TOKEN.name,
+        ),
+        (
+            AuditAction.TOKEN_INVALID.value,
+            AuditSeverity.WARNING.value,
+            AuditTargetType.AUTH_TOKEN.value.lower(),
+        ),
+    ],
+)
+def test_audit_event_create_accepts_varied_literals(
+    action_literal: object, severity_literal: object, target_literal: object
+) -> None:
+    payload = AuditEventCreate(
+        action=action_literal,
+        severity=severity_literal,
+        target_type=target_literal,
+        target_id=uuid4(),
+        actor_id=uuid4(),
+        request_metadata={},
+        details={},
+        occurred_at=datetime.now(timezone.utc),
+    )
+
+    assert payload.action == AuditAction.TOKEN_INVALID.value
+    assert payload.severity == AuditSeverity.WARNING.value
+    assert payload.target_type == AuditTargetType.AUTH_TOKEN.value
+
+
+def test_audit_event_create_rejects_unknown_literals() -> None:
+    with pytest.raises(ValueError, match="Unknown audit action literal"):
+        AuditEventCreate(
+            action="unknown-action",
+            severity=AuditSeverity.WARNING,
+            target_type=AuditTargetType.AUTH_TOKEN,
+            occurred_at=datetime.now(timezone.utc),
+        )
+
+
 def test_audit_service_coerces_varied_actions() -> None:
     service = AuditService(lambda: None)
 
