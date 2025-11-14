@@ -30,6 +30,8 @@ class AuditEventBase(BaseModel):
     details: Dict[str, Any] = Field(default_factory=dict)
     request_metadata: Dict[str, Any] = Field(default_factory=dict)
 
+    model_config = ConfigDict(use_enum_values=True)
+
 
 class AuditEventCreate(AuditEventBase):
     """Schema used when persisting new audit events."""
@@ -45,4 +47,4 @@ class AuditEventRead(AuditEventBase):
     occurred_at: datetime
     recorded_at: datetime
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
