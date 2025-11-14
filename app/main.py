@@ -64,6 +64,36 @@ async def lifespan(app: FastAPI):
     migrate()
     set_admin()
     
+    # ============ SINCRONIZAR ENUMS DE AUDITORÍA ============
+    if audit_enabled:
+        try:
+            from sqlmodel import Session
+            from app.db.main import engine
+            from app.audit.enum_utils import (
+                AUDIT_ENUM_DEFINITIONS,
+                build_sync_plan,
+                missing_statements,
+            )
+            
+            console.print("\n[bold cyan]🔄 Sincronizando enums de auditoría...[/bold cyan]")
+            
+            with Session(engine) as session:
+                states = build_sync_plan(session, AUDIT_ENUM_DEFINITIONS)
+                statements = missing_statements(states)
+                
+                if statements:
+                    console.print(f"  [yellow]Agregando {len(statements)} valores nuevos...[/yellow]")
+                    for stmt in statements:
+                        session.exec(stmt)
+                    session.commit()
+                    console.print("  [green]✓[/green] Enums sincronizados")
+                else:
+                    console.print("  [green]✓[/green] Enums actualizados")
+        except Exception as e:
+            console.print(f"  [red]✗[/red] Error sincronizando enums: {e}")
+            console.print_exception(show_locals=True)
+    # ========================================================
+    
     # Crear todas las tablas necesarias
     required_tables = [
         "ban-token",
