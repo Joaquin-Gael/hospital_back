@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column, JSON
+from sqlalchemy import Column, JSON, DateTime
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import UUID as UUID_TYPE
 
@@ -33,28 +33,42 @@ class AuditEvent(SQLModel, table=True):
     )
     occurred_at: datetime = Field(
         default_factory=_utcnow,
+        sa_type=DateTime(timezone=True),
         nullable=False,
         index=True,
         description="When the audited action happened in the domain.",
     )
     recorded_at: datetime = Field(
         default_factory=_utcnow,
+        sa_type=DateTime(timezone=True),
         nullable=False,
         description="When the audit event was persisted by the backend.",
     )
     action: AuditAction = Field(
-        sa_type=SQLEnum(AuditAction, name="audit_action"),
+        sa_type=SQLEnum(
+            AuditAction,
+            name="audit_action",
+            values_callable=lambda enum: [member.value for member in enum],
+        ),
         index=True,
         nullable=False,
     )
     severity: AuditSeverity = Field(
         default=AuditSeverity.INFO,
-        sa_type=SQLEnum(AuditSeverity, name="audit_severity"),
+        sa_type=SQLEnum(
+            AuditSeverity,
+            name="audit_severity",
+            values_callable=lambda enum: [member.value for member in enum],
+        ),
         nullable=False,
         index=True,
     )
     target_type: AuditTargetType = Field(
-        sa_type=SQLEnum(AuditTargetType, name="audit_target_type"),
+        sa_type=SQLEnum(
+            AuditTargetType,
+            name="audit_target_type",
+            values_callable=lambda enum: [member.value for member in enum],
+        ),
         nullable=False,
         index=True,
     )

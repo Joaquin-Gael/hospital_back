@@ -38,7 +38,7 @@ console = Console()
 auth = JWTBearer()
 
 
-COOKIE_SECURE = False
+COOKIE_SECURE = not DEBUG
 COOKIE_SAMESITE = "lax" if DEBUG else "strict"
 
 def _make_event(
@@ -238,6 +238,7 @@ async def doc_login(request: Request, session_db: SessionDep, credentials: Annot
         TokenDoctorsResponse(
             access_token=token,
             token_type="Bearer",
+            refresh_token=refresh_token,
             doc=DoctorResponse(
                 id=doc.id,
                 username=doc.name,
@@ -253,8 +254,7 @@ async def doc_login(request: Request, session_db: SessionDep, credentials: Annot
                 last_login=doc.last_login,
                 date_joined=doc.date_joined,
                 address=doc.address
-            ),
-            refresh_token=refresh_token
+            )
         ).model_dump()
     )
     
@@ -520,6 +520,7 @@ async def refresh(
             TokenDoctorsResponse(
                 access_token=token,
                 token_type="Bearer",
+                refresh_token=refresh_token,
                 doc=DoctorResponse(
                     id=user.id,
                     username=user.name,
@@ -534,8 +535,7 @@ async def refresh(
                     is_superuser=user.is_superuser,
                     last_login=user.last_login,
                     date_joined=user.date_joined,
-                ),
-                refresh_token=refresh_token
+                )
             ).model_dump()
         )
         

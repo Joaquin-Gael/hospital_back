@@ -130,12 +130,12 @@ def get_or_create_turn_document(
             turn_id=turn.id,
             user_id=turn.user_id,
             file_path=relative_path,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(),
         )
         session.add(document)
     else:
         document.file_path = relative_path
-        document.generated_at = datetime.utcnow()
+        document.generated_at = datetime.now()
 
     session.commit()
     session.refresh(document)

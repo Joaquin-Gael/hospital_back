@@ -1,5 +1,5 @@
 from fastapi import FastAPI, APIRouter, Request, WebSocket
-from fastapi.responses import ORJSONResponse, FileResponse
+from fastapi.responses import ORJSONResponse, FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocketDisconnect
@@ -227,8 +227,8 @@ main_router.include_router(ai_assistant.router)
 app.include_router(main_router)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[CORS_HOST],
-    allow_credentials=False,
+    allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -289,16 +289,19 @@ class SPAStaticFiles(StaticFiles):
         path = request.url.path.lstrip("/")
 
         if request.url.path.startswith(self.api_prefix):
+            console.print(f"Request to API: {request.url.path}")
             await self.app(scope, receive, send)
             return
 
         full_path = (Path(self.directory) / path).resolve()
         if full_path.exists():
+            console.print(f"Request to static file: {full_path}")
             await self.app(scope, receive, send)
             return
 
         index_path = Path(self.directory) /self.index_file
         response = FileResponse(index_path)
+        console.print(f"Request to SPA index file: {index_path}")
         await response(scope, receive, send)
 
 app.mount("/assets", StaticFiles(directory=ASSETS_DIR))
@@ -368,7 +371,9 @@ async def admin(request: Request):
     try:
         decode_token(session)
         return TEMPLATES.TemplateResponse(parser_name(["admin", "panel"], "index"), {"request": request})
-    except:
-        return TEMPLATES.TemplateResponse(parser_name(["admin", "login"], "login"), {"request": request})
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        console.print(f"Error en login_admin: {str(e)}")
+        return RedirectResponse(url="/login-admin", status_code=303)
 
-app.mount("/", SPAStaticFiles(), name="spa")
+#app.mount("/", SPAStaticFiles(), name="spa")

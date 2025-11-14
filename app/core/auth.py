@@ -384,7 +384,7 @@ class JWTBearer:
         - Establece user y scopes en request.state
     """
     
-    async def __call__(self, request: Request, session: Optional[str] = Cookie(None)) -> User | Doctors | None:
+    async def __call__(self, request: Request, session: Optional[str] = Cookie(None), authorization: Optional[str] = Header(None)) -> User | Doctors | None:
         """
         Procesa autenticación JWT para una request HTTP.
         
@@ -409,13 +409,13 @@ class JWTBearer:
             - Maneja warnings para cuentas Google
             - Establece request.state.user y request.state.scopes
         """
-        if session is None:
+        if session is None and not authorization:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="No credentials provided or invalid format"
             )
 
-        token = session
+        token = session if session else authorization.replace("Bearer ", "")
 
         try:
             payload = decode_token(token)

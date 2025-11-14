@@ -69,6 +69,8 @@ from .turns import (
     TurnsDelete,
     TurnsResponse,
     TurnsUpdate,
+    TurnDocumentDownloadLog,
+    TurnDocumentSummary,
 )
 
 __all__ = [

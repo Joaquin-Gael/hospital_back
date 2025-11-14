@@ -1,0 +1,10 @@
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\pep440_rs-f21e017b029eed65.d: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pep440_rs-0.7.3\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pep440_rs-0.7.3\src\version.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pep440_rs-0.7.3\src\version_specifier.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pep440_rs-0.7.3\src\version_ranges.rs
+
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\libpep440_rs-f21e017b029eed65.rlib: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pep440_rs-0.7.3\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pep440_rs-0.7.3\src\version.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pep440_rs-0.7.3\src\version_specifier.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pep440_rs-0.7.3\src\version_ranges.rs
+
+C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\release\deps\pep440_rs-f21e017b029eed65.dll: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pep440_rs-0.7.3\src\lib.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pep440_rs-0.7.3\src\version.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pep440_rs-0.7.3\src\version_specifier.rs C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pep440_rs-0.7.3\src\version_ranges.rs
+
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pep440_rs-0.7.3\src\lib.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pep440_rs-0.7.3\src\version.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pep440_rs-0.7.3\src\version_specifier.rs:
+C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pep440_rs-0.7.3\src\version_ranges.rs:
