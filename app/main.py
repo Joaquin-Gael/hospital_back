@@ -67,7 +67,7 @@ async def lifespan(app: FastAPI):
     set_admin()
     
     # ============ SINCRONIZAR ENUMS DE AUDITORÍA ============
-    if audit_enabled:
+    if AUDIT_ENABLED:
         try:
             from sqlmodel import Session
             from app.db.main import engine
@@ -115,7 +115,7 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             console.print(f"  [red]✗[/red] Error creando tabla '{table_name}': {e}")
     
-    if audit_enabled:
+    if AUDIT_ENABLED:
         await audit_pipeline.start()
         
     console.rule("[green]Server Opened[/green]")

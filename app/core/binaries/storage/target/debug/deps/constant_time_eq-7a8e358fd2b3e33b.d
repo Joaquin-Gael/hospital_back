@@ -1,7 +1,7 @@
-C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\debug\deps\constant_time_eq-7a8e358fd2b3e33b.d: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\constant_time_eq-0.3.1\src\lib.rs
+C:\Projectos\HOSPITAL SDLG\hospital-sdlg-back\app\core\binaries\storage\target\debug\deps\constant_time_eq-7a8e358fd2b3e33b.d: C:\Users\jexju\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\constant_time_eq-0.3.1\src\lib.rs
 
-C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\debug\deps\libconstant_time_eq-7a8e358fd2b3e33b.rlib: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\constant_time_eq-0.3.1\src\lib.rs
+C:\Projectos\HOSPITAL SDLG\hospital-sdlg-back\app\core\binaries\storage\target\debug\deps\libconstant_time_eq-7a8e358fd2b3e33b.rlib: C:\Users\jexju\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\constant_time_eq-0.3.1\src\lib.rs
 
-C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\debug\deps\libconstant_time_eq-7a8e358fd2b3e33b.rmeta: C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\constant_time_eq-0.3.1\src\lib.rs
+C:\Projectos\HOSPITAL SDLG\hospital-sdlg-back\app\core\binaries\storage\target\debug\deps\libconstant_time_eq-7a8e358fd2b3e33b.rmeta: C:\Users\jexju\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\constant_time_eq-0.3.1\src\lib.rs
 
-C:\Users\Usuario\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\constant_time_eq-0.3.1\src\lib.rs:
+C:\Users\jexju\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\constant_time_eq-0.3.1\src\lib.rs:

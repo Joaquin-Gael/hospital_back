@@ -1,1 +1,1 @@
-C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\target\debug\encript_storage_cli.exe: C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\src\lib.rs C:\Proyectos\python\hospital\hospital_back\app\core\binaries\storage\src\main.rs
+C:\Projectos\HOSPITAL\ SDLG\hospital-sdlg-back\app\core\binaries\storage\target\debug\encript_storage_cli.exe: C:\Projectos\HOSPITAL\ SDLG\hospital-sdlg-back\app\core\binaries\storage\src\lib.rs C:\Projectos\HOSPITAL\ SDLG\hospital-sdlg-back\app\core\binaries\storage\src\main.rs

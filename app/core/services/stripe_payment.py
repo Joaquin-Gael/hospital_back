@@ -85,11 +85,11 @@ class StripeServices:
                 line_items=line_items,
                 mode="payment",
                 success_url=(
-                    f"{cors_host}/{id_prefix}/cashes/pay/success"
+                    f"{CORS_HOST}/{ID_PREFIX}/cashes/pay/success"
                     f"?session_id={{CHECKOUT_SESSION_ID}}&{urlencode(payload)}"
                 ),
                 cancel_url=(
-                    f"{cors_host}/{id_prefix}/cashes/pay/cancel?"
+                    f"{CORS_HOST}/{ID_PREFIX}/cashes/pay/cancel?"
                     f"{urlencode(bad_payload)}"
                 ),
             )

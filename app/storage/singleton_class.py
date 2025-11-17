@@ -22,8 +22,6 @@ Path(os.environ["PATH_DIR"]).mkdir(parents=True, exist_ok=True)
 
 import encript_storage as es
 
- 
-
 class NoneResultException(Exception):
     def __init__(self, message: str = "Result is None"):
         self.message = message
