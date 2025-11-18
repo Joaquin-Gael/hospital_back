@@ -2,7 +2,7 @@ LICENCIA PROPIETARIA DE USO RESTRINGIDO
 
 1. Definiciones
 - "Software": el conjunto de código fuente y objeto, arquitectura, estructura, diseño, documentación, configuraciones, esquemas de BD, flujos y materiales asociados a este proyecto, ya sea ofrecido como producto, servicio, módulo o cualquier otra modalidad.
-- "Licenciante": el titular de los derechos de propiedad intelectual del Software.
+- "Licenciante": el titular de los derechos de propiedad intelectual del Software(yo).
 - "Usuario Autorizado": persona física o jurídica que cuenta con autorización expresa y por escrito del Licenciante para usar el Software.
 - "Componentes de Terceros": bibliotecas, frameworks, herramientas o activos incluidos en el Software que no son de autoría del Licenciante.
 
