@@ -32,6 +32,7 @@ class TurnsCreate(BaseModel):
     date: date_type
     date_created: date_type = datetime.now().date()
     user_id: Optional[UUID] = None
+    doctor_id: Optional[UUID] = None
     services: List[UUID] = []
     time: time_type
     health_insurance: Optional[UUID] = None
