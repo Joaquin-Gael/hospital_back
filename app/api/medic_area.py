@@ -117,6 +117,19 @@ ws_auth = JWTWebSocket()
 
 console = Console()
 
+
+def require_doctor_or_admin(request: Request) -> User | Doctors:
+    user = getattr(request.state, "user", None)
+
+    if isinstance(user, Doctors):
+        return user
+
+    if isinstance(user, User) and (user.is_admin or user.is_superuser):
+        return user
+
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+
 departments = APIRouter(
     prefix="/departments",
     tags=["departments"],
@@ -693,41 +706,51 @@ async def me_doctor(request: Request, session_db: SessionDep):
     })
 
 @doctors.get("/{doctor_id}/patients", response_model=List[UserRead])
-async def get_patients_by_doctor(request: Request, doctor_id: UUID, session_db: SessionDep):
-    try:
-        doc = session_db.get(Doctors, doctor_id)
-        users_list: List[User] = []
-        for appointment in doc.appointments:
-            users_list.append(
-                appointment.user
-            )
+async def get_patients_by_doctor(
+    request: Request,
+    doctor_id: UUID,
+    session_db: SessionDep,
+    current_user: User | Doctors = Depends(require_doctor_or_admin),
+):
+    doc = session_db.get(Doctors, doctor_id)
 
-        return ORJSONResponse(
-            [
-                UserRead(
-                    id=user.id,
-                    is_active=user.is_active,
-                    is_admin=user.is_admin,
-                    is_superuser=user.is_superuser,
-                    last_login=user.last_login,
-                    date_joined=user.date_joined,
-                    username=user.name,
-                    email=user.email,
-                    first_name=user.first_name,
-                    last_name=user.last_name,
-                    dni=user.dni,
-                    address=user.address,
-                    telephone=user.telephone,
-                    blood_type=user.blood_type,
-                    img_profile=user.url_image_profile
-                ).model_dump() for user in users_list
-            ],
-            status_code=status.HTTP_200_OK
-        )
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Doctor {doctor_id} not found")
 
-    except Exception as e:
-        console.print_exception(show_locals=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    if isinstance(current_user, Doctors):
+        if current_user.id != doctor_id and not (current_user.is_admin or current_user.is_superuser):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+    elif not (current_user.is_admin or current_user.is_superuser):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    users_map: Dict[UUID, User] = {}
+    for appointment in doc.appointments or []:
+        if not appointment or appointment.user is None:
+            continue
+        users_map[appointment.user.id] = appointment.user
+
+    return ORJSONResponse(
+        [
+            UserRead(
+                id=user.id,
+                is_active=user.is_active,
+                is_admin=user.is_admin,
+                is_superuser=user.is_superuser,
+                last_login=user.last_login,
+                date_joined=user.date_joined,
+                username=user.name,
+                email=user.email,
+                first_name=user.first_name,
+                last_name=user.last_name,
+                dni=user.dni,
+                address=user.address,
+                telephone=user.telephone,
+                blood_type=user.blood_type,
+                img_profile=user.url_image_profile
+            ).model_dump() for user in users_map.values()
+        ],
+        status_code=status.HTTP_200_OK
+    )
     
 @doctors.get("/{doctor_id}/stats")
 async def get_doctor_stats_by_id(request: Request, doctor_id: str, session_db: SessionDep):

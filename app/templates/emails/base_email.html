@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ email_subject or brand_name or "Hospital SDLG" }}</title>
+    <style>
+        :root {
+            color-scheme: light;
+        }
+
+        body.email-body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f8fafc;
+            line-height: 1.6;
+            color: #0f172a;
+        }
+
+        .email-container {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .outer-padding {
+            padding: 40px 20px;
+        }
+
+        .card {
+            width: 100%;
+            max-width: 640px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
+
+        .header {
+            text-align: center;
+            color: #ffffff;
+            padding: 32px 30px;
+        }
+
+        .brand {
+            margin: 0;
+            font-size: 26px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+
+        .brand-logo {
+            height: 42px;
+        }
+
+        .header-subtitle {
+            margin: 6px 0 0 0;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .content {
+            padding: 36px 30px;
+            background-color: #ffffff;
+        }
+
+        .title {
+            margin: 0 0 14px 0;
+            color: #0f172a;
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -0.4px;
+        }
+
+        .subtitle {
+            margin: 0 0 10px 0;
+            color: #1e293b;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .text {
+            margin: 0 0 16px 0;
+            color: #334155;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        .muted {
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .icon-circle {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .icon-circle.info { background-color: #e0f2fe; color: #1d4ed8; }
+        .icon-circle.success { background-color: #dcfce7; color: #15803d; }
+        .icon-circle.warning { background-color: #fef3c7; color: #b45309; }
+        .icon-circle.danger { background-color: #fee2e2; color: #b91c1c; }
+
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 50%, #1d4ed8 100%);
+            color: #ffffff;
+            padding: 12px 22px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 700;
+            letter-spacing: -0.2px;
+            box-shadow: 0 10px 25px rgba(37, 99, 235, 0.25);
+        }
+
+        .panel {
+            border-radius: 12px;
+            padding: 18px 20px;
+            border: 1px solid #e2e8f0;
+            background: #f8fafc;
+            margin: 22px 0;
+        }
+
+        .panel--info { background: #eff6ff; border-color: #bfdbfe; }
+        .panel--accent { background: #eef2ff; border-color: #c7d2fe; }
+        .panel--success { background: #ecfdf3; border-color: #a7f3d0; }
+        .panel--warning { background: #fff7ed; border-color: #fcd34d; }
+        .panel--danger { background: #fef2f2; border-color: #fecaca; }
+
+        .code-badge {
+            display: inline-block;
+            padding: 14px 18px;
+            border-radius: 12px;
+            background: #ffffff;
+            border: 2px solid #1d4ed8;
+            font-family: "Courier New", monospace;
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: 4px;
+            color: #0f172a;
+        }
+
+        .list {
+            margin: 0;
+            padding-left: 18px;
+            color: #334155;
+        }
+
+        .list li {
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+
+        .info-grid {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .info-item {
+            padding: 12px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .info-label {
+            margin: 0;
+            color: #1f2937;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .info-value {
+            margin: 4px 0 0 0;
+            color: #475569;
+            font-size: 13px;
+        }
+
+        .footer {
+            background-color: #f9fafb;
+            padding: 26px 24px;
+            text-align: center;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .footer-title {
+            margin: 0 0 8px 0;
+            color: #475569;
+            font-weight: 700;
+        }
+
+        .footer-link {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 700;
+        }
+
+        .footer-contact {
+            margin: 4px 0;
+            color: #475569;
+            font-size: 14px;
+        }
+
+        .footer-note {
+            margin: 12px 0 0 0;
+            color: #94a3b8;
+            font-size: 12px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            color: #0f172a;
+            font-size: 13px;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body class="email-body">
+<table role="presentation" class="email-container">
+    <tr>
+        <td class="outer-padding">
+            <table role="presentation" class="card">
+                <tr>
+                    <td class="header" style="{% block header_background %}background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);{% endblock %}">
+                        <div class="logo">
+                            {% if logo_url %}
+                                <img src="{{ logo_url }}" alt="{{ brand_name or 'Hospital SDLG' }}" class="brand-logo" />
+                            {% else %}
+                                <p class="brand">{{ brand_name or 'Hospital SDLG' }}</p>
+                            {% endif %}
+                        </div>
+                        <p class="header-subtitle">
+                            {% block header_subtitle %}{{ action_summary or brand_tagline or 'Cuidando tu salud con excelencia' }}{% endblock %}
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="content">
+                        {% block body %}{% endblock %}
+                    </td>
+                </tr>
+                <tr>
+                    <td class="footer">
+                        <p class="footer-title">¿Necesitas ayuda?</p>
+                        {% if help_link %}
+                            <p class="footer-contact"><a class="footer-link" href="{{ help_link }}">Centro de ayuda</a></p>
+                        {% endif %}
+                        {% if contact_email or contact_number %}
+                            <p class="footer-contact">
+                                {% if contact_email %}<a class="footer-link" href="mailto:{{ contact_email }}">{{ contact_email }}</a>{% endif %}
+                                {% if contact_email and contact_number %} · {% endif %}
+                                {% if contact_number %}<a class="footer-link" href="tel:{{ contact_number }}">{{ contact_number }}</a>{% endif %}
+                            </p>
+                        {% endif %}
+                        <p class="footer-note">{{ support_note or 'Este correo fue enviado automáticamente. Por favor, no respondas a este mensaje.' }}</p>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+</body>
+</html>
