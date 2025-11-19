@@ -1,151 +1,56 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advertencia - Cuenta de Google</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; background-color: #f8fafc; line-height: 1.6;">
-    <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 0; padding: 0;">
-        <tr>
-            <td style="padding: 40px 20px;">
-                <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden;">
-                    <!-- Header -->
-                    <tr>
-                        <td style="background: linear-gradient(135deg, #dc2626 0%, #f59e0b 100%); padding: 40px 30px; text-align: center;">
-                            <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">
-                                Hospital SDLG
-                            </h1>
-                            <p style="margin: 8px 0 0 0; color: #fef3c7; font-size: 16px; font-weight: 400;">
-                                ⚠️ Acción requerida - Cuenta de Google
-                            </p>
-                        </td>
-                    </tr>
+{% extends "emails/base_email.html" %}
 
-                    <!-- Content -->
-                    <tr>
-                        <td style="padding: 40px 30px;">
-                            <div style="text-align: center; margin-bottom: 30px;">
-                                <div style="display: inline-block; width: 80px; height: 80px; background-color: #fef2f2; border-radius: 50%; position: relative; border: 3px solid #fecaca;">
-                                    <span style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 32px; color: #dc2626;">⚠️</span>
-                                </div>
-                            </div>
+{% block header_background %}background: linear-gradient(135deg, #dc2626 0%, #f59e0b 100%);{% endblock %}
+{% block header_subtitle %}{{ action_summary or "Acción requerida - Cuenta de Google" }}{% endblock %}
 
-                            <h2 style="margin: 0 0 20px 0; color: #dc2626; font-size: 24px; font-weight: 700; text-align: center;">
-                                Advertencia Importante
-                            </h2>
+{% block body %}
+<div style="text-align: center;">
+    <div class="icon-circle danger" style="width: 80px; height: 80px; font-size: 32px;">⚠️</div>
+</div>
 
-                            <p style="margin: 0 0 24px 0; color: #4b5563; font-size: 16px; line-height: 1.6;">
-                                Estimado/a {{ first_name }} {{ last_name }},
-                            </p>
+<h2 class="title" style="text-align: center; color: #dc2626;">Advertencia importante</h2>
+<p class="text">Estimado/a {{ first_name }} {{ last_name }},</p>
+<p class="text">Te contactamos para informarte sobre el estado de tu cuenta vinculada con Google en Hospital SDLG.</p>
 
-                            <p style="margin: 0 0 24px 0; color: #4b5563; font-size: 16px; line-height: 1.6;">
-                                Te contactamos para informarte sobre el estado de tu cuenta vinculada con Google en Hospital SDLG.
-                            </p>
+<div class="panel panel--danger" style="text-align: center;">
+    <div class="icon-circle danger" style="margin-bottom: 12px;">⏰</div>
+    <h3 class="subtitle" style="color: #991b1b;">Tu cuenta será eliminada en:</h3>
+    <div class="code-badge" style="border-color: #dc2626; color: #dc2626;">{{ days.days }} días</div>
+    <p class="muted" style="margin-top: 12px;">Si no tomas acción, perderás acceso permanentemente.</p>
+</div>
 
-                            <!-- Contador de días crítico -->
-                            <div style="background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); border: 2px solid #dc2626; border-radius: 8px; padding: 24px; margin: 24px 0; text-align: center;">
-                                <div style="margin-bottom: 16px;">
-                                    <span style="font-size: 48px; color: #dc2626;">⏰</span>
-                                </div>
-                                <h3 style="margin: 0 0 12px 0; color: #991b1b; font-size: 20px; font-weight: 700;">
-                                    Tu cuenta será eliminada en:
-                                </h3>
-                                <div style="background-color: #ffffff; border: 2px solid #dc2626; border-radius: 8px; padding: 16px; margin: 12px 0;">
-                                    <span style="font-family: 'Courier New', monospace; font-size: 36px; font-weight: 900; color: #dc2626;">
-                                        {{ days.days }} días
-                                    </span>
-                                </div>
-                                <p style="margin: 12px 0 0 0; color: #991b1b; font-size: 14px; font-weight: 600;">
-                                    Si no tomas acción, perderás acceso permanentemente
-                                </p>
-                            </div>
+<div class="panel panel--warning">
+    <h3 class="subtitle">¿Por qué está programada la eliminación?</h3>
+    <p class="text" style="margin: 0;">
+        Tu cuenta vinculada con Google ha permanecido inactiva por un período prolongado. Como medida de seguridad y para cumplir con nuestras políticas de protección de datos, las cuentas inactivas son programadas para eliminación automática.
+    </p>
+</div>
 
-                            <!-- Razón de la eliminación -->
-                            <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 20px; margin: 24px 0; border-radius: 0 6px 6px 0;">
-                                <h3 style="margin: 0 0 12px 0; color: #92400e; font-size: 18px; font-weight: 600;">
-                                    ¿Por qué está programada la eliminación?
-                                </h3>
-                                <p style="margin: 0; color: #78350f; font-size: 14px; line-height: 1.5;">
-                                    Tu cuenta vinculada con Google ha permanecido inactiva por un período prolongado. Como medida de seguridad y para cumplir con nuestras políticas de protección de datos, las cuentas inactivas son programadas para eliminación automática.
-                                </p>
-                            </div>
+<div class="panel panel--success">
+    <h3 class="subtitle" style="text-align: center;">Cómo mantener tu cuenta activa:</h3>
+    <ol class="list">
+        <li><strong>Inicia sesión</strong> en tu cuenta de Hospital SDLG.</li>
+        <li><strong>Actualiza tu información</strong> personal si es necesario.</li>
+        <li><strong>Utiliza cualquier servicio</strong> (agendar cita, consultar historial, etc.).</li>
+        <li><strong>Confirma que deseas mantener</strong> tu cuenta activa.</li>
+    </ol>
+</div>
 
-                            <!-- Acciones para evitar eliminación -->
-                            <div style="background-color: #f0fdf4; border: 2px solid #22c55e; border-radius: 8px; padding: 24px; margin: 24px 0;">
-                                <h3 style="margin: 0 0 16px 0; color: #15803d; font-size: 18px; font-weight: 600; text-align: center;">
-                                    🛡️ Cómo mantener tu cuenta activa:
-                                </h3>
-                                <div style="background-color: #ffffff; border-radius: 6px; padding: 20px;">
-                                    <ol style="margin: 0; padding-left: 20px; color: #166534;">
-                                        <li style="margin-bottom: 12px; line-height: 1.5; font-size: 15px;">
-                                            <strong>Inicia sesión</strong> en tu cuenta de Hospital SDLG
-                                        </li>
-                                        <li style="margin-bottom: 12px; line-height: 1.5; font-size: 15px;">
-                                            <strong>Actualiza tu información</strong> personal si es necesario
-                                        </li>
-                                        <li style="margin-bottom: 12px; line-height: 1.5; font-size: 15px;">
-                                            <strong>Utiliza cualquier servicio</strong> (agendar cita, consultar historial, etc.)
-                                        </li>
-                                        <li style="margin-bottom: 0; line-height: 1.5; font-size: 15px;">
-                                            <strong>Confirma que deseas mantener</strong> tu cuenta activa
-                                        </li>
-                                    </ol>
-                                </div>
-                            </div>
+<div class="panel panel--info">
+    <h4 class="subtitle">Información importante:</h4>
+    <ul class="list">
+        <li>Una vez eliminada, no podrás recuperar tu historial médico digital.</li>
+        <li>Perderás acceso a citas programadas y recordatorios.</li>
+        <li>Tendrás que crear una nueva cuenta para usar nuestros servicios.</li>
+        <li>El proceso es irreversible después de la fecha límite.</li>
+    </ul>
+</div>
 
-                            <!-- Botón de acción (simulado) -->
-                            <div style="text-align: center; margin: 32px 0;">
-                                <div style="display: inline-block; background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); border-radius: 8px; padding: 16px 32px; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);">
-                                    <span style="color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none;">
-                                        🔗 Acceder a mi cuenta ahora
-                                    </span>
-                                </div>
-                                <p style="margin: 12px 0 0 0; color: #6b7280; font-size: 12px;">
-                                    Haz clic para mantener tu cuenta activa
-                                </p>
-                            </div>
+<div class="panel panel--warning">
+    <p class="text" style="margin: 0;">
+        <strong>¿Necesitas ayuda?</strong> Si tienes problemas para acceder a tu cuenta o crees que esto es un error, contacta inmediatamente a nuestro equipo de soporte técnico.
+    </p>
+</div>
 
-                            <!-- Información adicional -->
-                            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 20px; margin: 24px 0;">
-                                <h4 style="margin: 0 0 12px 0; color: #475569; font-size: 16px; font-weight: 600;">
-                                    📋 Información importante:
-                                </h4>
-                                <ul style="margin: 0; padding-left: 20px; color: #64748b; font-size: 14px;">
-                                    <li style="margin-bottom: 8px;">Una vez eliminada, no podrás recuperar tu historial médico digital</li>
-                                    <li style="margin-bottom: 8px;">Perderás acceso a citas programadas y recordatorios</li>
-                                    <li style="margin-bottom: 8px;">Tendrás que crear una nueva cuenta para usar nuestros servicios</li>
-                                    <li style="margin-bottom: 0;">Este proceso es irreversible después de la fecha límite</li>
-                                </ul>
-                            </div>
-
-                            <!-- Contacto de emergencia -->
-                            <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; margin: 24px 0; border-radius: 0 4px 4px 0;">
-                                <p style="margin: 0; color: #92400e; font-size: 14px;">
-                                    <strong>¿Necesitas ayuda?</strong> Si tienes problemas para acceder a tu cuenta o crees que esto es un error, contacta inmediatamente a nuestro equipo de soporte técnico.
-                                </p>
-                            </div>
-
-                            <p style="margin: 24px 0 0 0; color: #4b5563; font-size: 16px; text-align: center;">
-                                Gracias por confiar en Hospital SDLG para el cuidado de tu salud.
-                            </p>
-                        </td>
-                    </tr>
-
-                    <!-- Footer -->
-                    <tr>
-                        <td style="background-color: #f9fafb; padding: 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-                            <p style="margin: 0 0 12px 0; color: #6b7280; font-size: 14px;">
-                                Hospital SDLG - Protegiendo tu información médica
-                            </p>
-                            <p style="margin: 0; color: #9ca3af; font-size: 12px;">
-                                Este es un correo automático de seguridad. Por favor, no respondas a este mensaje.
-                            </p>
-                        </td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-    </table>
-</body>
-</html>
+<p class="text" style="text-align: center;">Gracias por confiar en Hospital SDLG para el cuidado de tu salud.</p>
+{% endblock %}
