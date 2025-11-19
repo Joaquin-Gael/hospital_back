@@ -149,8 +149,11 @@ class TurnAndAppointmentRepository(BaseInterface):
             return False
 
     @staticmethod
-    async def create_turn_and_appointment(session: Session, turn: TurnsCreate) -> Tuple[Turns, Appointments] | Tuple[
-        None, str]:
+    async def create_turn_and_appointment(
+        session: Session,
+        turn: TurnsCreate,
+        doctor: Doctors | None = None,
+    ) -> Tuple[Turns, Appointments] | Tuple[None, str]:
         try:
             import locale
 
@@ -166,9 +169,16 @@ class TurnAndAppointmentRepository(BaseInterface):
 
                 speciality = services[0].speciality
 
-                if not speciality.doctors:
-                    return None, "No doctors available for the selected speciality"
-                doctor = random.choice(speciality.doctors)
+                if doctor is None and turn.doctor_id:
+                    doctor = session.get(Doctors, turn.doctor_id)
+
+                if doctor:
+                    if doctor.speciality_id != speciality.id:
+                        return None, "Selected doctor is not linked to the service speciality"
+                else:
+                    if not speciality.doctors:
+                        return None, "No doctors available for the selected speciality"
+                    doctor = random.choice(speciality.doctors)
                 
                 console.print(f"Doctor: {doctor}")
 
@@ -210,20 +220,29 @@ class TurnAndAppointmentRepository(BaseInterface):
 
                 locale.setlocale(locale.LC_TIME, "en_US.UTF-8")
 
+                matching_schedule = None
+
                 for schedule in schedules:
                     if schedule.day.value.lower() == turn.date.strftime("%A").lower():
-                        if schedule.max_patients > len(schedule.turns):
-                            schedule.turns.append(new_turn)
-                        elif schedule.max_patients == len(schedule.turns):
-                            schedule.turns.append(new_turn)
-                            schedule.available = False
-                        else:
+                        matching_schedule = schedule
+
+                        if schedule.max_patients is not None:
+                            if len(schedule.turns) >= schedule.max_patients:
+                                return None, "No available slots in the schedule"
+
+                        if schedule.available is False and schedule.max_patients is None:
                             return None, "No available slots in the schedule"
+
+                        schedule.turns.append(new_turn)
+
+                        if schedule.max_patients is not None:
+                            schedule.available = len(schedule.turns) < schedule.max_patients
+
                         session.add(schedule)
                         session.flush()
                         break
 
-                if not schedules:
+                if matching_schedule is None:
                     return None, "No matching schedule found for the selected date"
                 
                 session.commit()
