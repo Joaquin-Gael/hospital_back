@@ -8,7 +8,8 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
     WebSocketException,
-    Form
+    Form,
+    Response
 )
 from fastapi.responses import ORJSONResponse
 
@@ -18,6 +19,7 @@ from typing import List, Optional, Dict, Annotated, TypeVar
 
 from rich import print
 from rich.console import Console
+import polars.exceptions as ple
 
 from uuid import UUID
 
@@ -755,16 +757,47 @@ async def get_patients_by_doctor(
 @doctors.get("/{doctor_id}/stats")
 async def get_doctor_stats_by_id(request: Request, doctor_id: str, session_db: SessionDep):
     try:
-        doctor = await DoctorRepository.get_doctor_by_id(session_db, UUID(doctor_id))
-        metrics = await DoctorRepository.get_doctor_metrics(session_db, doctor)
-        
-        return ORJSONResponse(
-            metrics,
-            status_code=status.HTTP_200_OK
-        )
-    except Exception as e:
+        doctor_uuid = UUID(doctor_id)
+    except ValueError as exc:
         console.print_exception(show_locals=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid doctor_id format") from exc
+
+    doctor = await DoctorRepository.get_doctor_by_id(session_db, doctor_uuid)
+
+    if not doctor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Doctor {doctor_id} not found")
+
+    try:
+        metrics = await DoctorRepository.get_doctor_metrics(session_db, doctor)
+    except ple.PolarsError as exc:
+        console.print_exception(show_locals=True)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Error processing doctor metrics: {exc}",
+        ) from exc
+    except (KeyError, ValueError, TypeError) as exc:
+        console.print_exception(show_locals=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid data for doctor metrics: {exc}",
+        ) from exc
+    except Exception as exc:  # noqa: BLE001
+        console.print_exception(show_locals=True)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Unexpected error calculating doctor metrics: {exc}",
+        ) from exc
+
+    if metrics is None or metrics == {}:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    if isinstance(metrics, dict) and metrics.get("detail") == "No Data Found":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No metrics found for doctor")
+
+    return ORJSONResponse(
+        metrics,
+        status_code=status.HTTP_200_OK
+    )
 
 @doctors.post("/add/", response_model=DoctorResponse)
 async def add_doctor(request: Request, doctor: DoctorCreate, session_db: SessionDep):
