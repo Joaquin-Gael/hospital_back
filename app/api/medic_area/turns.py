@@ -686,10 +686,25 @@ async def get_turn_by_id(request: Request, session: SessionDep, turn_id: UUID):
 @router.post("/add", response_model=PayTurnResponse)
 async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
     user: User | None = request.state.user
+    scopes = getattr(request.state, "scopes", []) or []
+    doctor: Doctors | None = None
 
-    if "doc" in request.state.scopes:
+    if "doc" in scopes:
         if turn.user_id is None:
-            raise HTTPException(status_code=400, detail="user_id is required")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="user_id is required")
+
+        if isinstance(user, Doctors):
+            doctor = user
+        elif user:
+            doctor = session.get(Doctors, user.id)
+
+        if doctor is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Authenticated doctor not found")
+
+        if turn.doctor_id is None:
+            turn.doctor_id = doctor.id
+        elif turn.doctor_id != doctor.id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="doctor_id must match the authenticated doctor")
 
     elif user:
         turn.user_id = user.id
@@ -697,14 +712,32 @@ async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
     else:
         raise HTTPException(status_code=500, detail="Internal Error")
 
+    patient = session.get(User, turn.user_id)
+    if patient is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")
+
+    if turn.doctor_id:
+        doctor = doctor or session.get(Doctors, turn.doctor_id)
+        if doctor is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor not found")
+
     try:
         new_turn, new_appointment = await TurnAndAppointmentRepository.create_turn_and_appointment(
             session=session,
             turn=turn,
+            doctor=doctor,
         )
 
         if not new_turn:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=new_appointment)
+            lowered_message = (new_appointment or "").lower()
+
+            status_code_error = status.HTTP_409_CONFLICT
+            if "schedule" in lowered_message or "agenda" in lowered_message:
+                status_code_error = status.HTTP_404_NOT_FOUND
+            elif "service" in lowered_message or "doctor" in lowered_message:
+                status_code_error = status.HTTP_400_BAD_REQUEST
+
+            raise HTTPException(status_code=status_code_error, detail=new_appointment)
 
         response = await StripeServices.proces_payment(
             price=new_turn.price_total(),
