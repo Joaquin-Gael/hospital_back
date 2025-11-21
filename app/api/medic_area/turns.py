@@ -16,6 +16,7 @@ from app.models import (
     Appointments,
     Departments,
     Doctors,
+    PaymentMethod,
     Services,
     Specialties,
     TurnDocument,
@@ -23,6 +24,7 @@ from app.models import (
     Turns,
     User,
 )
+from app.schemas.payment import PaymentRead
 from app.schemas.medica_area import (
     AppointmentResponse,
     DepartmentResponse,
@@ -39,11 +41,11 @@ from app.schemas.medica_area import (
     TurnsState,
 )
 from app.core.interfaces.medic_area import TurnAndAppointmentRepository
+from app.core.services.payment import PaymentService
 from app.core.services.pdf import (
     get_or_create_turn_document,
     register_turn_document_download,
 )
-from app.core.services.stripe_payment import StripeServices
 from app.audit import (
     AuditAction,
     AuditEmitter,
@@ -739,12 +741,19 @@ async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
 
             raise HTTPException(status_code=status_code_error, detail=new_appointment)
 
-        response = await StripeServices.proces_payment(
-            price=new_turn.price_total(),
-            details=new_turn.get_details(),
-            h_i=turn.health_insurance,
-            session=session,
+        payment_service = PaymentService(session)
+        payment = await payment_service.create_payment_for_turn(
+            turn=new_turn,
+            appointment=new_appointment,
+            user=patient,
+            payment_method=PaymentMethod.card,
+            gateway_metadata={"health_insurance": str(turn.health_insurance)}
+            if turn.health_insurance
+            else None,
+            health_insurance_id=turn.health_insurance,
         )
+
+        payment_read = PaymentRead.model_validate(payment, from_attributes=True)
 
         return ORJSONResponse(
             PayTurnResponse(
@@ -758,7 +767,8 @@ async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
                     user_id=new_turn.user_id,
                     time=new_turn.time,
                 ).model_dump(),
-                payment_url=response,
+                payment=payment_read,
+                payment_url=payment.payment_url,
             ).model_dump(),
             status_code=status.HTTP_201_CREATED,
         )

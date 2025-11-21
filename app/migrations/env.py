@@ -29,6 +29,8 @@ from app.models import (
     Appointments,
     CashDetails,
     Cashes,
+    Payment,
+    PaymentItem,
     User,
     BaseUser
 )

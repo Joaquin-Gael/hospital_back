@@ -3,11 +3,11 @@ from pathlib import Path
 from fastapi import UploadFile
 from sqlmodel import SQLModel, Field, Relationship, Session
 
-from sqlalchemy import Column, UUID as UUID_TYPE, VARCHAR, event
+from sqlalchemy import Column, JSON, UUID as UUID_TYPE, VARCHAR, event
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import declarative_mixin
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 from dataclasses import dataclass, field
 
@@ -27,6 +27,7 @@ import random
 
 import os
 from dotenv import load_dotenv
+from app.models.payment import Payment, PaymentItem, PaymentMethod, PaymentStatus
 
 load_dotenv()
 
@@ -365,6 +366,7 @@ class Turns(BaseModelTurns, table=True):
     )
 
     appointment: Optional["Appointments"] = Relationship(back_populates="turn")
+    payment: Optional["Payment"] = Relationship(back_populates="turn")
     documents: List["TurnDocument"] = Relationship(back_populates="turn")
     document_downloads: List["TurnDocumentDownload"] = Relationship(back_populates="turn")
 
@@ -496,6 +498,8 @@ class Appointments(SQLModel, table=True):
     )
     turn: Optional["Turns"] = Relationship(back_populates="appointment")
 
+    payments: List["Payment"] = Relationship(back_populates="appointment")
+
     cash_details: List["CashDetails"] = Relationship(
         back_populates="appointment"
     )
@@ -517,6 +521,16 @@ class Cashes(SQLModel, table=True):
     date: date_type = Field(nullable=False)
     time_transaction: time_type = Field(nullable=False, default=datetime.now().time())
     balance: float = Field(default=0, nullable=False)
+    transaction_type: str = Field(default="income", max_length=50, nullable=False)
+    reference_id: Optional[UUID] = Field(sa_type=UUID_TYPE, default=None, nullable=True)
+    description: Optional[str] = Field(default=None, max_length=255, nullable=True)
+    metadata: Optional[dict] = Field(default=None, sa_column=Column(JSON, nullable=True))
+    created_by: Optional[UUID] = Field(
+        sa_type=UUID_TYPE,
+        foreign_key="users.user_id",
+        nullable=True,
+    )
+    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
 
     details: List["CashDetails"] = Relationship(
         back_populates="cash",
@@ -526,6 +540,11 @@ class Cashes(SQLModel, table=True):
 
     def make_balance(self):
         self.balance = self.income - self.expense
+
+    def apply_transaction(self, income_delta: float = 0, expense_delta: float = 0) -> None:
+        self.income += income_delta
+        self.expense += expense_delta
+        self.make_balance()
 
 class CashDetails(SQLModel, table=True):
     __tablename__ = "cash_details"
@@ -542,6 +561,15 @@ class CashDetails(SQLModel, table=True):
     date: date_type = Field(nullable=False)
     time_transaction: time_type = Field(nullable=False, default=datetime.now().time())
     discount: int = Field(nullable=False, le=100, ge=0)
+    transaction_type: str = Field(default="income", max_length=50, nullable=False)
+    reference_id: Optional[UUID] = Field(sa_type=UUID_TYPE, default=None, nullable=True)
+    metadata: Optional[dict] = Field(default=None, sa_column=Column(JSON, nullable=True))
+    created_by: Optional[UUID] = Field(
+        sa_type=UUID_TYPE,
+        foreign_key="users.user_id",
+        nullable=True,
+    )
+    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
 
     appointment_id: UUID = Field(
         sa_type=UUID_TYPE,
@@ -665,6 +693,7 @@ class User(BaseUser, table=True):
     )
     turns: list["Turns"] = Relationship(back_populates="user")
     appointments: list["Appointments"] = Relationship(back_populates="user")
+    payments: List["Payment"] = Relationship(back_populates="user")
     documents: List["TurnDocument"] = Relationship(back_populates="user")
     turn_document_downloads: List["TurnDocumentDownload"] = Relationship(back_populates="user")
 
@@ -868,3 +897,5 @@ Chat.model_rebuild()
 ChatMessages.model_rebuild()
 HealthInsurance.model_rebuild()
 DoctorMedicalScheduleLink.model_rebuild()
+Payment.model_rebuild()
+PaymentItem.model_rebuild()
