@@ -2,19 +2,14 @@ from fastapi import APIRouter, status, HTTPException, Request
 from fastapi.params import Query, Depends
 from fastapi.responses import Response, ORJSONResponse
 
-from typing import List, Dict, Optional, Tuple
+from typing import List
 from uuid import UUID
 
 from rich.console import Console
 from sqlmodel import select
 
-from urllib.parse import urlencode
-
 from app.schemas.cashes import CashesRead, CashesCreate, CashesUpdate
-from app.core.auth import decode, JWTBearer
-from app.core.interfaces.medic_area import TurnAndAppointmentRepository
-from app.core.interfaces.emails import EmailService
-from app.core.services.stripe_payment import StripeServices
+from app.core.auth import JWTBearer
 from app.db.main import SessionDep
 from app.models import Cashes
 from app.audit import (
@@ -63,78 +58,33 @@ def _make_event(
 @public_router.get("/pay/success")
 async def pay_success(
     request: Request,
-    session: SessionDep,
-    a: str = Query(...),
+    session_id: str | None = Query(None),
     emitter: AuditEmitter = Depends(get_audit_emitter),
 ):
     """
-    Maneja la confirmación de pago exitoso desde Stripe.
-    
-    Procesa la respuesta de Stripe después de un pago exitoso,
-    decodifica los datos de la transacción y crea el registro
-    en el sistema de cajas.
-    
-    Args:
-        session (SessionDep): Sesión de base de datos
-        a (str): Datos de pago codificados en hexadecimal desde Stripe
-        
-    Returns:
-        Response: Redirección HTTP a panel de usuario
-            - Éxito: redirige a appointments?success=true
-            - Error: redirige a appointments?success=false&services=...
-            
-    Raises:
-        HTTPException: 500 si hay errores procesando los datos
-        
-    Note:
-        - Decodifica datos hexadecimales de Stripe
-        - Crea registro detallado en sistema de cajas
-        - Maneja servicios asociados al pago
-        - Redirige al frontend con parámetros de estado
+    Callback de éxito para Stripe (uso solo para redirecciones).
+
+    El estado del pago ahora se procesa mediante webhooks.
+    Este endpoint se mantiene para no romper los flujos
+    existentes del frontend y solo genera un evento de auditoría
+    antes de redirigir al panel del usuario.
     """
     try:
-        data = decode(
-            bytes.fromhex(a)
-        )
-
-        console.print(data)
-        
-        success = await StripeServices.create_cash_detail(
-            session,
-            **data
-        )
-        
-        services_query: List = decode(
-            bytes.fromhex(data["services"])
-        )
-
-        console.print(services_query)
-        
-        if success:
-            await emitter.emit_event(
-                _make_event(
-                    request,
-                    action=AuditAction.PAYMENT_SUCCEEDED,
-                    target_id=UUID(data["turn_id"]),
-                    details={
-                        "payment_method": data["payment_method"],
-                        "total": data["total"],
-                        "discount": data["discount"],
-                    },
-                )
+        await emitter.emit_event(
+            _make_event(
+                request,
+                action=AuditAction.PAYMENT_SUCCEEDED,
+                target_id=None,
+                details={
+                    "note": "Stripe redirect callback deprecated; payment handled via webhook",
+                    "session_id": session_id,
+                },
             )
-            return Response(status_code=302, headers={"Location": "http://localhost:4200/user_panel/appointments?success=true"})
-        else:
-            await emitter.emit_event(
-                _make_event(
-                    request,
-                    action=AuditAction.PAYMENT_FAILED,
-                    severity=AuditSeverity.WARNING,
-                    target_id=UUID(data["turn_id"]),
-                    details={"reason": "cash_detail_not_created", "services": data.get("services")},
-                )
-            )
-            return Response(status_code=307, headers={"Location": f"http://localhost:4200/user_panel/appointments?success=false&{urlencode({"services":data["services"]})}"})
+        )
+        return Response(
+            status_code=302,
+            headers={"Location": "http://localhost:4200/user_panel/appointments?success=true"},
+        )
 
     except Exception as e:
         console.print_exception(show_locals=True)
@@ -144,44 +94,27 @@ async def pay_success(
 @public_router.get("/pay/cancel")
 async def pay_cansel(
     request: Request,
-    b: str = Query(...),
+    session_id: str | None = Query(None),
     emitter: AuditEmitter = Depends(get_audit_emitter),
 ):
     """
-    Maneja la cancelación de pago desde Stripe.
-    
-    Procesa cuando el usuario cancela el pago en Stripe,
-    decodifica los datos de la transacción cancelada y
-    redirige al usuario de vuelta al panel.
-    
-    Args:
-        b (str): Datos de transacción codificados en hexadecimal
-        
-    Returns:
-        Response: Redirección HTTP al panel de citas del usuario
-        
-    Raises:
-        HTTPException: 500 si hay errores procesando los datos
-        
-    Note:
-        - No requiere procesamiento especial de cancelación
-        - Simplemente redirige al panel de usuario
-        - Mantiene logs para debugging
+    Callback de cancelación para Stripe (solo redirección).
+
+    El estado del pago ahora se determina con el webhook
+    `/webhooks/stripe`. Este endpoint permanece como respaldo
+    para redireccionar y auditar la acción del usuario.
     """
     try:
-        data = decode(
-            bytes.fromhex(b)
-        )
-
-        console.print(data)
-
         await emitter.emit_event(
             _make_event(
                 request,
                 action=AuditAction.PAYMENT_CANCELLED,
                 severity=AuditSeverity.WARNING,
-                target_id=UUID(data.get("turn_id")) if data.get("turn_id") else None,
-                details={"reason": "user_cancelled"},
+                target_id=None,
+                details={
+                    "reason": "user_cancelled_redirect",
+                    "session_id": session_id,
+                },
             )
         )
         return Response(status_code=302, headers={"Location": "http://localhost:4200/user_panel/appointments"})

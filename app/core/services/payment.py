@@ -28,7 +28,7 @@ class PaymentService:
             PaymentStatus.cancelled,
         },
         PaymentStatus.failed: {PaymentStatus.pending, PaymentStatus.cancelled},
-        PaymentStatus.succeeded: set(),
+        PaymentStatus.succeeded: {PaymentStatus.cancelled},
         PaymentStatus.cancelled: set(),
     }
 
@@ -47,13 +47,6 @@ class PaymentService:
     ) -> Payment:
         """Create a pending payment with items for the provided turn."""
 
-        payment_url = await StripeServices.proces_payment(
-            price=turn.price_total(),
-            details=turn.get_details(),
-            h_i=health_insurance_id,
-            session=self.session,
-        )
-
         payment = Payment(
             turn_id=turn.id,
             appointment_id=appointment.id if appointment else None,
@@ -61,7 +54,6 @@ class PaymentService:
             payment_method=payment_method,
             status=PaymentStatus.pending,
             amount_total=turn.price_total(),
-            payment_url=payment_url,
             gateway_metadata=gateway_metadata,
         )
 
@@ -76,6 +68,24 @@ class PaymentService:
             )
             for service in turn.services
         ]
+
+        session_details = await StripeServices.proces_payment(
+            price=turn.price_total(),
+            details=turn.get_details(),
+            h_i=health_insurance_id,
+            session=self.session,
+            payment=payment,
+        )
+
+        if session_details is not None:
+            payment.payment_url = session_details.get("checkout_url")
+            payment.gateway_session_id = session_details.get("session_id")
+            payment.amount_total = session_details.get("amount_total", payment.amount_total)
+            discount = session_details.get("discount")
+            if discount is not None:
+                merged_metadata = dict(payment.gateway_metadata or {})
+                merged_metadata.setdefault("discount", discount)
+                payment.gateway_metadata = merged_metadata
 
         self.session.add(payment)
         self.session.commit()
@@ -124,6 +134,43 @@ class PaymentService:
         self.session.commit()
         self.session.refresh(payment)
         return payment
+
+    def transition_status(
+        self,
+        payment: Payment | UUID,
+        new_status: PaymentStatus,
+        *,
+        gateway_metadata: Optional[dict] = None,
+        payment_url: Optional[str] = None,
+        gateway_session_id: Optional[str] = None,
+    ) -> Payment:
+        payment_obj = payment if isinstance(payment, Payment) else self.get_payment(payment)
+        if payment_obj is None:
+            raise ValueError("Payment not found")
+
+        if payment_obj.status == new_status:
+            return self.update_status(
+                payment_obj,
+                new_status,
+                gateway_metadata=gateway_metadata,
+                payment_url=payment_url,
+                gateway_session_id=gateway_session_id,
+            )
+
+        try:
+            return self.update_status(
+                payment_obj,
+                new_status,
+                gateway_metadata=gateway_metadata,
+                payment_url=payment_url,
+                gateway_session_id=gateway_session_id,
+            )
+        except ValueError:
+            return payment_obj
+
+    def get_payment_by_session(self, session_id: str) -> Optional[Payment]:
+        statement = select(Payment).where(Payment.gateway_session_id == session_id)
+        return self.session.exec(statement).first()
 
     def delete_payment(self, payment_id: UUID) -> bool:
         payment = self.get_payment(payment_id)
