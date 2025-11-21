@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 
 class ServiceBase(BaseModel):
@@ -29,6 +29,14 @@ class ServiceUpdate(BaseModel):
 class ServiceResponse(ServiceBase):
     id: UUID
     specialty: Optional["SpecialtyResponse"] = None
+    is_available: bool = True
+    available_doctors_count: Optional[int] = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def set_availability_from_count(self):
+        if self.available_doctors_count is not None:
+            self.is_available = self.available_doctors_count > 0
+        return self
 
 
 class ServiceDelete(BaseModel):
