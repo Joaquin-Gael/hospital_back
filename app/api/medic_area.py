@@ -37,9 +37,11 @@ from app.models import (
     Appointments,
     DoctorMedicalScheduleLink,
     HealthInsurance,
+    PaymentMethod,
     UserHealthInsuranceLink
 )
 from app.schemas import UserRead
+from app.schemas.payment import PaymentRead
 from app.schemas.medica_area import (
     MedicalScheduleCreate,
     MedicalScheduleDelete,
@@ -112,7 +114,7 @@ from app.schemas.medica_area import (
 from app.db.main import SessionDep
 from app.core.auth import JWTBearer, JWTWebSocket, time_out
 from app.core.interfaces.medic_area import TurnAndAppointmentRepository, DoctorRepository
-from app.core.services.stripe_payment import StripeServices
+from app.core.services.payment import PaymentService
 
 auth = JWTBearer()
 ws_auth = JWTWebSocket()
@@ -2091,12 +2093,19 @@ async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
 
             raise HTTPException(status_code=status_code_error, detail=new_appointment)
 
-        response = await StripeServices.proces_payment(
-            price=new_turn.price_total(),
-            details=new_turn.get_details(),
-            h_i=turn.health_insurance,
-            session=session
+        payment_service = PaymentService(session)
+        payment = await payment_service.create_payment_for_turn(
+            turn=new_turn,
+            appointment=new_appointment,
+            user=patient,
+            payment_method=PaymentMethod.card,
+            gateway_metadata={"health_insurance": str(turn.health_insurance)}
+            if turn.health_insurance
+            else None,
+            health_insurance_id=turn.health_insurance,
         )
+
+        payment_read = PaymentRead.model_validate(payment, from_attributes=True)
 
         return ORJSONResponse(
             PayTurnResponse(
@@ -2110,7 +2119,8 @@ async def create_turn(request: Request, session: SessionDep, turn: TurnsCreate):
                     user_id=new_turn.user_id,
                     time=new_turn.time
                 ).model_dump(),
-                payment_url=response
+                payment=payment_read,
+                payment_url=payment.payment_url
             ).model_dump(),
             status_code=status.HTTP_201_CREATED
         )

@@ -8,6 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel, computed_field, field_serializer
 
 from app.schemas import UserRead
+from app.schemas.payment import PaymentRead
 
 from .enums import TurnsState
 
@@ -60,7 +61,8 @@ class TurnsResponse(TurnsBase):
 
 class PayTurnResponse(BaseModel):
     turn: TurnsResponse
-    payment_url: str
+    payment: PaymentRead
+    payment_url: Optional[str] = None
 
 
 class TurnsDelete(BaseModel):
