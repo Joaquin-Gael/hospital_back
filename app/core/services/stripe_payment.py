@@ -177,7 +177,7 @@ class StripeServices:
                             discount=discount,
                             transaction_type="income",
                             reference_id=payment_id or turn_id,
-                            metadata={
+                            transaction_metadata={
                                 "turn_id": str(turn_id),
                                 "payment_id": str(payment_id) if payment_id else None,
                                 "payment_method": payment_method,
@@ -191,7 +191,7 @@ class StripeServices:
                 open_cash.apply_transaction(income_delta=total)
                 open_cash.time_transaction = now.time()
                 open_cash.reference_id = open_cash.reference_id or payment_id or turn_id
-                merged_metadata = dict(open_cash.metadata or {})
+                merged_metadata = dict(open_cash.transaction_metadata or {})
                 merged_metadata.update(
                     {
                         "last_turn_id": str(turn_id),
@@ -199,7 +199,7 @@ class StripeServices:
                         "payment_method": payment_method,
                     }
                 )
-                open_cash.metadata = merged_metadata
+                open_cash.transaction_metadata = merged_metadata
 
                 session.add(open_cash)
                 session.commit()
