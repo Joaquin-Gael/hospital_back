@@ -1,20 +1,27 @@
+from __future__ import annotations
+
 import stripe
 import stripe as st
 
 from datetime import datetime
-
-from urllib.parse import urlencode
-
 from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from rich.console import Console
 
-from app.models import Cashes, CashDetails, Turns, HealthInsurance
-from app.config import STRIPE_SECRET_KEY, STRIPE_PUBLIC_KEY, CORS_HOST, ID_PREFIX
-from app.core.auth import encode
+from app.models import Cashes, CashDetails, Payment, PaymentStatus, Turns, HealthInsurance
+from app.config import (
+    STRIPE_SECRET_KEY,
+    STRIPE_WEBHOOK_SECRET,
+    CORS_HOST,
+    ID_PREFIX,
+)
+
+if TYPE_CHECKING:  # pragma: no cover - only for type checking
+    from app.core.services.payment import PaymentService
 
 console = Console()
 
@@ -26,8 +33,10 @@ class StripeServices:
         price: float,
         details: dict,
         h_i: UUID | None,
-        session: Session
-    ) -> str | None:
+        session: Session,
+        *,
+        payment: Payment | None = None,
+    ) -> dict | None:
         line_items: list[dict] = []
 
         # Si no hay obra social, health_insurance = None
@@ -66,35 +75,32 @@ class StripeServices:
         try:
             total_with_discount = float(price) * multiplier
 
-            payload_data = {
-                "turn_id": str(details["turn_id"]),
-                "total": total_with_discount,
-                "payment_method": "card",
-                "discount": discount,
-                "services": encode(details["products_data"]).hex(),
-            }
-
-            payload = {"a": encode(payload_data).hex()}
-
-            bad_payload = {
-                "b": encode({"turn_id": str(details["turn_id"])}).hex()
-            }
-
             checkout_session = st.checkout.Session.create(
                 payment_method_types=["card"],
                 line_items=line_items,
                 mode="payment",
                 success_url=(
                     f"{CORS_HOST}/{ID_PREFIX}/cashes/pay/success"
-                    f"?session_id={{CHECKOUT_SESSION_ID}}&{urlencode(payload)}"
+                    f"?session_id={{CHECKOUT_SESSION_ID}}"
                 ),
                 cancel_url=(
-                    f"{CORS_HOST}/{ID_PREFIX}/cashes/pay/cancel?"
-                    f"{urlencode(bad_payload)}"
+                    f"{CORS_HOST}/{ID_PREFIX}/cashes/pay/cancel"
+                    f"?session_id={{CHECKOUT_SESSION_ID}}"
                 ),
+                client_reference_id=str(getattr(payment, "id", details["turn_id"])),
+                metadata={
+                    "payment_id": str(getattr(payment, "id", "")),
+                    "turn_id": str(details["turn_id"]),
+                    "discount": str(discount),
+                },
             )
 
-            return checkout_session.url
+            return {
+                "checkout_url": checkout_session.url,
+                "session_id": checkout_session.id,
+                "amount_total": total_with_discount,
+                "discount": discount,
+            }
 
         except Exception:
             console.print_exception(show_locals=True)
@@ -165,3 +171,91 @@ class StripeServices:
             console.print_exception(show_locals=True)
             session.rollback()
             return False
+
+    @staticmethod
+    def construct_event(payload: bytes, signature: str) -> stripe.Event:
+        if not STRIPE_WEBHOOK_SECRET:
+            raise ValueError("Stripe webhook secret is not configured")
+
+        try:
+            return stripe.Webhook.construct_event(
+                payload, signature, STRIPE_WEBHOOK_SECRET
+            )
+        except stripe.error.SignatureVerificationError as exc:  # type: ignore[attr-defined]
+            raise ValueError("Invalid Stripe signature") from exc
+
+    @staticmethod
+    def _map_event_to_status(event_type: str) -> PaymentStatus | None:
+        mapping: dict[str, PaymentStatus] = {
+            "checkout.session.completed": PaymentStatus.succeeded,
+            "payment_intent.payment_failed": PaymentStatus.failed,
+            "charge.failed": PaymentStatus.failed,
+            "charge.refunded": PaymentStatus.cancelled,
+            "charge.refund.updated": PaymentStatus.cancelled,
+            "checkout.session.expired": PaymentStatus.cancelled,
+            "payment_intent.canceled": PaymentStatus.cancelled,
+        }
+        return mapping.get(event_type)
+
+    @staticmethod
+    def _get_payment_from_object(
+        payment_service: PaymentService, session_obj: dict
+    ) -> Payment | None:
+        metadata = session_obj.get("metadata") or {}
+        payment_id = metadata.get("payment_id")
+
+        if payment_id:
+            try:
+                return payment_service.get_payment(UUID(payment_id))
+            except ValueError:
+                pass
+
+        session_id = session_obj.get("id")
+        if session_id:
+            return payment_service.get_payment_by_session(session_id)
+
+        return None
+
+    @staticmethod
+    async def handle_webhook_event(
+        payment_service: PaymentService, event: stripe.Event
+    ) -> Payment | None:
+        status = StripeServices._map_event_to_status(event.get("type", ""))
+        if status is None:
+            return None
+
+        session_obj = event.get("data", {}).get("object", {})
+        payment = StripeServices._get_payment_from_object(payment_service, session_obj)
+        if payment is None:
+            return None
+
+        previous_status = payment.status
+        discount = 0
+        metadata = session_obj.get("metadata") or {}
+
+        try:
+            discount = int(float(metadata.get("discount", 0)))
+        except (TypeError, ValueError):
+            discount = 0
+
+        updated_payment = payment_service.transition_status(
+            payment,
+            status,
+            gateway_metadata={"stripe_event": event.get("type")},
+            gateway_session_id=session_obj.get("id"),
+        )
+
+        if (
+            previous_status != PaymentStatus.succeeded
+            and updated_payment.status == PaymentStatus.succeeded
+        ):
+            await StripeServices.create_cash_detail(
+                payment_service.session,
+                turn_id=updated_payment.turn_id,
+                payment_method=updated_payment.payment_method.value,
+                discount=discount,
+                total=updated_payment.amount_total,
+                services=[],
+            )
+
+        return updated_payment

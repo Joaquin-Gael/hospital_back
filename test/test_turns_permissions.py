@@ -36,7 +36,20 @@ interfaces_stub.TurnAndAppointmentRepository = type("TurnAndAppointmentRepositor
 sys.modules["app.core.interfaces.medic_area"] = interfaces_stub
 
 stripe_stub = types.ModuleType("app.core.services.stripe_payment")
-stripe_stub.StripeServices = type("StripeServices", (), {"proces_payment": staticmethod(lambda *_, **__: "")})
+stripe_stub.StripeServices = type(
+    "StripeServices",
+    (),
+    {
+        "proces_payment": staticmethod(
+            lambda *_, **__: {
+                "checkout_url": "",
+                "session_id": "",
+                "amount_total": 0,
+                "discount": 0,
+            }
+        )
+    },
+)
 sys.modules["app.core.services.stripe_payment"] = stripe_stub
 
 audit_stub = types.ModuleType("app.audit")

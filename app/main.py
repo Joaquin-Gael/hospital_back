@@ -19,11 +19,19 @@ from uuid import UUID
 
 from pathlib import Path
 
-from app.api import users, medic_area, auth, cashes, ai_assistant, payments
+from app.api import (
+    ai_assistant,
+    audit,
+    auth,
+    cashes,
+    medic_area,
+    payments,
+    users,
+    webhooks,
+)
 from app.config import API_NAME, VERSION, DEBUG, CORS_HOST, TEMPLATES, parser_name
 from app.audit.pipeline import audit_pipeline
 from app.db.main import init_db, set_admin, migrate, test_db, db_url
-from app.api import users, medic_area, auth, cashes, ai_assistant, audit, payments
 from app.config import (
     API_NAME,
     AUDIT_ENABLED,
@@ -270,6 +278,7 @@ main_router.include_router(medic_area.router)
 main_router.include_router(auth.router)
 main_router.include_router(cashes.router)
 main_router.include_router(payments.router)
+main_router.include_router(webhooks.router)
 if AUDIT_ENABLED:
     main_router.include_router(audit.router)
 main_router.include_router(ai_assistant.router)
