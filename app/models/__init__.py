@@ -524,7 +524,9 @@ class Cashes(SQLModel, table=True):
     transaction_type: str = Field(default="income", max_length=50, nullable=False)
     reference_id: Optional[UUID] = Field(sa_type=UUID_TYPE, default=None, nullable=True)
     description: Optional[str] = Field(default=None, max_length=255, nullable=True)
-    metadata: Optional[dict] = Field(default=None, sa_column=Column(JSON, nullable=True))
+    transaction_metadata: Optional[dict] = Field(
+        default=None, sa_column=Column("transaction_metadata", JSON, nullable=True)
+    )
     created_by: Optional[UUID] = Field(
         sa_type=UUID_TYPE,
         foreign_key="users.user_id",
@@ -563,7 +565,9 @@ class CashDetails(SQLModel, table=True):
     discount: int = Field(nullable=False, le=100, ge=0)
     transaction_type: str = Field(default="income", max_length=50, nullable=False)
     reference_id: Optional[UUID] = Field(sa_type=UUID_TYPE, default=None, nullable=True)
-    metadata: Optional[dict] = Field(default=None, sa_column=Column(JSON, nullable=True))
+    transaction_metadata: Optional[dict] = Field(
+        default=None, sa_column=Column("transaction_metadata", JSON, nullable=True)
+    )
     created_by: Optional[UUID] = Field(
         sa_type=UUID_TYPE,
         foreign_key="users.user_id",
