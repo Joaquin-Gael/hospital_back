@@ -7,6 +7,7 @@ from uuid import UUID
 
 from rich.console import Console
 from sqlmodel import select
+from sqlalchemy.orm import selectinload
 
 from app.schemas.cashes import CashesRead, CashesCreate, CashesUpdate
 from app.core.auth import JWTBearer
@@ -160,22 +161,11 @@ async def get_cashes(request: Request, session: SessionDep):
         )
 
     cashes: List[Cashes] = session.exec(
-        select(Cashes).where(True)
-    ).fetchall()
-
-    cashes_serialized = [
-        CashesRead(
-            id=cash.id,
-            income=cash.income,
-            expense=cash.expense,
-            date=cash.date,
-            time_transaction = cash.time_transaction,
-            balance = cash.balance,
-        ).model_dump() for cash in cashes
-    ]
+        select(Cashes).options(selectinload(Cashes.details))
+    ).all()
 
     return ORJSONResponse(
-        cashes_serialized,
+        [CashesRead.model_validate(cash).model_dump() for cash in cashes],
         status_code=200
     )
 
