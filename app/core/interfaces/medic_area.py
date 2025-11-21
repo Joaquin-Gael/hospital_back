@@ -38,6 +38,38 @@ class DoctorRepository(BaseInterface):
     @staticmethod
     async def get_available_doctors(session: Session) -> list[Doctors]:
         return session.exec(select(Doctors).where(Doctors.doctor_state == DoctorStates.available.value)).all()
+
+    @staticmethod
+    async def count_available_doctors_for_specialty(
+        session: Session, specialty_id: UUID
+    ) -> tuple[int, bool]:
+        specialty = session.get(Specialties, specialty_id)
+
+        if specialty is None:
+            return 0, False
+
+        available_doctors = 0
+
+        for doctor in specialty.doctors:
+            schedules = session.exec(
+                select(MedicalSchedules)
+                .join(MedicalSchedules.doctors)
+                .where(
+                    Doctors.id == doctor.id,
+                    MedicalSchedules.available == True,
+                )
+            ).all()
+
+            for schedule in schedules:
+                if schedule.max_patients is None:
+                    available_doctors += 1
+                    break
+
+                if len(schedule.turns) < schedule.max_patients:
+                    available_doctors += 1
+                    break
+
+        return available_doctors, available_doctors > 0
     
     @staticmethod
     async def get_doctor_metrics(session: Session, doctor: Doctors) -> pl.DataFrame:
