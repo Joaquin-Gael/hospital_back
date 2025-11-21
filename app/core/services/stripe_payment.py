@@ -113,7 +113,9 @@ class StripeServices:
         payment_method: str,
         discount: int,
         total: float,
-        services: list
+        services: list,
+        *,
+        payment_id: UUID | None = None,
     ) -> bool:
         try:
             with session.begin():
@@ -121,15 +123,31 @@ class StripeServices:
                     select(Turns).where(Turns.id == turn_id)
                 ).first()
 
+                now = datetime.utcnow()
                 open_cash = session.exec(
                     select(Cashes).where(
-                        Cashes.date == datetime.now().date()
+                        Cashes.date == now.date()
                     )
                 ).first()
 
                 if not open_cash:
                     open_cash = Cashes(
-                        date=datetime.now().date()
+                        income=0,
+                        expense=0,
+                        balance=0,
+                        date=now.date(),
+                        time_transaction=now.time(),
+                        transaction_type="income",
+                        reference_id=payment_id or turn_id,
+                        description="Stripe payment settlement",
+                        metadata={
+                            "turn_id": str(turn_id),
+                            "payment_id": str(payment_id) if payment_id else None,
+                            "payment_method": payment_method,
+                            "discount": discount,
+                        },
+                        created_by=turn.user_id,
+                        created_at=now,
                     )
                     session.add(open_cash)
                     session.flush()
@@ -153,14 +171,35 @@ class StripeServices:
                             description=f"{service.name}-{payment_method}-{service.speciality}",
                             amount=discounted_amount,       # monto cobrado
                             total=service.price,            # precio base
-                            date=datetime.now().date(),
+                            date=now.date(),
+                            time_transaction=now.time(),
                             appointment_id=turn.appointment.id,
                             discount=discount,
+                            transaction_type="income",
+                            reference_id=payment_id or turn_id,
+                            metadata={
+                                "turn_id": str(turn_id),
+                                "payment_id": str(payment_id) if payment_id else None,
+                                "payment_method": payment_method,
+                                "service_id": str(service.id),
+                            },
+                            created_by=turn.user_id,
+                            created_at=now,
                         )
                     )
 
-                open_cash.income += total
-                open_cash.make_balance()
+                open_cash.apply_transaction(income_delta=total)
+                open_cash.time_transaction = now.time()
+                open_cash.reference_id = open_cash.reference_id or payment_id or turn_id
+                merged_metadata = dict(open_cash.metadata or {})
+                merged_metadata.update(
+                    {
+                        "last_turn_id": str(turn_id),
+                        "last_payment_id": str(payment_id) if payment_id else None,
+                        "payment_method": payment_method,
+                    }
+                )
+                open_cash.metadata = merged_metadata
 
                 session.add(open_cash)
                 session.commit()
@@ -256,6 +295,7 @@ class StripeServices:
                 discount=discount,
                 total=updated_payment.amount_total,
                 services=[],
+                payment_id=updated_payment.id,
             )
 
         return updated_payment

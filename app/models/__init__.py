@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi import UploadFile
 from sqlmodel import SQLModel, Field, Relationship, Session
 
-from sqlalchemy import Column, UUID as UUID_TYPE, VARCHAR, event
+from sqlalchemy import Column, JSON, UUID as UUID_TYPE, VARCHAR, event
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import declarative_mixin
 
@@ -521,6 +521,16 @@ class Cashes(SQLModel, table=True):
     date: date_type = Field(nullable=False)
     time_transaction: time_type = Field(nullable=False, default=datetime.now().time())
     balance: float = Field(default=0, nullable=False)
+    transaction_type: str = Field(default="income", max_length=50, nullable=False)
+    reference_id: Optional[UUID] = Field(sa_type=UUID_TYPE, default=None, nullable=True)
+    description: Optional[str] = Field(default=None, max_length=255, nullable=True)
+    metadata: Optional[dict] = Field(default=None, sa_column=Column(JSON, nullable=True))
+    created_by: Optional[UUID] = Field(
+        sa_type=UUID_TYPE,
+        foreign_key="users.user_id",
+        nullable=True,
+    )
+    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
 
     details: List["CashDetails"] = Relationship(
         back_populates="cash",
@@ -530,6 +540,11 @@ class Cashes(SQLModel, table=True):
 
     def make_balance(self):
         self.balance = self.income - self.expense
+
+    def apply_transaction(self, income_delta: float = 0, expense_delta: float = 0) -> None:
+        self.income += income_delta
+        self.expense += expense_delta
+        self.make_balance()
 
 class CashDetails(SQLModel, table=True):
     __tablename__ = "cash_details"
@@ -546,6 +561,15 @@ class CashDetails(SQLModel, table=True):
     date: date_type = Field(nullable=False)
     time_transaction: time_type = Field(nullable=False, default=datetime.now().time())
     discount: int = Field(nullable=False, le=100, ge=0)
+    transaction_type: str = Field(default="income", max_length=50, nullable=False)
+    reference_id: Optional[UUID] = Field(sa_type=UUID_TYPE, default=None, nullable=True)
+    metadata: Optional[dict] = Field(default=None, sa_column=Column(JSON, nullable=True))
+    created_by: Optional[UUID] = Field(
+        sa_type=UUID_TYPE,
+        foreign_key="users.user_id",
+        nullable=True,
+    )
+    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
 
     appointment_id: UUID = Field(
         sa_type=UUID_TYPE,
