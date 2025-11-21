@@ -132,13 +132,15 @@ class TurnAndAppointmentRepository(BaseInterface):
     @staticmethod
     async def delete_turn_and_appointment(session: Session, turn: Turns) -> bool:
         try:
-            with session.begin():
-                appointment = turn.appointment
+            appointment = turn.appointment
 
-                session.delete(turn)
-                session.flush()
+            session.delete(turn)
+            session.flush()
 
-                session.delete(appointment)
+            session.delete(appointment)
+            
+            # ✅ Commit al final
+            session.commit()
 
             session.refresh(turn)
             session.refresh(appointment)
@@ -159,98 +161,99 @@ class TurnAndAppointmentRepository(BaseInterface):
 
             console.print(f"Serial Turn: {turn}")
 
-            with session.begin():
-                services = []
-                for service_id in turn.services:
-                    service = session.get(Services, service_id)
-                    if not service:
-                        return None, f"Service with ID {service_id} not found"
-                    services.append(service)
+            # ✅ NO usar session.begin() - la transacción ya está activa por el dependency de FastAPI
+            services = []
+            for service_id in turn.services:
+                service = session.get(Services, service_id)
+                if not service:
+                    return None, f"Service with ID {service_id} not found"
+                services.append(service)
 
-                speciality = services[0].speciality
+            speciality = services[0].speciality
 
-                if doctor is None and turn.doctor_id:
-                    doctor = session.get(Doctors, turn.doctor_id)
+            if doctor is None and turn.doctor_id:
+                doctor = session.get(Doctors, turn.doctor_id)
 
-                if doctor:
-                    if doctor.speciality_id != speciality.id:
-                        return None, "Selected doctor is not linked to the service speciality"
-                else:
-                    if not speciality.doctors:
-                        return None, "No doctors available for the selected speciality"
-                    doctor = random.choice(speciality.doctors)
-                
-                console.print(f"Doctor: {doctor}")
+            if doctor:
+                if doctor.speciality_id != speciality.id:
+                    return None, "Selected doctor is not linked to the service speciality"
+            else:
+                if not speciality.doctors:
+                    return None, "No doctors available for the selected speciality"
+                doctor = random.choice(speciality.doctors)
+            
+            console.print(f"Doctor: {doctor}")
 
+            new_turn = Turns(
+                reason=turn.reason,
+                state=turn.state,
+                date=turn.date,
+                date_limit=turn.date + timedelta(days=1),
+                user_id=turn.user_id,
+                doctor_id=doctor.id,
+                services=services,
+                time=turn.time
+            )
+            
+            console.print(f"Turn: {new_turn}")
+            session.add(new_turn)
+            session.flush()
 
-                new_turn = Turns(
-                    reason=turn.reason,
-                    state=turn.state,
-                    date=turn.date,
-                    date_limit=turn.date + timedelta(days=1),
-                    user_id=turn.user_id,
-                    doctor_id=doctor.id,
-                    services=services,
-                    time=turn.time
+            new_appointment = Appointments(
+                user_id=new_turn.user_id,
+                doctor_id=doctor.id,
+                turn_id=new_turn.id,
+            )
+            console.print(f"Appointment: {new_appointment}")
+            session.add(new_appointment)
+            session.flush()
+            
+            console.print("Despues del flush")
+
+            schedules = session.exec(
+                select(MedicalSchedules)
+                .join(
+                    MedicalSchedules.doctors
+                ).where(
+                    Doctors.id == doctor.id
                 )
-                
-                console.print(f"Turn: {new_turn}")
-                session.add(new_turn)
-                session.flush()
+            ).all()
 
-                new_appointment = Appointments(
-                    user_id=new_turn.user_id,
-                    doctor_id=doctor.id,
-                    turn_id=new_turn.id,
-                )
-                console.print(f"Appointment: {new_appointment}")
-                session.add(new_appointment)
-                session.flush()
-                
-                console.print("Despues del flush")
+            locale.setlocale(locale.LC_TIME, "en_US.UTF-8")
 
-                schedules = session.exec(
-                    select(MedicalSchedules)
-                    .join(
-                        MedicalSchedules.doctors
-                    ).where(
-                        Doctors.id == doctor.id
-                    )
-                ).all()
+            matching_schedule = None
 
-                locale.setlocale(locale.LC_TIME, "en_US.UTF-8")
+            for schedule in schedules:
+                if schedule.day.value.lower() == turn.date.strftime("%A").lower():
+                    matching_schedule = schedule
 
-                matching_schedule = None
-
-                for schedule in schedules:
-                    if schedule.day.value.lower() == turn.date.strftime("%A").lower():
-                        matching_schedule = schedule
-
-                        if schedule.max_patients is not None:
-                            if len(schedule.turns) >= schedule.max_patients:
-                                return None, "No available slots in the schedule"
-
-                        if schedule.available is False and schedule.max_patients is None:
+                    if schedule.max_patients is not None:
+                        if len(schedule.turns) >= schedule.max_patients:
                             return None, "No available slots in the schedule"
 
-                        schedule.turns.append(new_turn)
+                    if schedule.available is False and schedule.max_patients is None:
+                        return None, "No available slots in the schedule"
 
-                        if schedule.max_patients is not None:
-                            schedule.available = len(schedule.turns) < schedule.max_patients
+                    schedule.turns.append(new_turn)
 
-                        session.add(schedule)
-                        session.flush()
-                        break
+                    if schedule.max_patients is not None:
+                        schedule.available = len(schedule.turns) < schedule.max_patients
 
-                if matching_schedule is None:
-                    return None, "No matching schedule found for the selected date"
-                
-                session.commit()
+                    session.add(schedule)
+                    session.flush()
+                    break
+
+            if matching_schedule is None:
+                return None, "No matching schedule found for the selected date"
+            
+            # ✅ Commit al final
+            session.commit()
 
             session.refresh(new_turn)
             session.refresh(new_appointment)
 
             return new_turn, new_appointment
+            
         except IntegrityError as e:
             console.print_exception(show_locals=True)
             session.rollback()
@@ -274,7 +277,7 @@ class TurnAndAppointmentRepository(BaseInterface):
         if not turn.services:
             raise ValueError("Turn has no associated services")
 
-        # ✅ Obtener la especialidad del turno desde los servicios
+        # Obtener la especialidad del turno desde los servicios
         specialty = turn.services[0].speciality
         
         if not specialty:
@@ -297,7 +300,7 @@ class TurnAndAppointmentRepository(BaseInterface):
 
         session.refresh(turn)
 
-        # ✅ CAMBIO CRÍTICO: Buscar schedules de CUALQUIER doctor de la especialidad
+        # CAMBIO CRÍTICO: Buscar schedules de CUALQUIER doctor de la especialidad
         # Primero intentar con el doctor actual
         schedule = session.exec(
             select(MedicalSchedules)
@@ -350,7 +353,7 @@ class TurnAndAppointmentRepository(BaseInterface):
                 raise ValueError("No available slots in the schedule")
             
             schedule = best_schedule
-            # ✅ Cambiar al nuevo doctor
+            # Cambiar al nuevo doctor
             assigned_doctor_id = schedule.doctors[0].id if schedule.doctors else turn.doctor_id
             console.print(f"✅ Turno reasignado a doctor {assigned_doctor_id}")
 
@@ -380,11 +383,11 @@ class TurnAndAppointmentRepository(BaseInterface):
             turn.schedules.clear()
             session.flush()
 
-            # ✅ Actualizar el turno con nueva fecha, hora y posiblemente nuevo doctor
+            # Actualizar el turno con nueva fecha, hora y posiblemente nuevo doctor
             turn.date = date
             turn.date_limit = date + timedelta(days=1)
             turn.time = time
-            turn.doctor_id = assigned_doctor_id  # ← Puede cambiar de doctor
+            turn.doctor_id = assigned_doctor_id  # Puede cambiar de doctor
 
             # Agregar turno al nuevo schedule
             schedule.turns.append(turn)
@@ -394,13 +397,13 @@ class TurnAndAppointmentRepository(BaseInterface):
             else:
                 schedule.available = True
 
-            # ✅ Actualizar appointment si el doctor cambió
             if turn.appointment and turn.appointment.doctor_id != assigned_doctor_id:
                 turn.appointment.doctor_id = assigned_doctor_id
                 session.add(turn.appointment)
 
             session.add(schedule)
             session.add(turn)
+            
             session.commit()
 
         except Exception as exc:

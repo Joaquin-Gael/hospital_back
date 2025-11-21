@@ -74,12 +74,42 @@ class Payment(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
     updated_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
 
+    # ---------- RELACIONES ----------
+
+    # Turno (uno a uno)
     turn: Optional["Turns"] = Relationship(
-        sa_relationship=relationship("Turns", back_populates="payment", uselist=False)
+        sa_relationship=relationship(
+            "Turns",
+            back_populates="payment",
+            uselist=False,
+        )
     )
-    appointment: Optional["Appointments"] = Relationship(back_populates="payments")
-    user: Optional["User"] = Relationship(back_populates="payments")
-    items: List["PaymentItem"] = Relationship(back_populates="payment")
+
+    # Cita asociada
+    appointment: Optional["Appointments"] = Relationship(
+        sa_relationship=relationship(
+            "Appointments",
+            back_populates="payments",
+            uselist=False,
+        )
+    )
+
+    # Usuario que paga
+    user: Optional["User"] = Relationship(
+        sa_relationship=relationship(
+            "User",
+            back_populates="payments",
+        )
+    )
+
+    # Ítems del pago (1:N)
+    items: List["PaymentItem"] = Relationship(
+        sa_relationship=relationship(
+            "PaymentItem",
+            back_populates="payment",
+            cascade="all, delete-orphan",
+        )
+    )
 
 
 class PaymentItem(SQLModel, table=True):
@@ -108,5 +138,15 @@ class PaymentItem(SQLModel, table=True):
     unit_amount: float = Field(default=0)
     total_amount: float = Field(default=0)
 
-    payment: "Payment" = Relationship(back_populates="items")
-    service: Optional["Services"] = Relationship()
+    # Relación inversa con Payment (N:1)
+    payment: "Payment" = Relationship(
+        sa_relationship=relationship(
+            "Payment",
+            back_populates="items",
+        )
+    )
+
+    # Servicio asociado (opcional)
+    service: Optional["Services"] = Relationship(
+        sa_relationship=relationship("Services")
+    )
