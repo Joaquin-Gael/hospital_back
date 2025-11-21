@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import JSON, Column, Enum as SQLEnum
 from sqlalchemy import UUID as UUID_TYPE
+from sqlalchemy.orm import relationship
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
@@ -73,7 +74,9 @@ class Payment(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
     updated_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
 
-    turn: Optional["Turns"] = Relationship(back_populates="payment")
+    turn: Optional["Turns"] = Relationship(
+        sa_relationship=relationship("Turns", back_populates="payment", uselist=False)
+    )
     appointment: Optional["Appointments"] = Relationship(back_populates="payments")
     user: Optional["User"] = Relationship(back_populates="payments")
     items: List["PaymentItem"] = Relationship(back_populates="payment")

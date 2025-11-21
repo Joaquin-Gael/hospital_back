@@ -5,7 +5,7 @@ from sqlmodel import SQLModel, Field, Relationship, Session
 
 from sqlalchemy import Column, JSON, UUID as UUID_TYPE, VARCHAR, event
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy.orm import declarative_mixin
+from sqlalchemy.orm import declarative_mixin, relationship
 
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
@@ -366,7 +366,9 @@ class Turns(BaseModelTurns, table=True):
     )
 
     appointment: Optional["Appointments"] = Relationship(back_populates="turn")
-    payment: Optional["Payment"] = Relationship(back_populates="turn")
+    payment: Optional["Payment"] = Relationship(
+        sa_relationship=relationship("Payment", back_populates="turn", uselist=False)
+    )
     documents: List["TurnDocument"] = Relationship(back_populates="turn")
     document_downloads: List["TurnDocumentDownload"] = Relationship(back_populates="turn")
 
