@@ -7,7 +7,7 @@ from sqlalchemy import Column, UUID as UUID_TYPE, VARCHAR, event
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import declarative_mixin
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 from dataclasses import dataclass, field
 
@@ -27,6 +27,7 @@ import random
 
 import os
 from dotenv import load_dotenv
+from app.models.payment import Payment, PaymentItem, PaymentMethod, PaymentStatus
 
 load_dotenv()
 
@@ -365,6 +366,7 @@ class Turns(BaseModelTurns, table=True):
     )
 
     appointment: Optional["Appointments"] = Relationship(back_populates="turn")
+    payment: Optional["Payment"] = Relationship(back_populates="turn")
     documents: List["TurnDocument"] = Relationship(back_populates="turn")
     document_downloads: List["TurnDocumentDownload"] = Relationship(back_populates="turn")
 
@@ -495,6 +497,8 @@ class Appointments(SQLModel, table=True):
         nullable=True,
     )
     turn: Optional["Turns"] = Relationship(back_populates="appointment")
+
+    payments: List["Payment"] = Relationship(back_populates="appointment")
 
     cash_details: List["CashDetails"] = Relationship(
         back_populates="appointment"
@@ -665,6 +669,7 @@ class User(BaseUser, table=True):
     )
     turns: list["Turns"] = Relationship(back_populates="user")
     appointments: list["Appointments"] = Relationship(back_populates="user")
+    payments: List["Payment"] = Relationship(back_populates="user")
     documents: List["TurnDocument"] = Relationship(back_populates="user")
     turn_document_downloads: List["TurnDocumentDownload"] = Relationship(back_populates="user")
 
@@ -868,3 +873,5 @@ Chat.model_rebuild()
 ChatMessages.model_rebuild()
 HealthInsurance.model_rebuild()
 DoctorMedicalScheduleLink.model_rebuild()
+Payment.model_rebuild()
+PaymentItem.model_rebuild()
