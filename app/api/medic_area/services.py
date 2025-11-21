@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import ORJSONResponse
 from sqlmodel import select
 
+from app.core.interfaces.medic_area import DoctorRepository
 from app.db.main import SessionDep
 from app.models import Services
 from app.schemas.medica_area import ServiceCreate, ServiceDelete, ServiceResponse, ServiceUpdate
@@ -24,17 +25,25 @@ router = APIRouter(
 @router.get("/", response_model=List[ServiceResponse])
 async def get_services(request: Request, session: SessionDep):
     result = session.exec(select(Services).where(True)).all()
-    services_serialized = [
-        ServiceResponse(
-            id=service.id,
-            name=service.name,
-            description=service.description,
-            price=service.price,
-            specialty_id=service.specialty_id,
-            icon_code=service.icon_code,
-        ).model_dump()
-        for service in result
-    ]
+    services_serialized = []
+
+    for service in result:
+        available_doctors_count, is_available = await DoctorRepository.count_available_doctors_for_specialty(
+            session, service.specialty_id
+        )
+
+        services_serialized.append(
+            ServiceResponse(
+                id=service.id,
+                name=service.name,
+                description=service.description,
+                price=service.price,
+                specialty_id=service.specialty_id,
+                icon_code=service.icon_code,
+                available_doctors_count=available_doctors_count,
+                is_available=is_available,
+            ).model_dump()
+        )
 
     return ORJSONResponse(services_serialized, status_code=status.HTTP_200_OK)
 
@@ -42,6 +51,9 @@ async def get_services(request: Request, session: SessionDep):
 @router.get("/{service_id}", response_model=ServiceResponse)
 async def get_service_by_id(request: Request, service_id: UUID, session: SessionDep):
     service = session.get(Services, service_id)
+    available_doctors_count, is_available = await DoctorRepository.count_available_doctors_for_specialty(
+        session, service.specialty_id
+    )
     return ORJSONResponse(
         ServiceResponse(
             id=service.id,
@@ -50,6 +62,8 @@ async def get_service_by_id(request: Request, service_id: UUID, session: Session
             price=service.price,
             specialty_id=service.specialty_id,
             icon_code=service.icon_code,
+            available_doctors_count=available_doctors_count,
+            is_available=is_available,
         ).model_dump(),
         status_code=status.HTTP_200_OK,
     )
