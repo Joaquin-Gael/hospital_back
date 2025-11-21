@@ -21,3 +21,6 @@ app/dist
 # Storage
 *.json
 .env
+
+#binaries
+app/core/binaries/*
