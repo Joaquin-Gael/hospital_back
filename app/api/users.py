@@ -598,13 +598,13 @@ async def update_petition_password(
     emitter: AuditEmitter = Depends(get_audit_emitter),
 ):
     try:
-        user: User = session_db.exec(
+        user: User | None = session_db.exec(
             select(User).where(User.email == data.email)
-        ).first()[0]
+        ).scalar_one_or_none()
 
         if not user:
-            ORJSONResponse({"detail": "Ok 200"}, status_code=200)
-            
+            return ORJSONResponse({"detail": "User not found"}, status_code=404)
+
         code = [secrets.choice(string.ascii_letters + string.digits) for _ in range(6)]
 
         r_cod = "".join(code)
@@ -631,6 +631,8 @@ async def update_petition_password(
         )
 
         EmailService.send_password_reset_email(user.email, reset_code=r_cod)
+
+        return ORJSONResponse({"detail": "Ok 200"}, status_code=200)
 
     except Exception:
         console.print_exception(show_locals=True)
