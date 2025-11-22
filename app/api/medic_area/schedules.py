@@ -1,4 +1,5 @@
 """Schedules related routes."""
+from datetime import date as date_type
 from typing import List
 from uuid import UUID
 
@@ -103,7 +104,7 @@ async def get_schedule_by_id(session: SessionDep, schedule_id: UUID):
 
 @router.get("/available/days/{speciality_id}", response_model=AvailableSchedules)
 async def days_by_availability(
-    request: Request, speciality_id: UUID, session: SessionDep
+    request: Request, speciality_id: UUID, session: SessionDep, date: date_type | None = None
 ):
     try:
         speciality = session.get(Specialties, speciality_id)
@@ -115,34 +116,47 @@ async def days_by_availability(
             )
 
         dict_days = {}
+        target_day = (
+            DayOfWeek(date.strftime("%A").lower()) if date is not None else None
+        )
 
         for doc in speciality.doctors:
             for schedule in doc.medical_schedules:
-                if schedule.available:
-                    if dict_days.get(schedule.day.value, None):
-                        match dict_days[schedule.day.value]:
-                            case (start, end) if start > schedule.start_time and end > schedule.end_time:
-                                dict_days[schedule.day.value] = (
-                                    schedule.start_time,
-                                    end,
-                                )
+                if not schedule.available:
+                    continue
 
-                            case (start, end) if start < schedule.start_time and end < schedule.end_time:
-                                dict_days[schedule.day.value] = (
-                                    start,
-                                    schedule.end_time,
-                                )
+                if target_day is not None and schedule.day != target_day:
+                    continue
 
-                            case (start, end) if start < schedule.start_time and end > schedule.end_time:
-                                continue
-                    else:
-                        dict_days.setdefault(
-                            schedule.day.value,
-                            (
+                if date is not None and schedule.max_patients is not None:
+                    turns_by_date = [turn for turn in schedule.turns if turn.date == date]
+                    if len(turns_by_date) >= schedule.max_patients:
+                        continue
+
+                if dict_days.get(schedule.day.value, None):
+                    match dict_days[schedule.day.value]:
+                        case (start, end) if start > schedule.start_time and end > schedule.end_time:
+                            dict_days[schedule.day.value] = (
                                 schedule.start_time,
+                                end,
+                            )
+
+                        case (start, end) if start < schedule.start_time and end < schedule.end_time:
+                            dict_days[schedule.day.value] = (
+                                start,
                                 schedule.end_time,
-                            ),
-                        )
+                            )
+
+                        case (start, end) if start < schedule.start_time and end > schedule.end_time:
+                            continue
+                else:
+                    dict_days.setdefault(
+                        schedule.day.value,
+                        (
+                            schedule.start_time,
+                            schedule.end_time,
+                        ),
+                    )
 
         return ORJSONResponse(
             AvailableSchedules(
