@@ -108,6 +108,12 @@ async def days_by_availability(
     try:
         speciality = session.get(Specialties, speciality_id)
 
+        if speciality is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Specialty not found",
+            )
+
         dict_days = {}
 
         for doc in speciality.doctors:
@@ -151,7 +157,8 @@ async def days_by_availability(
             ).model_dump(),
             status_code=status.HTTP_200_OK,
         )
-
+    except HTTPException:
+        raise
     except Exception as exc:  # pragma: no cover - legacy behaviour
         console.print_exception(show_locals=True)
         raise HTTPException(
