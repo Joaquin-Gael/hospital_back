@@ -680,7 +680,7 @@ async def update_confirm_password(
     emitter: AuditEmitter = Depends(get_audit_emitter),
 ):
     try:
-        user: User = session_db.exec(
+        user: User = session.exec(
             select(User).where(User.email == email)
         ).first()[0]
 
