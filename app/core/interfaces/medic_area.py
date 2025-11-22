@@ -3,7 +3,7 @@ from typing import Tuple
 
 import random
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import extract
+from sqlalchemy import extract, func
 from sqlmodel import Session, select
 
 from datetime import datetime, timedelta, date as date_type, time as time_type
@@ -23,7 +23,8 @@ from app.models import (
     Doctors,
     User,
     DayOfWeek,
-    Specialties
+    Specialties,
+    TurnsSchedulesLink,
 )
 
 class DoctorRepository(BaseInterface):
@@ -189,8 +190,6 @@ class TurnAndAppointmentRepository(BaseInterface):
         doctor: Doctors | None = None,
     ) -> Tuple[Turns, Appointments] | Tuple[None, str]:
         try:
-            import locale
-
             console.print(f"Serial Turn: {turn}")
 
             # ✅ NO usar session.begin() - la transacción ya está activa por el dependency de FastAPI
@@ -216,6 +215,50 @@ class TurnAndAppointmentRepository(BaseInterface):
             
             console.print(f"Doctor: {doctor}")
 
+            day_map = {
+                0: DayOfWeek.monday,
+                1: DayOfWeek.tuesday,
+                2: DayOfWeek.wednesday,
+                3: DayOfWeek.thursday,
+                4: DayOfWeek.friday,
+                5: DayOfWeek.saturday,
+                6: DayOfWeek.sunday,
+            }
+
+            requested_day = day_map.get(turn.date.weekday())
+
+            schedules = session.exec(
+                select(MedicalSchedules)
+                .join(MedicalSchedules.doctors)
+                .where(
+                    Doctors.id == doctor.id,
+                    MedicalSchedules.day == requested_day,
+                    MedicalSchedules.start_time <= turn.time,
+                    MedicalSchedules.end_time >= turn.time,
+                )
+            ).all()
+
+            matching_schedule = schedules[0] if schedules else None
+
+            if matching_schedule is None:
+                return None, "No matching schedule found for the selected date"
+
+            turns_on_date = session.exec(
+                select(func.count(Turns.id))
+                .join(TurnsSchedulesLink, TurnsSchedulesLink.turn_id == Turns.id)
+                .where(
+                    TurnsSchedulesLink.medical_schedule_id == matching_schedule.id,
+                    Turns.date == turn.date,
+                )
+            ).one()
+
+            if matching_schedule.max_patients is not None:
+                if turns_on_date >= matching_schedule.max_patients:
+                    return None, "No available slots in the schedule"
+
+            if matching_schedule.available is False and matching_schedule.max_patients is None:
+                return None, "No available slots in the schedule"
+
             new_turn = Turns(
                 reason=turn.reason,
                 state=turn.state,
@@ -224,9 +267,9 @@ class TurnAndAppointmentRepository(BaseInterface):
                 user_id=turn.user_id,
                 doctor_id=doctor.id,
                 services=services,
-                time=turn.time
+                time=turn.time,
             )
-            
+
             console.print(f"Turn: {new_turn}")
             session.add(new_turn)
             session.flush()
@@ -239,45 +282,28 @@ class TurnAndAppointmentRepository(BaseInterface):
             console.print(f"Appointment: {new_appointment}")
             session.add(new_appointment)
             session.flush()
-            
-            console.print("Despues del flush")
 
-            schedules = session.exec(
-                select(MedicalSchedules)
-                .join(
-                    MedicalSchedules.doctors
-                ).where(
-                    Doctors.id == doctor.id
+            matching_schedule.turns.append(new_turn)
+            session.add(matching_schedule)
+            session.flush()
+
+            session.refresh(matching_schedule)
+
+            latest_turns_on_date = session.exec(
+                select(func.count(Turns.id))
+                .join(TurnsSchedulesLink, TurnsSchedulesLink.turn_id == Turns.id)
+                .where(
+                    TurnsSchedulesLink.medical_schedule_id == matching_schedule.id,
+                    Turns.date == turn.date,
                 )
-            ).all()
+            ).one()
 
-            locale.setlocale(locale.LC_TIME, "en_US.UTF-8")
+            if matching_schedule.max_patients is not None:
+                matching_schedule.available = latest_turns_on_date < matching_schedule.max_patients
+                if latest_turns_on_date > matching_schedule.max_patients:
+                    session.rollback()
+                    return None, "No available slots in the schedule"
 
-            matching_schedule = None
-
-            for schedule in schedules:
-                if schedule.day.value.lower() == turn.date.strftime("%A").lower():
-                    matching_schedule = schedule
-
-                    if schedule.max_patients is not None:
-                        if len(schedule.turns) >= schedule.max_patients:
-                            return None, "No available slots in the schedule"
-
-                    if schedule.available is False and schedule.max_patients is None:
-                        return None, "No available slots in the schedule"
-
-                    schedule.turns.append(new_turn)
-
-                    if schedule.max_patients is not None:
-                        schedule.available = len(schedule.turns) < schedule.max_patients
-
-                    session.add(schedule)
-                    session.flush()
-                    break
-
-            if matching_schedule is None:
-                return None, "No matching schedule found for the selected date"
-            
             # ✅ Commit al final
             session.commit()
 
