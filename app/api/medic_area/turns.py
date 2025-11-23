@@ -16,6 +16,7 @@ from app.models import (
     Appointments,
     Departments,
     Doctors,
+    Payment,
     PaymentMethod,
     Services,
     Specialties,
@@ -98,6 +99,7 @@ def get_turn_with_relations(
             selectinload(Turns.services)
             .selectinload(Services.speciality)
             .selectinload(Specialties.departament),
+            selectinload(Turns.payment).selectinload(Payment.items),
         )
     )
 
@@ -233,6 +235,12 @@ def _serialize_turn(turn: Turns | None) -> dict | None:
     if turn is None:
         return None
 
+    payment = (
+        PaymentRead.model_validate(turn.payment, from_attributes=True)
+        if turn.payment
+        else None
+    )
+
     return TurnsResponse(
         id=turn.id,
         reason=turn.reason,
@@ -245,6 +253,7 @@ def _serialize_turn(turn: Turns | None) -> dict | None:
         time=turn.time,
         service=_serialize_services(turn.services),
         doctor=_serialize_doctor(turn.doctor),
+        payment=payment,
     ).model_dump()
 
 
@@ -276,6 +285,11 @@ async def get_turns(request: Request, session: SessionDep):
         raise HTTPException(status_code=401, detail="You are not authorized")
 
     statement = select(Turns)
+    statement = statement.options(
+        selectinload(Turns.payment).selectinload(Payment.items),
+        selectinload(Turns.services),
+        selectinload(Turns.doctor),
+    )
     result = session.exec(statement).all()
 
     turns_serialized: List[TurnsResponse] = []
@@ -292,6 +306,11 @@ async def get_turns(request: Request, session: SessionDep):
                 doctor_id=turn.doctor_id,
                 appointment_id=str(turn.appointment.id),
                 time=turn.time,
+                payment=(
+                    PaymentRead.model_validate(turn.payment, from_attributes=True)
+                    if turn.payment
+                    else None
+                ),
                 service=[
                     ServiceResponse(
                         id=serv.id,
@@ -539,6 +558,7 @@ async def get_turns_by_user_id(
         .selectinload(Turns.services)
         .selectinload(Services.speciality)
         .selectinload(Specialties.departament),
+        selectinload(User.turns).selectinload(Turns.payment).selectinload(Payment.items),
     )
 
     def _load_user_with_turns(target_user_id: UUID) -> User | None:
@@ -587,6 +607,8 @@ async def get_turns_by_user_id(
 
     try:
         turns_serialized = [
+            # NOTE: payment information is now inlined in the turn payload to avoid
+            # extra requests to the payments endpoints from clients.
             TurnsResponse(
                 id=turn.id,
                 reason=turn.reason,
@@ -596,6 +618,11 @@ async def get_turns_by_user_id(
                 date_created=turn.date_created,
                 user_id=turn.user_id,
                 time=turn.time,
+                payment=(
+                    PaymentRead.model_validate(turn.payment, from_attributes=True)
+                    if turn.payment
+                    else None
+                ),
                 doctor=(
                     DoctorResponse(
                         id=turn.doctor.id,
@@ -663,6 +690,11 @@ async def get_turn_by_id(request: Request, session: SessionDep, turn_id: UUID):
                 user_id=turn.user_id,
                 doctor_id=turn.doctor_id,
                 time=turn.time,
+                payment=(
+                    PaymentRead.model_validate(turn.payment, from_attributes=True)
+                    if turn.payment
+                    else None
+                ),
                 # Incluir servicios si están disponibles
                 service=[
                     ServiceResponse(
@@ -868,6 +900,11 @@ async def reschedule_turn(
             else None,
             time=updated_turn.time,
             service=services,
+            payment=(
+                PaymentRead.model_validate(updated_turn.payment, from_attributes=True)
+                if updated_turn.payment
+                else None
+            ),
         ).model_dump()
     )
 

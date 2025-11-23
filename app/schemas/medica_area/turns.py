@@ -9,6 +9,7 @@ from pydantic import BaseModel, computed_field, field_serializer
 
 from app.schemas import UserRead
 from app.schemas.payment import PaymentRead
+from app.models.payment import PaymentStatus
 
 from .enums import TurnsState
 
@@ -57,6 +58,21 @@ class TurnsResponse(TurnsBase):
     user: Optional[UserRead] = None
     doctor: Optional["DoctorResponse"] = None
     service: Optional[List["ServiceResponse"]] = None
+    payment: Optional[PaymentRead] = None
+
+    @computed_field(return_type=Optional[str])
+    def payment_url(self) -> Optional[str]:
+        if self.payment is None:
+            return None
+
+        return self.payment.payment_url
+
+    @computed_field(return_type=Optional[PaymentStatus])
+    def payment_status(self) -> Optional[PaymentStatus]:
+        if self.payment is None:
+            return None
+
+        return self.payment.status
 
 
 class PayTurnResponse(BaseModel):
