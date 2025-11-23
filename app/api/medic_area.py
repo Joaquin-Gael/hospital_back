@@ -14,6 +14,7 @@ from fastapi import (
 from fastapi.responses import ORJSONResponse
 
 from sqlmodel import select
+from sqlalchemy.orm import selectinload
 
 from typing import List, Optional, Dict, Annotated, TypeVar, Tuple
 
@@ -37,6 +38,7 @@ from app.models import (
     Appointments,
     DoctorMedicalScheduleLink,
     HealthInsurance,
+    Payment,
     PaymentMethod,
     UserHealthInsuranceLink
 )
@@ -1878,7 +1880,11 @@ async def get_turns(request: Request, session: SessionDep):
     if not request.state.user.is_superuser:
         raise HTTPException(status_code=401, detail="You are not authorized")
 
-    statement = select(Turns)
+    statement = select(Turns).options(
+        selectinload(Turns.payment).selectinload(Payment.items),
+        selectinload(Turns.services),
+        selectinload(Turns.doctor),
+    )
     result: List["Turns"] = session.exec(statement).all()
 
     turns_serialized: List[TurnsResponse] = []
@@ -1895,6 +1901,11 @@ async def get_turns(request: Request, session: SessionDep):
                 doctor_id=turn.doctor_id,
                 appointment_id=str(turn.appointment.id),
                 time=turn.time,
+                payment=(
+                    PaymentRead.model_validate(turn.payment, from_attributes=True)
+                    if turn.payment
+                    else None
+                ),
                 service=[
                     ServiceResponse(
                         id=serv.id,
@@ -1974,6 +1985,11 @@ async def get_turns_by_user_id(request: Request, session: SessionDep, user_id: U
                 date_created=turn.date_created,
                 user_id=turn.user_id,
                 time=turn.time,
+                payment=(
+                    PaymentRead.model_validate(turn.payment, from_attributes=True)
+                    if turn.payment
+                    else None
+                ),
                 doctor=DoctorResponse(
                     id=turn.doctor.id,
                     dni=turn.doctor.dni,
@@ -2032,6 +2048,11 @@ async def get_turn_by_id(request: Request, session: SessionDep, turn_id: UUID):
                 date_limit=secure_turn.date_limit,
                 date_created=secure_turn.date_created,
                 user_id=secure_turn.user_id,
+                payment=(
+                    PaymentRead.model_validate(secure_turn.payment, from_attributes=True)
+                    if secure_turn.payment
+                    else None
+                ),
             ).model_dump()
         )
     except Exception as e:
