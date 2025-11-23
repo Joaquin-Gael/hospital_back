@@ -10,7 +10,13 @@ from app.core.auth import JWTBearer
 from app.core.services.payment import PaymentService
 from app.db.main import SessionDep
 from app.models import Payment, PaymentMethod, Turns, User
-from app.schemas.payment import PaymentCreate, PaymentRead, PaymentStatusUpdate
+from app.schemas.medica_area.turns import PayTurnResponse, TurnsResponse
+from app.schemas.payment import (
+    PaymentCreate,
+    PaymentRead,
+    PaymentStatusUpdate,
+    PaymentTurnCreate,
+)
 
 auth = JWTBearer()
 
@@ -84,6 +90,44 @@ async def create_payment(
     return _serialize_payment(payment)
 
 
+@router.post("/turn/", response_model=PayTurnResponse, status_code=status.HTTP_201_CREATED)
+async def recreate_turn_payment_session(
+    request: Request,
+    session: SessionDep,
+    payload: PaymentTurnCreate,
+):
+    turn = session.get(Turns, payload.turn_id)
+    if turn is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Turn not found")
+
+    user = request.state.user
+    if not getattr(user, "is_superuser", False) and turn.user_id != getattr(user, "id", None):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to create this payment",
+        )
+
+    patient: User | None = session.get(User, turn.user_id) if turn.user_id else None
+
+    payment = await PaymentService(session).create_payment_for_turn(
+        turn=turn,
+        appointment=turn.appointment,
+        user=patient,
+        payment_method=payload.payment_method,
+        gateway_metadata=payload.gateway_metadata,
+        health_insurance_id=getattr(turn, "health_insurance", None),
+    )
+
+    payment_read = PaymentRead.model_validate(payment, from_attributes=True)
+    turn_response = TurnsResponse.model_validate(turn, from_attributes=True)
+
+    return PayTurnResponse(
+        turn=turn_response,
+        payment=payment_read,
+        payment_url=payment.payment_url,
+    )
+
+
 @router.patch("/{payment_id}/status", response_model=PaymentRead)
 async def update_payment_status(
     request: Request,
@@ -113,6 +157,26 @@ async def update_payment_status(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     return _serialize_payment(updated)
+
+
+@router.get("/status", response_model=PaymentRead)
+async def get_payment_status_by_session(
+    request: Request,
+    session: SessionDep,
+    session_id: str,
+):
+    payment = PaymentService(session).get_payment_by_session(session_id)
+    if payment is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment not found")
+
+    user = request.state.user
+    if not getattr(user, "is_superuser", False) and payment.user_id != getattr(user, "id", None):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to view this payment",
+        )
+
+    return _serialize_payment(payment)
 
 
 @router.delete("/{payment_id}", status_code=status.HTTP_204_NO_CONTENT)
