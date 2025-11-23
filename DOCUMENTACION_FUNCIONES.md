@@ -614,7 +614,8 @@
 - **Método HTTP**: GET
 - **Ruta**: `/medic/turns/`
 - **Autenticación**: Solo superusuarios
-- **Retorna**: Turnos con servicios y citas asociadas
+- **Retorna**: Turnos con servicios, citas asociadas y detalles de pago (`payment`,
+  `payment_url`, `payment_status`) sin necesidad de llamar a `/payments`
 
 #### `get_turns_by_user_id(request: Request, session: SessionDep, user_id: UUID)`
 **Descripción**: Obtiene turnos de un usuario específico.
@@ -624,6 +625,8 @@
   - Lista turnos del usuario
   - Incluye información del médico
   - Incluye servicios solicitados
+- Incluye el estado y URL del pago del turno dentro de la respuesta (`payment`,
+  `payment_url`, `payment_status`), eliminando la necesidad de consultar `/payments`
 - **Serialización**: Funciones helper para departamentos y especialidades
 
 #### `create_turn(request: Request, session: SessionDep, turn: TurnsCreate)`
