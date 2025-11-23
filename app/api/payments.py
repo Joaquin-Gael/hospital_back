@@ -90,7 +90,7 @@ async def create_payment(
     return _serialize_payment(payment)
 
 
-@router.post("/turn/", response_model=PayTurnResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/turn", response_model=PayTurnResponse, status_code=status.HTTP_201_CREATED)
 async def recreate_turn_payment_session(
     request: Request,
     session: SessionDep,
