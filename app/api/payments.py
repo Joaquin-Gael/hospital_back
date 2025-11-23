@@ -56,7 +56,7 @@ async def get_payment(
     return _serialize_payment(payment)
 
 
-@router.post("/", response_model=PaymentRead, status_code=status.HTTP_201_CREATED)
+@router.post("/add", response_model=PaymentRead, status_code=status.HTTP_201_CREATED)
 async def create_payment(
     request: Request,
     session: SessionDep,
