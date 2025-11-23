@@ -47,6 +47,14 @@ class PaymentCreate(BaseModel):
     gateway_metadata: Optional[dict[str, Any]] = None
 
 
+class PaymentTurnCreate(BaseModel):
+    """Payload para recrear o iniciar una sesión de pago de un turno."""
+
+    turn_id: UUID
+    payment_method: PaymentMethod = PaymentMethod.card
+    gateway_metadata: Optional[dict[str, Any]] = None
+
+
 class PaymentRead(PaymentBase):
     id: UUID
     created_at: datetime
