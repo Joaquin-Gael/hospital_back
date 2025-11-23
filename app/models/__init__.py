@@ -366,8 +366,8 @@ class Turns(BaseModelTurns, table=True):
     )
 
     appointment: Optional["Appointments"] = Relationship(back_populates="turn")
-    payment: Optional["Payment"] = Relationship(
-        sa_relationship=relationship("Payment", back_populates="turn", uselist=False)
+    payments: List["Payment"] = Relationship(
+        sa_relationship=relationship("Payment", back_populates="turn")
     )
     documents: List["TurnDocument"] = Relationship(back_populates="turn")
     document_downloads: List["TurnDocumentDownload"] = Relationship(back_populates="turn")

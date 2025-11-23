@@ -5,7 +5,13 @@ from pathlib import Path
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, computed_field, field_serializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    computed_field,
+    field_serializer,
+    field_validator,
+)
 
 from app.schemas import UserRead
 from app.schemas.payment import PaymentRead
@@ -55,10 +61,95 @@ class TurnReschedule(BaseModel):
 
 
 class TurnsResponse(TurnsBase):
+    model_config = ConfigDict(from_attributes=True)
+
     user: Optional[UserRead] = None
     doctor: Optional["DoctorResponse"] = None
     service: Optional[List["ServiceResponse"]] = None
     payment: Optional[PaymentRead] = None
+
+    @field_validator("services", mode="before")
+    @classmethod
+    def normalize_services(cls, value):
+        if isinstance(value, list):
+            return [getattr(item, "id", item) for item in value]
+        return value
+
+    @field_validator("user", mode="before")
+    @classmethod
+    def normalize_user(cls, value):
+        if value is None:
+            return None
+
+        if isinstance(value, dict):
+            if "username" not in value and "name" in value:
+                value = {**value, "username": value.get("name")}
+            if "img_profile" not in value and "url_image_profile" in value:
+                value = {**value, "img_profile": value.get("url_image_profile")}
+            if "health_insurance" in value and value["health_insurance"]:
+                value = {
+                    **value,
+                    "health_insurance": [
+                        getattr(insurance, "id", insurance)
+                        for insurance in value.get("health_insurance", [])
+                    ],
+                }
+            return value
+
+        return {
+            "id": getattr(value, "id", None),
+            "username": getattr(value, "name", None),
+            "email": getattr(value, "email", None),
+            "first_name": getattr(value, "first_name", None),
+            "last_name": getattr(value, "last_name", None),
+            "dni": getattr(value, "dni", None),
+            "telephone": getattr(value, "telephone", None),
+            "address": getattr(value, "address", None),
+            "blood_type": getattr(value, "blood_type", None),
+            "health_insurance": [
+                getattr(insurance, "id", insurance)
+                for insurance in getattr(value, "health_insurance", [])
+            ],
+            "is_active": getattr(value, "is_active", None),
+            "is_admin": getattr(value, "is_admin", None),
+            "is_superuser": getattr(value, "is_superuser", None),
+            "last_login": getattr(value, "last_login", None),
+            "date_joined": getattr(value, "date_joined", None),
+            "img_profile": getattr(value, "url_image_profile", None),
+        }
+
+    @field_validator("doctor", mode="before")
+    @classmethod
+    def normalize_doctor(cls, value):
+        if value is None:
+            return None
+
+        if isinstance(value, dict):
+            if "username" not in value and "name" in value:
+                value = {**value, "username": value.get("name")}
+            if "img_profile" not in value and "url_image_profile" in value:
+                value = {**value, "img_profile": value.get("url_image_profile")}
+            return value
+
+        return {
+            "id": getattr(value, "id", None),
+            "username": getattr(value, "name", None),
+            "email": getattr(value, "email", None),
+            "first_name": getattr(value, "first_name", None),
+            "last_name": getattr(value, "last_name", None),
+            "dni": getattr(value, "dni", None),
+            "telephone": getattr(value, "telephone", None),
+            "speciality_id": getattr(value, "speciality_id", None),
+            "address": getattr(value, "address", None),
+            "blood_type": getattr(value, "blood_type", None),
+            "doctor_state": getattr(value, "doctor_state", None),
+            "is_active": getattr(value, "is_active", None),
+            "is_admin": getattr(value, "is_admin", None),
+            "is_superuser": getattr(value, "is_superuser", None),
+            "last_login": getattr(value, "last_login", None),
+            "date_joined": getattr(value, "date_joined", None),
+            "img_profile": getattr(value, "url_image_profile", None),
+        }
 
     @computed_field(return_type=Optional[str])
     def payment_url(self) -> Optional[str]:
