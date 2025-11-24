@@ -76,11 +76,11 @@ class Payment(SQLModel, table=True):
 
     # ---------- RELACIONES ----------
 
-    # Turno (muchos pagos pueden apuntar al mismo turno)
+    # Turno (relación uno a uno - un turno tiene un pago activo)
     turn: Optional["Turns"] = Relationship(
         sa_relationship=relationship(
             "Turns",
-            back_populates="payments",
+            back_populates="payment",  # ✅ CORREGIDO: coincide con Turns.payment
             uselist=False,
         )
     )

@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import ORJSONResponse, Response
+from sqlmodel import select
+
+import stripe
 
 from app.core.auth import JWTBearer
 from app.core.services.payment import PaymentService
 from app.db.main import SessionDep
-from app.models import Payment, PaymentMethod, Turns, User
+from app.models import Payment, PaymentMethod, PaymentStatus, Turns, User
 from app.schemas.medica_area.turns import PayTurnResponse, TurnsResponse
 from app.schemas.payment import (
     PaymentCreate,
@@ -96,10 +100,21 @@ async def recreate_turn_payment_session(
     session: SessionDep,
     payload: PaymentTurnCreate,
 ):
+    """
+    Crea o reutiliza una sesión de pago para un turno existente.
+    
+    - Si existe un pago pendiente válido (< 23 horas), lo reutiliza
+    - Si el pago está expirado, lo cancela y crea uno nuevo
+    - Si no existe pago, crea uno nuevo
+    
+    Esto previene la creación de pagos duplicados.
+    """
+    # 1. Obtener el turno
     turn = session.get(Turns, payload.turn_id)
     if turn is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Turn not found")
 
+    # 2. Verificar autorización
     user = request.state.user
     if not getattr(user, "is_superuser", False) and turn.user_id != getattr(user, "id", None):
         raise HTTPException(
@@ -107,6 +122,54 @@ async def recreate_turn_payment_session(
             detail="Not authorized to create this payment",
         )
 
+    # 3. ✅ Buscar si ya existe un pago pendiente para este turno
+    existing_payment = session.exec(
+        select(Payment)
+        .where(Payment.turn_id == payload.turn_id)
+        .where(Payment.status == PaymentStatus.pending)
+        .order_by(Payment.created_at.desc())
+    ).first()
+
+    # 4. ✅ Si existe un pago pendiente reciente, intentar reutilizarlo
+    if existing_payment:
+        payment_age = datetime.utcnow() - existing_payment.created_at
+        
+        # Si el pago tiene menos de 23 horas, verificar si la sesión de Stripe sigue válida
+        if payment_age < timedelta(hours=23) and existing_payment.gateway_session_id:
+            try:
+                # Verificar el estado de la sesión en Stripe
+                stripe_session = stripe.checkout.Session.retrieve(existing_payment.gateway_session_id)
+                
+                # Si la sesión sigue abierta, reutilizarla
+                if stripe_session.status == "open":
+                    payment_read = PaymentRead.model_validate(existing_payment, from_attributes=True)
+                    turn_response = TurnsResponse.model_validate(turn, from_attributes=True)
+                    
+                    return ORJSONResponse(
+                        PayTurnResponse(
+                            turn=turn_response,
+                            payment=payment_read,
+                            payment_url=existing_payment.payment_url,
+                        ).model_dump(),
+                        status_code=status.HTTP_200_OK  # 200 porque estamos reutilizando
+                    )
+                
+            except stripe.error.StripeError as e:
+                # Si hay error con Stripe, continuar para crear nueva sesión
+                print(f"Stripe error al verificar sesión: {e}")
+                pass
+        
+        # ✅ Si llegamos aquí, el pago está expirado o la sesión no es válida - cancelarlo
+        existing_payment.status = PaymentStatus.cancelled
+        existing_payment.gateway_metadata = {
+            **(existing_payment.gateway_metadata or {}),
+            "cancelled_reason": "expired_or_invalid_session",
+            "cancelled_at": datetime.utcnow().isoformat()
+        }
+        session.add(existing_payment)
+        session.commit()
+
+    # 5. ✅ Crear un nuevo pago
     patient: User | None = session.get(User, turn.user_id) if turn.user_id else None
 
     payment = await PaymentService(session).create_payment_for_turn(
@@ -114,17 +177,24 @@ async def recreate_turn_payment_session(
         appointment=turn.appointment,
         user=patient,
         payment_method=payload.payment_method,
-        gateway_metadata=payload.gateway_metadata,
+        gateway_metadata={
+            **(payload.gateway_metadata or {}),
+            "recreated": True,
+            "previous_payment_cancelled": existing_payment is not None
+        },
         health_insurance_id=getattr(turn, "health_insurance", None),
     )
 
     payment_read = PaymentRead.model_validate(payment, from_attributes=True)
     turn_response = TurnsResponse.model_validate(turn, from_attributes=True)
 
-    return PayTurnResponse(
-        turn=turn_response,
-        payment=payment_read,
-        payment_url=payment.payment_url,
+    return ORJSONResponse(
+        PayTurnResponse(
+            turn=turn_response,
+            payment=payment_read,
+            payment_url=payment.payment_url,
+        ).model_dump(),
+        status_code=status.HTTP_201_CREATED
     )
 
 

@@ -4,25 +4,17 @@ from json import dumps, loads
 
 from sqlalchemy import select
 
-from typing import List, Annotated, Optional
+from typing import List, Annotated, Optional, Tuple
 
 from rich.console import Console
 
 from datetime import datetime
 
-from collections import defaultdict
+from collections import Counter
 
 from pathlib import Path
 
 from uuid import UUID
-
-import asyncio   
-
-import logging
-
-import sys
-
-import tempfile
 
 import re
 
@@ -30,15 +22,11 @@ import secrets
 
 import string
 
-import PIL
-
 import pytesseract
 
 import numpy as np
 
 import cv2
-
-import magic
 
 from app.schemas.medica_area import HealthInsuranceBase
 from app.schemas.users import UserRead, UserCreate, UserDelete, UserUpdate, UserPasswordUpdate, \
@@ -71,6 +59,344 @@ pytesseract.pytesseract.tesseract_cmd = BINARIES_DIR / "tesseract.exe"
 console = Console()
 
 auth = JWTBearer()
+
+class DNIExtractor:
+    """
+    Extractor profesional de DNI con múltiples estrategias de OCR.
+    
+    Implementa técnicas avanzadas de procesamiento de imágenes y
+    múltiples estrategias de extracción para maximizar la precisión.
+    """
+    
+    def __init__(self, target_size: Tuple[int, int] = (1500, 1000)):
+        self.target_size = target_size
+        self.dni_pattern = re.compile(r'\b\d{8}\b')
+        self.dni_formatted_pattern = re.compile(r'\b\d{2}[.\s]?\d{3}[.\s]?\d{3}\b')
+        
+    def preprocess_image(self, img: np.ndarray, strategy: str = 'basic') -> np.ndarray:
+        """
+        Preprocesa la imagen con diferentes estrategias.
+        
+        Args:
+            img: Imagen en formato OpenCV (BGR)
+            strategy: Estrategia de preprocesamiento
+                - 'basic': Conversión a escala de grises básica
+                - 'contrast': Mejora de contraste
+                - 'adaptive': Umbralización adaptativa
+                - 'denoise': Reducción de ruido
+                - 'sharpen': Enfoque agresivo
+                
+        Returns:
+            Imagen preprocesada en escala de grises
+        """
+        # Redimensionar si es necesario
+        if img.shape[:2] != self.target_size[::-1]:
+            img = cv2.resize(img, self.target_size)
+        
+        # Convertir a escala de grises
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        if strategy == 'basic':
+            return gray
+            
+        elif strategy == 'contrast':
+            # Ecualización de histograma para mejorar contraste
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            return clahe.apply(gray)
+            
+        elif strategy == 'adaptive':
+            # Umbralización adaptativa
+            return cv2.adaptiveThreshold(
+                gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv2.THRESH_BINARY, 11, 2
+            )
+            
+        elif strategy == 'denoise':
+            # Reducción de ruido + contraste
+            denoised = cv2.fastNlMeansDenoising(gray, None, 10, 7, 21)
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            return clahe.apply(denoised)
+            
+        elif strategy == 'sharpen':
+            # Enfoque agresivo con kernel personalizado
+            kernel = np.array([
+                [-1, -1, -1],
+                [-1,  9, -1],
+                [-1, -1, -1]
+            ])
+            sharpened = cv2.filter2D(gray, -1, kernel)
+            # Mejorar contraste adicional
+            clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+            return clahe.apply(sharpened)
+            
+        return gray
+    
+    def correct_skew(self, img: np.ndarray) -> np.ndarray:
+        """
+        Corrige la inclinación de la imagen usando detección de líneas.
+        
+        Args:
+            img: Imagen en escala de grises
+            
+        Returns:
+            Imagen corregida
+        """
+        # Detección de bordes
+        edges = cv2.Canny(img, 50, 150, apertureSize=3)
+        
+        # Detección de líneas con Hough Transform
+        lines = cv2.HoughLines(edges, 1, np.pi / 180, 200)
+        
+        if lines is None or len(lines) == 0:
+            return img
+        
+        # Calcular ángulos predominantes
+        angles = []
+        for rho, theta in lines[:, 0]:
+            angle = np.degrees(theta) - 90
+            if abs(angle) < 45:  # Ignorar líneas muy inclinadas
+                angles.append(angle)
+        
+        if not angles:
+            return img
+        
+        # Usar la mediana de los ángulos
+        median_angle = np.median(angles)
+        
+        # Solo rotar si el ángulo es significativo (> 0.5 grados)
+        if abs(median_angle) < 0.5:
+            return img
+        
+        # Rotar la imagen
+        (h, w) = img.shape[:2]
+        center = (w // 2, h // 2)
+        M = cv2.getRotationMatrix2D(center, median_angle, 1.0)
+        rotated = cv2.warpAffine(img, M, (w, h), 
+                                 flags=cv2.INTER_CUBIC,
+                                 borderMode=cv2.BORDER_REPLICATE)
+        
+        return rotated
+    
+    def extract_dni_region(self, img: np.ndarray) -> Optional[np.ndarray]:
+        """
+        Intenta extraer solo la región del DNI/documento.
+        
+        Args:
+            img: Imagen completa
+            
+        Returns:
+            Región del documento recortada o imagen original si no se detecta
+        """
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img
+        
+        # Detección de bordes
+        edges = cv2.Canny(gray, 50, 150)
+        
+        # Encontrar contornos
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        if not contours:
+            return img
+        
+        # Buscar el contorno más grande (probablemente el documento)
+        largest_contour = max(contours, key=cv2.contourArea)
+        
+        # Calcular el área del contorno
+        area = cv2.contourArea(largest_contour)
+        img_area = gray.shape[0] * gray.shape[1]
+        
+        # Si el contorno es muy pequeño, devolver imagen original
+        if area < img_area * 0.1:
+            return img
+        
+        # Obtener el rectángulo delimitador
+        x, y, w, h = cv2.boundingRect(largest_contour)
+        
+        # Añadir padding
+        padding = 10
+        x = max(0, x - padding)
+        y = max(0, y - padding)
+        w = min(gray.shape[1] - x, w + 2 * padding)
+        h = min(gray.shape[0] - y, h + 2 * padding)
+        
+        # Recortar
+        return img[y:y+h, x:x+w]
+    
+    def extract_with_strategy(self, img: np.ndarray, strategy: str, 
+                             psm_mode: int = 6) -> List[str]:
+        """
+        Extrae DNIs usando una estrategia específica.
+        
+        Args:
+            img: Imagen en formato OpenCV
+            strategy: Estrategia de preprocesamiento
+            psm_mode: Modo de segmentación de página de Tesseract
+                - 3: Automático
+                - 6: Bloque uniforme de texto
+                - 11: Texto disperso
+                
+        Returns:
+            Lista de DNIs encontrados (8 dígitos)
+        """
+        # Preprocesar
+        processed = self.preprocess_image(img, strategy)
+        
+        # Corregir inclinación si es estrategia básica o de contraste
+        if strategy in ['basic', 'contrast']:
+            processed = self.correct_skew(processed)
+        
+        # OCR con configuración específica
+        config = f'--psm {psm_mode} -c tessedit_char_whitelist=0123456789.'
+        text = pytesseract.image_to_string(processed, config=config)
+        
+        # Extraer DNIs
+        dnis = []
+        
+        # Buscar formato estándar (8 dígitos)
+        dnis.extend(self.dni_pattern.findall(text))
+        
+        # Buscar formato con puntos/espacios
+        formatted = self.dni_formatted_pattern.findall(text)
+        for dni in formatted:
+            # Limpiar y agregar
+            clean_dni = re.sub(r'[.\s]', '', dni)
+            if len(clean_dni) == 8 and clean_dni.isdigit():
+                dnis.append(clean_dni)
+        
+        return dnis
+    
+    def extract_from_mrz(self, img: np.ndarray) -> Tuple[List[str], str]:
+        """
+        Extrae DNI específicamente de la zona MRZ (Machine Readable Zone).
+        
+        Args:
+            img: Imagen en color del documento
+            
+        Returns:
+            Tupla con (lista de DNIs, texto MRZ completo)
+        """
+        gray = self.preprocess_image(img, 'sharpen')
+        
+        # Configuración específica para MRZ
+        config = '--psm 6 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ<'
+        mrz_text = pytesseract.image_to_string(gray, config=config)
+        
+        # Buscar líneas típicas de MRZ (contienen '<<')
+        mrz_lines = [line for line in mrz_text.split('\n') if '<<' in line]
+        
+        dnis = []
+        for line in mrz_lines:
+            # Buscar secuencias de 8 dígitos
+            dnis.extend(self.dni_pattern.findall(line))
+        
+        # Si no encontramos en MRZ, buscar en todo el texto
+        if not dnis:
+            dnis.extend(self.dni_pattern.findall(mrz_text))
+        
+        return dnis, mrz_text
+    
+    def extract_dni_multi_strategy(self, img: np.ndarray) -> Tuple[Optional[str], dict]:
+        """
+        Extrae DNI usando TODAS las estrategias y vota por el mejor.
+        
+        Este es el método principal que debes usar. Combina múltiples
+        técnicas y usa votación para determinar el DNI más confiable.
+        
+        Args:
+            img: Imagen en color del documento (BGR)
+            
+        Returns:
+            Tupla con (DNI más confiable o None, diccionario de debug)
+        """
+        results = {}
+        all_dnis = []
+        
+        # Intentar extraer solo la región del documento
+        doc_region = self.extract_dni_region(img)
+        
+        # Estrategia 1: MRZ específico
+        mrz_dnis, mrz_text = self.extract_from_mrz(doc_region)
+        results['mrz'] = mrz_dnis
+        all_dnis.extend(mrz_dnis)
+        
+        # Estrategia 2-6: Diferentes preprocesamientos con PSM 6
+        strategies = ['basic', 'contrast', 'adaptive', 'denoise', 'sharpen']
+        for strategy in strategies:
+            dnis = self.extract_with_strategy(doc_region, strategy, psm_mode=6)
+            results[f'{strategy}_psm6'] = dnis
+            all_dnis.extend(dnis)
+        
+        # Estrategia 7-8: Mejores estrategias con PSM alternativo
+        for strategy in ['contrast', 'sharpen']:
+            dnis = self.extract_with_strategy(doc_region, strategy, psm_mode=11)
+            results[f'{strategy}_psm11'] = dnis
+            all_dnis.extend(dnis)
+        
+        # Votación: contar ocurrencias
+        if not all_dnis:
+            return None, results
+        
+        dni_counts = Counter(all_dnis)
+        
+        # El DNI más común es probablemente el correcto
+        most_common_dni = dni_counts.most_common(1)[0][0]
+        
+        results['vote_counts'] = dict(dni_counts)
+        results['winner'] = most_common_dni
+        results['confidence'] = dni_counts[most_common_dni] / len(all_dnis)
+        
+        return most_common_dni, results
+
+def extract_dni_from_images(img1: np.ndarray, img2: np.ndarray) -> Tuple[str, dict]:
+    """
+    Extrae DNI de las imágenes del frente y dorso del documento.
+    
+    Args:
+        img1: Imagen del frente (BGR)
+        img2: Imagen del dorso (BGR)
+        
+    Returns:
+        Tupla con (DNI encontrado, información de debug)
+        
+    Raises:
+        ValueError: Si no se encuentra ningún DNI
+    """
+    extractor = DNIExtractor(target_size=(1500, 1000))
+    
+    # Extraer de ambas imágenes
+    dni1, debug1 = extractor.extract_dni_multi_strategy(img1)
+    dni2, debug2 = extractor.extract_dni_multi_strategy(img2)
+    
+    debug_info = {
+        'front': debug1,
+        'back': debug2
+    }
+    
+    # Priorizar el resultado con mayor confianza
+    if dni1 and dni2:
+        conf1 = debug1.get('confidence', 0)
+        conf2 = debug2.get('confidence', 0)
+        
+        if conf1 >= conf2:
+            debug_info['selected'] = 'front'
+            debug_info['confidence'] = conf1
+            return dni1, debug_info
+        else:
+            debug_info['selected'] = 'back'
+            debug_info['confidence'] = conf2
+            return dni2, debug_info
+    
+    elif dni1:
+        debug_info['selected'] = 'front'
+        debug_info['confidence'] = debug1.get('confidence', 0)
+        return dni1, debug_info
+    
+    elif dni2:
+        debug_info['selected'] = 'back'
+        debug_info['confidence'] = debug2.get('confidence', 0)
+        return dni2, debug_info
+    
+    raise ValueError("No se pudo extraer el DNI de ninguna imagen")
 
 
 def _make_event(
@@ -322,167 +648,61 @@ async def add_user(session_db: SessionDep, user: Annotated[UserCreate, Form(...)
         return ORJSONResponse({"error": str(e)}, status_code=400)
     
 @private_router.post("/verify/dni")
-async def verify_dni(request: Request, dni_form: Annotated[DniForm, Form(...)], session_db: SessionDep):
-    """
-    Endpoint para extraer número de DNI de fotos del frente y dorso.
-    
-    Recibe dos imágenes (frente y dorso del DNI) y devuelve el número
-    encontrado usando OCR con múltiples estrategias de extracción.
-    
-    Args:
-        dni_form: Form con campos 'front' y 'back' (archivos de imagen)
-        
-    Returns:
-        dict: {
-            "dni": str o None - El DNI más confiable encontrado,
-        }
-    """
+async def verify_dni(request: Request, dni_form: Annotated[DniForm, Form(...)], 
+                     session_db: SessionDep):
     try:    
-        #console.print(dni_form.front.content_type, dni_form.back.content_type)
-        
-        if not dni_form.front.content_type.startswith("image/") or not dni_form.back.content_type.startswith("image/"):
-            raise HTTPException(status_code=400, detail="Files must be images")
-
         b1 = await dni_form.front.read()
         b2 = await dni_form.back.read()
         
-        if len(b1) > 8_000_000 or len(b2) > 8_000_000:
-            raise HTTPException(status_code=400, detail="Images must be smaller than 8MB")
-        
-        if not magic.from_buffer(b1, mime=True) in ['image/jpeg', 'image/png'] or not magic.from_buffer(b2, mime=True) in ['image/jpeg', 'image/png']:
-            raise HTTPException(status_code=400, detail="Files must be JPEG or PNG images")
-        
-        img_size = (1500, 1000)
-
         def bytes_to_cv2(b):
-            """
-            Convierte bytes de imagen a formato OpenCV.
-            
-            Toma datos binarios de una imagen y los convierte al formato
-            que OpenCV puede procesar para manipulación de imágenes.
-            
-            Args:
-                b (bytes): Datos binarios de la imagen
-                
-            Returns:
-                numpy.ndarray: Imagen en formato OpenCV (BGR)
-                
-            Raises:
-                ValueError: Si cv2 no puede decodificar la imagen
-            """
             arr = np.frombuffer(b, np.uint8)
             img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
             if img is None:
                 raise ValueError("cv2 no pudo decodificar la imagen")
             return img
-
+        
         img1 = bytes_to_cv2(b1)
         img2 = bytes_to_cv2(b2)
-
-        def extract_from_mrz(img_color, size: tuple[int, int]):
-            """
-            Extrae números de DNI de la zona MRZ (Machine Readable Zone).
-            
-            Busca en la zona MRZ del documento de identidad, que son las líneas
-            inferiores con caracteres especiales y '<<'. Esta zona suele contener
-            el DNI de forma más confiable que el texto impreso normal.
-            
-            Args:
-                img_color (numpy.ndarray): Imagen en color del documento
-                size (tuple): Tupla con (ancho, alto) para redimensionar
-                
-            Returns:
-                tuple: (lista_de_dnis_encontrados, texto_mrz_completo)
-                    - lista de strings con DNIs de 8 dígitos
-                    - texto completo extraído de la zona MRZ
-                    
-            Note:
-                Aplica filtros de nitidez y busca patrones específicos:
-                - Secuencias de 8 dígitos
-                - Formato XX.XXX.XXX
-                - Líneas con '<<' (características de MRZ)
-            """
-            img = cv2.resize(img_color, size)
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            
-            matriz = np.array([
-                [0,-1,0],
-                [-1,5,-1],
-                [0,-1,0]
-            ])
-            
-            gray = cv2.filter2D(src=gray, ddepth=0, kernel=matriz)
-            
-            # OCR sin restricciones para capturar toda la MRZ
-            mrz_text = pytesseract.image_to_string(gray, config="--psm 6")
-            
-            # Buscar líneas típicas de MRZ (tienen '<<' y son largas)
-            mrz_candidates = re.findall(r'.{10,}\<\<.{2,}', mrz_text.replace('\n',' '))
-            digits = []
-            
-            # En las líneas MRZ buscar secuencias de 8 dígitos
-            for m in mrz_candidates:
-                digits += re.findall(r'\d{8}', m)
-                
-            if not digits:
-                for m in mrz_candidates:
-                    digits += re.findall(r'\d{2}\.\d{3}\.\d{3}')
-                
-            # Si no encontramos nada específico, buscar en todo el texto
-            if not digits:
-                digits += re.findall(r'\d{8}', mrz_text)
-                
-            # Eliminar duplicados manteniendo el orden
-            return list(dict.fromkeys(digits)), mrz_text
-
-        mrz1, mrz_text1 = extract_from_mrz(img1, img_size)
-        mrz2, mrz_text2 = extract_from_mrz(img2, img_size)
         
-        
-        if not mrz1:
-            console.print(f"lista de valores 1: {mrz1}")
-            for _ in range(5):
-                mrz1, mrz_text1 = extract_from_mrz(img1, img_size)
-                
-        if not mrz2:
-            console.print(f"lista de valores 2: {mrz2}")
-            for _ in range(5):
-                mrz2, mrz_text2 = extract_from_mrz(img2, img_size)
-                
-                
-        console.print(mrz_text1)
-
-        if not mrz1 and not mrz2:
-            raise HTTPException(status_code=400, detail="No DNI found in images")
-
         try:
-            user = session_db.get(User, request.state.user.id)
-            
-            if not user:
-                raise HTTPException(status_code=404, detail="User not found")
-
-            pre_change_dni = user.dni
-
-            user.dni = mrz1[0] if mrz1 else mrz2[0]
-
-            session_db.add(user)
-            session_db.commit()
-            session_db.refresh(user)
-
-            assert user.dni == pre_change_dni, "DNI did not change"
-
-        except Exception as e:
-            console.print_exception(show_locals=True)
-            raise HTTPException(status_code=400, detail=f"Invalid images or OCR error: {str(e)}")
-
+            dni, debug_info = extract_dni_from_images(img1, img2)
+            console.print(f"DNI extraído: {dni}")
+            console.print(f"Confianza: {debug_info['confidence']:.2%}")
+            console.print(f"Fuente: {debug_info['selected']}")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        
+        # Actualizar usuario
+        user = session_db.get(User, request.state.user.id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        pre_change_dni = user.dni
+        user.dni = dni
+        session_db.add(user)
+        session_db.commit()
+        session_db.refresh(user)
+        
+        # Verificar cambio
+        if user.dni != dni:
+            session_db.rollback()
+            raise HTTPException(status_code=500, 
+                              detail="Error al actualizar el DNI")
+        
         return {
-            "dni":[mrz1, mrz2],
+            "dni": dni,
+            "dni_anterior": pre_change_dni,
+            "confidence": debug_info['confidence'],
+            "source": debug_info['selected'],
             "status": "success"
         }
-
+        
+    except HTTPException:
+        raise
     except Exception as e:
         console.print_exception(show_locals=True)
-        raise HTTPException(status_code=400, detail=f"Invalid images or OCR error: {str(e)}")
+        raise HTTPException(status_code=400, 
+                          detail=f"Error procesando las imágenes: {str(e)}")
 
 @private_router.delete("/delete/{user_id}/", response_model=UserDelete)
 async def delete_user(request: Request, user_id: UUID, session_db: SessionDep):

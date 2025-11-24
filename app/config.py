@@ -56,6 +56,7 @@ REDIS_SSL = os.getenv("REDIS_SSL") == "True"
 STORAGE_DIR_NAME = os.getenv("STORAGE_DIR_NAME", "sets")
 
 CORS_HOST = os.getenv("DOMINIO")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:4200")
 
 TOKEN_KEY = os.getenv("TOKEN_KEY")
 TOKEN_EXPIRE_MINUTES = int(os.getenv("TOKEN_EXPIRE_MINUTES", 240))

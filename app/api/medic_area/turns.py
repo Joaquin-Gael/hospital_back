@@ -99,7 +99,7 @@ def get_turn_with_relations(
             selectinload(Turns.services)
             .selectinload(Services.speciality)
             .selectinload(Specialties.departament),
-            selectinload(Turns.payment).selectinload(Payment.items),
+            selectinload(Turns.payment).selectinload(Payment.items),  # ✅ Corregido: payment (singular)
         )
     )
 
@@ -286,7 +286,7 @@ async def get_turns(request: Request, session: SessionDep):
 
     statement = select(Turns)
     statement = statement.options(
-        selectinload(Turns.payment).selectinload(Payment.items),
+        selectinload(Turns.payment).selectinload(Payment.items),  # ✅ Corregido: payment (singular)
         selectinload(Turns.services),
         selectinload(Turns.doctor),
     )
@@ -558,7 +558,7 @@ async def get_turns_by_user_id(
         .selectinload(Turns.services)
         .selectinload(Services.speciality)
         .selectinload(Specialties.departament),
-        selectinload(User.turns).selectinload(Turns.payment).selectinload(Payment.items),
+        selectinload(User.turns).selectinload(Turns.payment).selectinload(Payment.items),  # ✅ Corregido: payment (singular)
     )
 
     def _load_user_with_turns(target_user_id: UUID) -> User | None:
@@ -619,7 +619,7 @@ async def get_turns_by_user_id(
                 user_id=turn.user_id,
                 time=turn.time,
                 payment=(
-                    PaymentRead.model_validate(turn.payment, from_attributes=True)
+                    PaymentRead.model_validate(turn.payment, from_attributes=True)  # ✅ Corregido: turn.payment (singular)
                     if turn.payment
                     else None
                 ),

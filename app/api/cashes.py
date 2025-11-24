@@ -1,6 +1,8 @@
 from fastapi import APIRouter, status, HTTPException, Request
 from fastapi.params import Query, Depends
 from fastapi.responses import Response, ORJSONResponse
+from app.models import PaymentStatus
+from app.core.services.payment import PaymentService
 
 from typing import List
 from uuid import UUID
@@ -13,6 +15,7 @@ from app.schemas.cashes import CashesRead, CashesCreate, CashesUpdate
 from app.core.auth import JWTBearer
 from app.db.main import SessionDep
 from app.models import Cashes
+from app.config import FRONTEND_URL  # ✅ Importar
 from app.audit import (
     AuditAction,
     AuditEmitter,
@@ -23,6 +26,7 @@ from app.audit import (
     get_audit_emitter,
     get_request_identifier,
 )
+import stripe
 
 console = Console()
 
@@ -59,32 +63,54 @@ def _make_event(
 @public_router.get("/pay/success")
 async def pay_success(
     request: Request,
+    session: SessionDep,
     session_id: str | None = Query(None),
     emitter: AuditEmitter = Depends(get_audit_emitter),
 ):
     """
-    Callback de éxito para Stripe (uso solo para redirecciones).
-
-    El estado del pago ahora se procesa mediante webhooks.
-    Este endpoint se mantiene para no romper los flujos
-    existentes del frontend y solo genera un evento de auditoría
-    antes de redirigir al panel del usuario.
+    Callback de éxito para Stripe.
+    
+    Actualiza el estado del pago como fallback si el webhook no se procesó.
     """
     try:
-        await emitter.emit_event(
-            _make_event(
-                request,
-                action=AuditAction.PAYMENT_SUCCEEDED,
-                target_id=None,
-                details={
-                    "note": "Stripe redirect callback deprecated; payment handled via webhook",
-                    "session_id": session_id,
-                },
-            )
-        )
+        # Buscar el pago por session_id
+        if session_id:
+            payment_service = PaymentService(session)
+            payment = payment_service.get_payment_by_session(session_id)
+            
+            if payment:
+                # Verificar con Stripe el estado real
+                stripe_session = stripe.checkout.Session.retrieve(session_id)
+                
+                # Actualizar solo si el pago fue exitoso en Stripe
+                if stripe_session.payment_status == "paid" and payment.status == PaymentStatus.pending:
+                    payment_service.update_status(
+                        payment,
+                        PaymentStatus.succeeded,
+                        gateway_metadata={
+                            **(payment.gateway_metadata or {}),
+                            "updated_via": "success_callback",
+                            "stripe_payment_status": stripe_session.payment_status,
+                        }
+                    )
+                    
+                    await emitter.emit_event(
+                        _make_event(
+                            request,
+                            action=AuditAction.PAYMENT_SUCCEEDED,
+                            target_id=payment.id,
+                            details={
+                                "session_id": session_id,
+                                "payment_id": str(payment.id),
+                                "updated_via": "callback_fallback",
+                            },
+                        )
+                    )
+        
+        # ✅ Usar variable de entorno
         return Response(
             status_code=302,
-            headers={"Location": "http://localhost:4200/user_panel/appointments?success=true"},
+            headers={"Location": f"{FRONTEND_URL}/user_panel/appointments?success=true"},
         )
 
     except Exception as e:
@@ -93,17 +119,13 @@ async def pay_success(
 
 
 @public_router.get("/pay/cancel")
-async def pay_cansel(
+async def pay_cancel(
     request: Request,
     session_id: str | None = Query(None),
     emitter: AuditEmitter = Depends(get_audit_emitter),
 ):
     """
     Callback de cancelación para Stripe (solo redirección).
-
-    El estado del pago ahora se determina con el webhook
-    `/webhooks/stripe`. Este endpoint permanece como respaldo
-    para redireccionar y auditar la acción del usuario.
     """
     try:
         await emitter.emit_event(
@@ -118,7 +140,12 @@ async def pay_cansel(
                 },
             )
         )
-        return Response(status_code=302, headers={"Location": "http://localhost:4200/user_panel/appointments"})
+        
+        # ✅ Usar variable de entorno
+        return Response(
+            status_code=302,
+            headers={"Location": f"{FRONTEND_URL}/user_panel/appointments"}
+        )
 
     except Exception as e:
         console.print_exception(show_locals=True)
@@ -127,33 +154,7 @@ async def pay_cansel(
 
 @private_router.get("/", response_model=List[CashesRead])
 async def get_cashes(request: Request, session: SessionDep):
-    """
-    Obtiene todos los registros de transacciones del sistema de cajas.
-    
-    Lista todas las transacciones financieras (ingresos y gastos) 
-    registradas en el sistema. Solo accesible por administradores.
-    
-    Args:
-        request (Request): Request con información de autenticación
-        session (SessionDep): Sesión de base de datos
-        
-    Returns:
-        ORJSONResponse: Lista de transacciones serializadas con:
-            - id: ID de la transacción
-            - income: Monto de ingreso
-            - expense: Monto de gasto  
-            - date: Fecha de la transacción
-            - time_transaction: Hora de la transacción
-            - balance: Balance después de la transacción
-            
-    Raises:
-        HTTPException: 401 si no tiene scopes de administrador
-        
-    Note:
-        - Requiere scope "admin" para acceso
-        - Incluye todas las transacciones históricas
-        - Útil para reportes financieros y auditorías
-    """
+    """Obtiene todos los registros de transacciones del sistema de cajas."""
     if "admin" not in request.state.scopes:
         raise HTTPException(
             status_code=401,
